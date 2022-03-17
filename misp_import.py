@@ -107,12 +107,7 @@ class IntelAPIClient:
         valid_reports = [report for report in reports if self._is_valid_report(report)]
         return valid_reports
 
-    def get_indicators(self, start_time, include_deleted, push_func = None):
-        """Get all the indicators that were updated after a certain moment in time (UNIX).
-
-        :param start_time: unix time of the oldest indicator you want to pull
-        :param include_deleted [bool]: include indicators marked as deleted
-        """
+    def _paginate_indicators(self, start_time, include_deleted):
         indicators = []
         indicators_in_request = []
         first_run = True
@@ -125,7 +120,6 @@ class IntelAPIClient:
             if include_deleted:
                 params['include_deleted'] = True
 
-            
             resp_json = self.falcon.query_indicator_entities(parameters=params)["body"]
 
             first_run = False
@@ -141,16 +135,28 @@ class IntelAPIClient:
                 logging.info(log_msg)
             else:
                 break
-            # Push the indicator to MISP using a seperate thread
-            if push_func is not None:
-                concurrent.futures.ThreadPoolExecutor().submit(push_func, indicators_in_request)
 
-            indicators.extend(indicators_in_request)
+            yield indicators_in_request
 
             last_marker = indicators_in_request[-1].get('_marker', '')
             if last_marker == '':
                 break
             start_time = last_marker
+
+    def get_indicators(self, start_time, include_deleted, push_func = None):
+        """Get all the indicators that were updated after a certain moment in time (UNIX).
+
+        :param start_time: unix time of the oldest indicator you want to pull
+        :param include_deleted [bool]: include indicators marked as deleted
+        """
+        indicators = []
+
+        for indicators_in_request in self._paginate_indicators(start_time, include_deleted):
+            # Push the indicator to MISP using a seperate thread
+            if push_func is not None:
+                concurrent.futures.ThreadPoolExecutor().submit(push_func, indicators_in_request)
+
+            indicators.extend(indicators_in_request)
 
         return indicators
 
