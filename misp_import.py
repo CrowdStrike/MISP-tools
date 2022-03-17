@@ -113,63 +113,9 @@ class IntelAPIClient:
         :param start_time: unix time of the oldest indicator you want to pull
         :param include_deleted [bool]: include indicators marked as deleted
         """
-        def _do_query(start):
-            params = {"sort": "_marker.asc",
-                      "filter": f"_marker:>='{start}'",
-                      'limit': self.request_size_limit,
-                      }
-            if include_deleted:
-                params['include_deleted'] = True
-
-            resp_json = self.falcon.query_indicator_entities(parameters=params)["body"]
-
-            indicators_in_request = resp_json.get('resources', [])
-            if indicators_in_request:
-                total_found = reduce(lambda d, key: d.get(key, None) if isinstance(d, dict) else None,
-                                     "meta.pagination.total".split("."),
-                                     resp_json
-                                     )
-                log_msg = f"Retrieved {len(indicators_in_request)} of {total_found} remaining indicators."
-                print(log_msg)
-                logging.info(log_msg)
-            # else:
-            #     break
-                # Push the indicator to MISP using a seperate thread
-                if push_func is not None:
-                    #push_func(indicators_in_request)
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        executor.submit(push_func, indicators_in_request)
-                    # concurrent.futures.ThreadPoolExecutor().submit(push_func, indicators_in_request)
-
-#            indicators.extend(indicators_in_request)
-
-            # last_marker = indicators_in_request[-1].get('_marker', '')
-
-            return indicators_in_request
-
-            
-
         indicators = []
         indicators_in_request = []
         first_run = True
-
-        # THREADED
-        # with concurrent.futures.ThreadPoolExecutor(max_workers=40) as executor:
-        #     futures = {
-        #         executor.submit(_do_query, start_time)
-        #     }
-        #     while futures:
-        #         done, futures = concurrent.futures.wait(
-        #             futures, return_when=concurrent.futures.FIRST_COMPLETED
-        #         )
-        #         for fut in done:
-        #             returned = fut.result()
-        #             if indicators:
-        #                 indicators.extend(returned)
-        #                 last_marker = returned[-1].get('_marker', '')
-        #                 futures.add(executor.submit(_do_query, last_marker))
-
-        # ORIGINAL CODE
 
         while len(indicators_in_request) == self.request_size_limit or first_run:
             params = {"sort": "_marker.asc",
@@ -197,11 +143,6 @@ class IntelAPIClient:
                 break
             # Push the indicator to MISP using a seperate thread
             if push_func is not None:
-                #with concurrent.futures.ProcessPoolExecutor() as executor:
-                # Might play with the max_workers value a bit
-                
-                #with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-                #    executor.submit(push_func, indicators_in_request)
                 concurrent.futures.ThreadPoolExecutor().submit(push_func, indicators_in_request)
 
             indicators.extend(indicators_in_request)
