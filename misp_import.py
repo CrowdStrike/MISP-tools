@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """CrowdStrike Falcon Intel API to MISP Import utility.
 
  ___ ___ ___ _______ _______
