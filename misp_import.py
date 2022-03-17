@@ -891,9 +891,8 @@ class CrowdstrikeToMISPImporter:
             tags.append(self.unique_tags["actors"])
 
         if clean_reports or clean_indicators or clean_actors:
-            events = self.misp_client.search_index(tags=tags)
-            for event in events:
-                self.misp_client.delete_event(event)
+            with concurrent.futures.ThreadPoolExecutor(10) as executor:
+                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags))
             logging.info("Finished cleaning up Crowdstrike related events from MISP.")
 
     def clean_old_crowdstrike_events(self, max_age):
