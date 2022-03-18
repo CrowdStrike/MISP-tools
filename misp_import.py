@@ -38,6 +38,8 @@ from configparser import ConfigParser, ExtendedInterpolation
 import datetime
 import logging
 import os
+import requests
+import time
 from enum import Enum
 from functools import reduce
 import urllib3
@@ -46,6 +48,9 @@ import itertools
 import atexit
 from falconpy import Intel
 from pymisp import ExpandedPyMISP, MISPObject, MISPEvent, MISPAttribute, MISPOrganisation
+
+
+MAX_THREAD_COUNT = min(32, (os.cpu_count() or 1) * 4)
 
 
 def graceful_close():
@@ -107,8 +112,12 @@ class IntelAPIClient:
         valid_reports = [report for report in reports if self._is_valid_report(report)]
         return valid_reports
 
-    def _paginate_indicators(self, start_time, include_deleted):
-        indicators = []
+    def get_indicators(self, start_time, include_deleted):
+        """Get all the indicators that were updated after a certain moment in time (UNIX).
+
+        :param start_time: unix time of the oldest indicator you want to pull
+        :param include_deleted [bool]: include indicators marked as deleted
+        """
         indicators_in_request = []
         first_run = True
 
@@ -143,23 +152,6 @@ class IntelAPIClient:
                 break
             start_time = last_marker
 
-    def get_indicators(self, start_time, include_deleted, push_func = None):
-        """Get all the indicators that were updated after a certain moment in time (UNIX).
-
-        :param start_time: unix time of the oldest indicator you want to pull
-        :param include_deleted [bool]: include indicators marked as deleted
-        """
-        indicators = []
-
-        for indicators_in_request in self._paginate_indicators(start_time, include_deleted):
-            # Push the indicator to MISP using a seperate thread
-            if push_func is not None:
-                concurrent.futures.ThreadPoolExecutor().submit(push_func, indicators_in_request)
-
-            indicators.extend(indicators_in_request)
-
-        return indicators
-
     def get_actors(self, start_time):
         """Get all the actors that were updated after a certain moment in time (UNIX).
 
@@ -191,6 +183,33 @@ class IntelAPIClient:
                 or (resp_json.get('meta', {}).get('pagination', {}).get('limit') is None):
             raise Exception(f'Unable to decode pagination metadata from response. Response is {resp_json}.')
 
+
+class MISP(ExpandedPyMISP):
+    MAX_RETRIES = 3
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._PyMISP__session.mount('https://', requests.adapters.HTTPAdapter(pool_connections=MAX_THREAD_COUNT, pool_maxsize=MAX_THREAD_COUNT))
+
+    def delete_event(self, event, *args, **kwargs):
+        for i in range(self.MAX_RETRIES):
+            try:
+                response = super().delete_event(event, *args, **kwargs)
+                if 'errors' not in response:
+                    return
+
+                if i + 1 < self.MAX_RETRIES:
+                    timeout = 0.3 * 2 ** i
+                    logging.warning('Caught an error from MISP server: %s. Re-trying the request %f seconds', response['errors'], timeout)
+                    time.sleep(timeout)
+                else:
+                    logging.warning('Caught an error from MISP server: %s. Exceeded number of retries', response['errors'])
+            except Exception as e:
+                if i + 1 < self.MAX_RETRIES:
+                    timeout = 0.3 * 2 ** i
+                    logging.warning('Caught an error from MISP server. Re-trying the request %f seconds', timeout)
+                    time.sleep(timeout)
+                else:
+                    logging.exception('Caught an error from MISP server. Exceeded number of retries')
 
 class ReportsImporter:
     """Tool used to import reports from the Crowdstrike Intel API and push them as events in MISP through the MISP API."""
@@ -372,10 +391,17 @@ class IndicatorsImporter:
         self.get_cs_reports_from_misp() # Added to occur before
         logging.info("Started getting indicators from Crowdstrike Intel API and pushing them in MISP.")
         time_send_request = datetime.datetime.now()
-        indicators = self.intel_api_client.get_indicators(start_get_events, self.delete_outdated, self.push_indicators)
-        logging.info("Got %i indicators from the Crowdstrike Intel API.", len(indicators))
 
-        if len(indicators) == 0:
+        indicators_count = 0
+        for indicators_page in self.intel_api_client.get_indicators(start_get_events, self.delete_outdated):
+            with concurrent.futures.ThreadPoolExecutor(MAX_THREAD_COUNT) as executor:
+                executor.submit(self.push_indicators, indicators_page)
+
+            indicators_count += len(indicators_page)
+
+        logging.info("Got %i indicators from the Crowdstrike Intel API.", indicators_count)
+
+        if indicators_count == 0:
             with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
                 ts_file.write(time_send_request.strftime("%s"))
         #else:
@@ -451,91 +477,10 @@ class IndicatorsImporter:
 
             return indicator.get("id", True)
 
-
-
-        THREAD_COUNT = 20
         if events_already_imported == None:
             events_already_imported = self.already_imported
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            
-            futures = {
-                executor.submit(threaded_indicator_push, task)
-                for task in itertools.islice(indicators, THREAD_COUNT)
-            }
-        while futures:
-            done, futures = concurrent.futures.wait(
-                futures, return_when=concurrent.futures.FIRST_COMPLETED
-            )
-            for fut in done:
-                logging.debug("Thread completed %s.", fut.result())
-
-            for task in itertools.islice(indicators, len(done)):
-                futures.add(
-                    executor.submit(threaded_indicator_push, task)
-                )
-
-        # for ind in indicators:
-        #     threaded_indicator_push(ind)
-            # if self.import_all_indicators or len(indicator.get('reports', [])) > 0:
-
-            #     indicator_name = indicator.get('indicator')
-
-            #     if self.delete_outdated and indicator_name is not None and indicator.get('deleted', False):
-            #         events = self.misp.search_index(eventinfo=indicator_name, pythonify=True)
-            #         for event in events:
-            #             self.misp.delete_event(event)
-            #             try:
-            #                 events_already_imported.pop(indicator_name)
-            #             except Exception as err:
-            #                 logging.debug("indicator %s was marked as deleted in intel API but is not stored in MISP."
-            #                               " skipping.\n%s",
-            #                               indicator_name,
-            #                               str(err)
-            #                               )
-            #             logging.warning('deleted indicator %s', indicator_name)
-            #         continue
-
-            #     if indicator_name is not None:
-            #         if events_already_imported.get(indicator_name) is not None:
-            #             continue
-
-            #     self.__create_object_for_indicator(indicator)
-
-            #     related_to_a_misp_report = False
-            #     indicator_value = indicator.get('indicator')
-            #     if indicator_value:
-            #         for report in indicator.get('reports', []):
-            #             event = self.reports_ids.get(report)
-            #             if event:
-            #                 related_to_a_misp_report = True
-            #                 indicator_object = self.__create_object_for_indicator(indicator)
-            #                 if indicator_object:
-            #                     try:
-            #                         if isinstance(indicator_object, MISPObject):
-            #                             self.misp.add_object(event, indicator_object, True)
-            #                         elif isinstance(indicator_object, MISPAttribute):
-            #                             self.misp.add_attribute(event, indicator_object, True)
-            #                     except Exception as err:
-            #                         logging.warning("Could not add object or attribute %s for event %s.\n%s",
-            #                                         indicator_object,
-            #                                         event,
-            #                                         str(err)
-            #                                         )
-            #     else:
-            #         logging.warning("Indicator %s missing indicator field.", indicator.get('id'))
-
-            #     if related_to_a_misp_report or self.import_all_indicators:
-            #         self.__add_indicator_event(indicator)
-            #         if indicator_name is not None:
-            #             events_already_imported[indicator_name] = True
-
-            # if indicator.get('last_updated') is None:
-            #     logging.warning("Failed to confirm indicator %s in file.", indicator)
-            #     continue
-
-            # with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-            #     ts_file.write(str(indicator.get('last_updated')))
-            
+        with concurrent.futures.ThreadPoolExecutor(MAX_THREAD_COUNT) as executor:
+            executor.map(threaded_indicator_push, indicators)
         logging.info("Pushed %i indicators to MISP.", len(indicators))
 
     def __add_indicator_event(self, indicator):
@@ -846,11 +791,7 @@ class CrowdstrikeToMISPImporter:
                 logging.error(err_msg)
                 raise SystemExit(err_msg) from err
 
-        self.misp_client = ExpandedPyMISP(import_settings["misp_url"],
-                                          import_settings["misp_auth_key"],
-                                          import_settings["misp_enable_ssl"],
-                                          False
-                                          )
+        self.misp_client = MISP(import_settings["misp_url"], import_settings["misp_auth_key"], import_settings["misp_enable_ssl"], False)
         self.config = provided_arguments
         self.settings = settings
         self.unique_tags = {
@@ -891,7 +832,7 @@ class CrowdstrikeToMISPImporter:
             tags.append(self.unique_tags["actors"])
 
         if clean_reports or clean_indicators or clean_actors:
-            with concurrent.futures.ThreadPoolExecutor(10) as executor:
+            with concurrent.futures.ThreadPoolExecutor(MAX_THREAD_COUNT) as executor:
                 executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags))
             logging.info("Finished cleaning up Crowdstrike related events from MISP.")
 
@@ -905,8 +846,8 @@ class CrowdstrikeToMISPImporter:
                                                    ],
                                              timestamp=[0, timestamp_max]
                                              )
-            for event in events:
-                self.misp_client.delete_event(event)
+            with concurrent.futures.ThreadPoolExecutor(MAX_THREAD_COUNT) as executor:
+                executor.map(self.misp_client.delete_event, events)
             logging.info("Finished cleaning up Crowdstrike related events from MISP.")
 
     def import_from_crowdstrike(self,
