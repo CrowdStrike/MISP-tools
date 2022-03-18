@@ -474,9 +474,6 @@ class IndicatorsImporter:
 
             return indicator.get("id", True)
 
-
-
-        THREAD_COUNT = 20
         if events_already_imported == None:
             events_already_imported = self.already_imported
         with concurrent.futures.ThreadPoolExecutor() as executor:
