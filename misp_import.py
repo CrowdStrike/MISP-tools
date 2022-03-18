@@ -38,6 +38,7 @@ from configparser import ConfigParser, ExtendedInterpolation
 import datetime
 import logging
 import os
+import requests
 import time
 from enum import Enum
 from functools import reduce
@@ -182,6 +183,10 @@ class IntelAPIClient:
 
 class MISP(ExpandedPyMISP):
     MAX_RETRIES = 3
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._PyMISP__session.mount('https://', requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=20))
+
     def delete_event(self, event, *args, **kwargs):
         for i in range(self.MAX_RETRIES):
             try:
