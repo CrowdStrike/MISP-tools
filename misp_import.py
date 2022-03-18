@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """CrowdStrike Falcon Intel API to MISP Import utility.
 
  ___ ___ ___ _______ _______
@@ -27,7 +29,7 @@ BUT NOT LIMITED TO, LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOW
 LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 THE USE OF THE TOOLS, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-© Copyright CrowdStrike 2019-2021
+© Copyright CrowdStrike 2019-2022
 """
 import argparse
 from concurrent.futures import thread
@@ -105,69 +107,10 @@ class IntelAPIClient:
         valid_reports = [report for report in reports if self._is_valid_report(report)]
         return valid_reports
 
-    def get_indicators(self, start_time, include_deleted, push_func = None):
-        """Get all the indicators that were updated after a certain moment in time (UNIX).
-
-        :param start_time: unix time of the oldest indicator you want to pull
-        :param include_deleted [bool]: include indicators marked as deleted
-        """
-        def _do_query(start):
-            params = {"sort": "_marker.asc",
-                      "filter": f"_marker:>='{start}'",
-                      'limit': self.request_size_limit,
-                      }
-            if include_deleted:
-                params['include_deleted'] = True
-
-            resp_json = self.falcon.query_indicator_entities(parameters=params)["body"]
-
-            indicators_in_request = resp_json.get('resources', [])
-            if indicators_in_request:
-                total_found = reduce(lambda d, key: d.get(key, None) if isinstance(d, dict) else None,
-                                     "meta.pagination.total".split("."),
-                                     resp_json
-                                     )
-                log_msg = f"Retrieved {len(indicators_in_request)} of {total_found} remaining indicators."
-                print(log_msg)
-                logging.info(log_msg)
-            # else:
-            #     break
-                # Push the indicator to MISP using a seperate thread
-                if push_func is not None:
-                    #push_func(indicators_in_request)
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        executor.submit(push_func, indicators_in_request)
-                    # concurrent.futures.ThreadPoolExecutor().submit(push_func, indicators_in_request)
-
-#            indicators.extend(indicators_in_request)
-
-            # last_marker = indicators_in_request[-1].get('_marker', '')
-
-            return indicators_in_request
-
-            
-
+    def _paginate_indicators(self, start_time, include_deleted):
         indicators = []
         indicators_in_request = []
         first_run = True
-
-        # THREADED
-        # with concurrent.futures.ThreadPoolExecutor(max_workers=40) as executor:
-        #     futures = {
-        #         executor.submit(_do_query, start_time)
-        #     }
-        #     while futures:
-        #         done, futures = concurrent.futures.wait(
-        #             futures, return_when=concurrent.futures.FIRST_COMPLETED
-        #         )
-        #         for fut in done:
-        #             returned = fut.result()
-        #             if indicators:
-        #                 indicators.extend(returned)
-        #                 last_marker = returned[-1].get('_marker', '')
-        #                 futures.add(executor.submit(_do_query, last_marker))
-
-        # ORIGINAL CODE
 
         while len(indicators_in_request) == self.request_size_limit or first_run:
             params = {"sort": "_marker.asc",
@@ -177,7 +120,6 @@ class IntelAPIClient:
             if include_deleted:
                 params['include_deleted'] = True
 
-            
             resp_json = self.falcon.query_indicator_entities(parameters=params)["body"]
 
             first_run = False
@@ -193,21 +135,28 @@ class IntelAPIClient:
                 logging.info(log_msg)
             else:
                 break
-            # Push the indicator to MISP using a seperate thread
-            if push_func is not None:
-                #with concurrent.futures.ProcessPoolExecutor() as executor:
-                # Might play with the max_workers value a bit
-                
-                #with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-                #    executor.submit(push_func, indicators_in_request)
-                concurrent.futures.ThreadPoolExecutor().submit(push_func, indicators_in_request)
 
-            indicators.extend(indicators_in_request)
+            yield indicators_in_request
 
             last_marker = indicators_in_request[-1].get('_marker', '')
             if last_marker == '':
                 break
             start_time = last_marker
+
+    def get_indicators(self, start_time, include_deleted, push_func = None):
+        """Get all the indicators that were updated after a certain moment in time (UNIX).
+
+        :param start_time: unix time of the oldest indicator you want to pull
+        :param include_deleted [bool]: include indicators marked as deleted
+        """
+        indicators = []
+
+        for indicators_in_request in self._paginate_indicators(start_time, include_deleted):
+            # Push the indicator to MISP using a seperate thread
+            if push_func is not None:
+                concurrent.futures.ThreadPoolExecutor().submit(push_func, indicators_in_request)
+
+            indicators.extend(indicators_in_request)
 
         return indicators
 
@@ -942,9 +891,8 @@ class CrowdstrikeToMISPImporter:
             tags.append(self.unique_tags["actors"])
 
         if clean_reports or clean_indicators or clean_actors:
-            events = self.misp_client.search_index(tags=tags)
-            for event in events:
-                self.misp_client.delete_event(event)
+            with concurrent.futures.ThreadPoolExecutor(10) as executor:
+                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags))
             logging.info("Finished cleaning up Crowdstrike related events from MISP.")
 
     def clean_old_crowdstrike_events(self, max_age):
