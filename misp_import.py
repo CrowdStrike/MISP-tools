@@ -384,15 +384,15 @@ class IndicatorsImporter:
         logging.info("Started getting indicators from Crowdstrike Intel API and pushing them in MISP.")
         time_send_request = datetime.datetime.now()
 
-        indicators = []
+        indicators_count = 0
         for indicators_page in self.intel_api_client.get_indicators(start_get_events, self.delete_outdated):
             concurrent.futures.ThreadPoolExecutor().submit(self.push_indicators, indicators_page)
 
-            indicators.extend(indicators_page)
+            indicators_count += len(indicators_page)
 
-        logging.info("Got %i indicators from the Crowdstrike Intel API.", len(indicators))
+        logging.info("Got %i indicators from the Crowdstrike Intel API.", indicators_count)
 
-        if len(indicators) == 0:
+        if indicators_count == 0:
             with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
                 ts_file.write(time_send_request.strftime("%s"))
         #else:
