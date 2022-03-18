@@ -386,8 +386,7 @@ class IndicatorsImporter:
 
         indicators = []
         for indicators_page in self.intel_api_client.get_indicators(start_get_events, self.delete_outdated):
-            if self.push_indicators is not None:
-                concurrent.futures.ThreadPoolExecutor().submit(self.push_indicators, indicators_page)
+            concurrent.futures.ThreadPoolExecutor().submit(self.push_indicators, indicators_page)
 
             indicators.extend(indicators_page)
 
