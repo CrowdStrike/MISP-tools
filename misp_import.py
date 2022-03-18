@@ -50,6 +50,9 @@ from falconpy import Intel
 from pymisp import ExpandedPyMISP, MISPObject, MISPEvent, MISPAttribute, MISPOrganisation
 
 
+MAX_THREAD_COUNT = min(32, (os.cpu_count() or 1) * 4)
+
+
 def graceful_close():
     print("Shutting down background threads, please wait...")
 
@@ -185,7 +188,7 @@ class MISP(ExpandedPyMISP):
     MAX_RETRIES = 3
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._PyMISP__session.mount('https://', requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=20))
+        self._PyMISP__session.mount('https://', requests.adapters.HTTPAdapter(pool_connections=MAX_THREAD_COUNT, pool_maxsize=MAX_THREAD_COUNT))
 
     def delete_event(self, event, *args, **kwargs):
         for i in range(self.MAX_RETRIES):
@@ -391,7 +394,7 @@ class IndicatorsImporter:
 
         indicators_count = 0
         for indicators_page in self.intel_api_client.get_indicators(start_get_events, self.delete_outdated):
-            with concurrent.futures.ThreadPoolExecutor() as executor:
+            with concurrent.futures.ThreadPoolExecutor(MAX_THREAD_COUNT) as executor:
                 executor.submit(self.push_indicators, indicators_page)
 
             indicators_count += len(indicators_page)
@@ -476,7 +479,7 @@ class IndicatorsImporter:
 
         if events_already_imported == None:
             events_already_imported = self.already_imported
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(MAX_THREAD_COUNT) as executor:
             executor.map(threaded_indicator_push, indicators)
         logging.info("Pushed %i indicators to MISP.", len(indicators))
 
@@ -829,7 +832,7 @@ class CrowdstrikeToMISPImporter:
             tags.append(self.unique_tags["actors"])
 
         if clean_reports or clean_indicators or clean_actors:
-            with concurrent.futures.ThreadPoolExecutor(10) as executor:
+            with concurrent.futures.ThreadPoolExecutor(MAX_THREAD_COUNT) as executor:
                 executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags))
             logging.info("Finished cleaning up Crowdstrike related events from MISP.")
 
@@ -843,7 +846,7 @@ class CrowdstrikeToMISPImporter:
                                                    ],
                                              timestamp=[0, timestamp_max]
                                              )
-            with concurrent.futures.ThreadPoolExecutor(10) as executor:
+            with concurrent.futures.ThreadPoolExecutor(MAX_THREAD_COUNT) as executor:
                 executor.map(self.misp_client.delete_event, events)
             logging.info("Finished cleaning up Crowdstrike related events from MISP.")
 
