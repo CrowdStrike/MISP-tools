@@ -38,6 +38,7 @@ from configparser import ConfigParser, ExtendedInterpolation
 import datetime
 import logging
 import os
+import time
 from enum import Enum
 from functools import reduce
 import urllib3
@@ -193,7 +194,27 @@ class IntelAPIClient:
 
 
 class MISP(ExpandedPyMISP):
-    pass
+    MAX_RETRIES = 3
+    def delete_event(self, event, *args, **kwargs):
+        for i in range(self.MAX_RETRIES):
+            try:
+                response = super().delete_event(event, *args, **kwargs)
+                if 'errors' not in response:
+                    return
+
+                if i + 1 < self.MAX_RETRIES:
+                    timeout = 0.3 * 2 ** i
+                    logging.warning('Caught an error from MISP server: %s. Re-trying the request %f seconds', response['errors'], timeout)
+                    time.sleep(timeout)
+                else:
+                    logging.warning('Caught an error from MISP server: %s. Exceeded number of retries', response['errors'])
+            except Exception as e:
+                if i + 1 < self.MAX_RETRIES:
+                    timeout = 0.3 * 2 ** i
+                    logging.warning('Caught an error from MISP server. Re-trying the request %f seconds', timeout)
+                    time.sleep(timeout)
+                else:
+                    logging.exception('Caught an error from MISP server. Exceeded number of retries')
 
 class ReportsImporter:
     """Tool used to import reports from the Crowdstrike Intel API and push them as events in MISP through the MISP API."""
