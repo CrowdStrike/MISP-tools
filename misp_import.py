@@ -905,8 +905,8 @@ class CrowdstrikeToMISPImporter:
                                                    ],
                                              timestamp=[0, timestamp_max]
                                              )
-            for event in events:
-                self.misp_client.delete_event(event)
+            with concurrent.futures.ThreadPoolExecutor(10) as executor:
+                executor.map(self.misp_client.delete_event, events)
             logging.info("Finished cleaning up Crowdstrike related events from MISP.")
 
     def import_from_crowdstrike(self,
