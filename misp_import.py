@@ -386,7 +386,8 @@ class IndicatorsImporter:
 
         indicators_count = 0
         for indicators_page in self.intel_api_client.get_indicators(start_get_events, self.delete_outdated):
-            concurrent.futures.ThreadPoolExecutor().submit(self.push_indicators, indicators_page)
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                executor.submit(self.push_indicators, indicators_page)
 
             indicators_count += len(indicators_page)
 
