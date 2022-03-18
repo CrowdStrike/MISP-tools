@@ -475,23 +475,7 @@ class IndicatorsImporter:
         if events_already_imported == None:
             events_already_imported = self.already_imported
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            
-            futures = {
-                executor.submit(threaded_indicator_push, task)
-                for task in itertools.islice(indicators, THREAD_COUNT)
-            }
-        while futures:
-            done, futures = concurrent.futures.wait(
-                futures, return_when=concurrent.futures.FIRST_COMPLETED
-            )
-            for fut in done:
-                logging.debug("Thread completed %s.", fut.result())
-
-            for task in itertools.islice(indicators, len(done)):
-                futures.add(
-                    executor.submit(threaded_indicator_push, task)
-                )
-
+            executor.map(threaded_indicator_push, indicators)
         logging.info("Pushed %i indicators to MISP.", len(indicators))
 
     def __add_indicator_event(self, indicator):
