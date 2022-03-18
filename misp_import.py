@@ -108,8 +108,12 @@ class IntelAPIClient:
         valid_reports = [report for report in reports if self._is_valid_report(report)]
         return valid_reports
 
-    def _paginate_indicators(self, start_time, include_deleted):
-        indicators = []
+    def get_indicators(self, start_time, include_deleted):
+        """Get all the indicators that were updated after a certain moment in time (UNIX).
+
+        :param start_time: unix time of the oldest indicator you want to pull
+        :param include_deleted [bool]: include indicators marked as deleted
+        """
         indicators_in_request = []
         first_run = True
 
@@ -143,23 +147,6 @@ class IntelAPIClient:
             if last_marker == '':
                 break
             start_time = last_marker
-
-    def get_indicators(self, start_time, include_deleted, push_func = None):
-        """Get all the indicators that were updated after a certain moment in time (UNIX).
-
-        :param start_time: unix time of the oldest indicator you want to pull
-        :param include_deleted [bool]: include indicators marked as deleted
-        """
-        indicators = []
-
-        for indicators_in_request in self._paginate_indicators(start_time, include_deleted):
-            # Push the indicator to MISP using a seperate thread
-            if push_func is not None:
-                concurrent.futures.ThreadPoolExecutor().submit(push_func, indicators_in_request)
-
-            indicators.extend(indicators_in_request)
-
-        return indicators
 
     def get_actors(self, start_time):
         """Get all the actors that were updated after a certain moment in time (UNIX).
@@ -396,7 +383,14 @@ class IndicatorsImporter:
         self.get_cs_reports_from_misp() # Added to occur before
         logging.info("Started getting indicators from Crowdstrike Intel API and pushing them in MISP.")
         time_send_request = datetime.datetime.now()
-        indicators = self.intel_api_client.get_indicators(start_get_events, self.delete_outdated, self.push_indicators)
+
+        indicators = []
+        for indicators_page in self.intel_api_client.get_indicators(start_get_events, self.delete_outdated):
+            if self.push_indicators is not None:
+                concurrent.futures.ThreadPoolExecutor().submit(self.push_indicators, indicators_page)
+
+            indicators.extend(indicators_page)
+
         logging.info("Got %i indicators from the Crowdstrike Intel API.", len(indicators))
 
         if len(indicators) == 0:
