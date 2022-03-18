@@ -192,6 +192,9 @@ class IntelAPIClient:
             raise Exception(f'Unable to decode pagination metadata from response. Response is {resp_json}.')
 
 
+class MISP(ExpandedPyMISP):
+    pass
+
 class ReportsImporter:
     """Tool used to import reports from the Crowdstrike Intel API and push them as events in MISP through the MISP API."""
 
@@ -846,11 +849,7 @@ class CrowdstrikeToMISPImporter:
                 logging.error(err_msg)
                 raise SystemExit(err_msg) from err
 
-        self.misp_client = ExpandedPyMISP(import_settings["misp_url"],
-                                          import_settings["misp_auth_key"],
-                                          import_settings["misp_enable_ssl"],
-                                          False
-                                          )
+        self.misp_client = MISP(import_settings["misp_url"], import_settings["misp_auth_key"], import_settings["misp_enable_ssl"], False)
         self.config = provided_arguments
         self.settings = settings
         self.unique_tags = {
