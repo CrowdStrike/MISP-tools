@@ -46,28 +46,28 @@ class ActorsImporter:
         actors = self.intel_api_client.get_actors(start_get_events)
         logging.info("Got %i actors from the Crowdstrike Intel API.", len(actors))
 
-        if events_already_imported.get(self.unknown) is None:
-            unknown_actor = {
-                "name": self.unknown,
-                "url": "",
-                "short_description": "Unidentified actor",
-                "known_as": self.unknown,   
-                # "first_activity": "",
-                # "last_activity": "",    # Intetionally not populating these fields
-                # "target_countries": "",
-                # "target_regions": ""
-            }
-            create_unknown = self.create_event_from_actor(unknown_actor)
-            if not create_unknown:
-                logging.warning("Unable to create unknown actor generic event.")
-            try:
-                unkn = self.misp.add_event(create_unknown, True)
-                for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
-                    self.misp.tag(unkn, tag)
-                self.misp.tag(unkn, self.unknown)
-                events_already_imported[self.unknown] = True
-            except Exception as err:
-                logging.warning("Could not add or tag unknown actor event.")
+        # if events_already_imported.get(self.unknown) is None:
+        #     unknown_actor = {
+        #         "name": self.unknown,
+        #         "url": "",
+        #         "short_description": "Unidentified actor",
+        #         "known_as": self.unknown,   
+        #         # "first_activity": "",
+        #         # "last_activity": "",    # Intetionally not populating these fields
+        #         # "target_countries": "",
+        #         # "target_regions": ""
+        #     }
+        #     create_unknown = self.create_event_from_actor(unknown_actor)
+        #     if not create_unknown:
+        #         logging.warning("Unable to create unknown actor generic event.")
+            # try:
+            #     unkn = self.misp.add_event(create_unknown, True)
+            #     for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
+            #         self.misp.tag(unkn, tag)
+            #     self.misp.tag(unkn, self.unknown)
+            #     events_already_imported[self.unknown] = True
+            # except Exception as err:
+            #     logging.warning("Could not add or tag unknown actor event.")
 
         if len(actors) == 0:
             with open(self.actors_timestamp_filename, 'w', encoding="utf-8") as ts_file:
