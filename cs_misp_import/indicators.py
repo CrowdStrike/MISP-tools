@@ -28,7 +28,8 @@ class IndicatorsImporter:
                  indicators_timestamp_filename,
                  import_all_indicators,
                  delete_outdated,
-                 settings
+                 settings,
+                 import_settings
                  ):
         """Construct an instance of the IndicatorsImporter class."""
         self.misp = misp_client
@@ -42,6 +43,7 @@ class IndicatorsImporter:
         self.crowdstrike_org = self.misp.get_organisation(org, True)
         self.already_imported = None
         self.reports_ids = {}
+        self.import_settings = import_settings
 
     def get_cs_reports_from_misp(self):
         """Retrieve any report events in MISP based upon tag."""
@@ -218,6 +220,7 @@ class IndicatorsImporter:
                 except Exception as err:
                     logging.warning("Could not add event %s in galaxy/cluster.\n%s", event.info, str(err))
             else:
+                self.misp.tag(event, self.import_settings["unknown_mapping"])
                 logging.warning("Don't know how to map malware_family %s to a MISP galaxy.", malware_family)
 
     @staticmethod
