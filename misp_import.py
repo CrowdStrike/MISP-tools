@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""CrowdStrike Falcon Intel API to MISP Import utility.
+r"""CrowdStrike Falcon Intel API to MISP Import utility.
 
  ___ ___ ___ _______ _______
 |   Y   |   |   _   |   _   |     _______                             __
@@ -10,180 +10,44 @@
 |::.|:. |::.|::.. . |::.|                          |__|
 `--- ---`---`-------`---'                                   CrowdStrike FalconPy v0.8.0+
 
-By accessing or using this script, sample code, application programming interface, tools, and/or associated
-documentation (if any) (collectively, “Tools”), You (i) represent and warrant that You are entering into this Agreement
-on behalf of a company, organization or another legal entity (“Entity”) that is currently a customer or partner of
-CrowdStrike, Inc.(“CrowdStrike”), and (ii) have the authority to bind such Entity and such Entity agrees to be bound by
-this Agreement. CrowdStrike grants Entity a non-exclusive, non-transferable, non-sublicensable, royalty free and limited
-license to access and use the Tools solely for Entity’s internal business purposes and in accordance with its
-obligations under any agreement(s) it may have with CrowdStrike. Entity acknowledges and agrees that CrowdStrike and its
-licensors retain all right, title and interest in and to the Tools, and all intellectual property rights embodied
-therein, and that Entity has no right, title or interest therein except for the express licenses granted hereunder and
-that Entity will treat such Tools as CrowdStrike’s confidential information.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-THE TOOLS ARE PROVIDED “AS-IS” WITHOUT WARRANTY OF ANY KIND, WHETHER EXPRESS, IMPLIED OR STATUTORY OR OTHERWISE.
-CROWDSTRIKE SPECIFICALLY DISCLAIMS ALL SUPPORT OBLIGATIONS AND ALL WARRANTIES, INCLUDING WITHOUT LIMITATION, ALL IMPLIED
-WARRANTIES OF MERCHANTABILITY, FITNESS FOR PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. IN NO EVENT SHALL
-CROWDSTRIKE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-BUT NOT LIMITED TO, LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
-THE USE OF THE TOOLS, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 © Copyright CrowdStrike 2019-2022
 """
 import argparse
-from concurrent.futures import thread
 import configparser
 from configparser import ConfigParser, ExtendedInterpolation
-import datetime
 import logging
 import os
-import requests
-import time
-from enum import Enum
-from functools import reduce
 import urllib3
-import concurrent.futures
-import itertools
-import atexit
-try:
-    from falconpy import Intel
-except ImportError as no_falconpy:
-    raise SystemExit(
-        "The CrowdStrike FalconPy package must be installed to use this program."
-        ) from no_falconpy
-try:
-    from pymisp import ExpandedPyMISP, MISPObject, MISPEvent, MISPAttribute, MISPOrganisation
-except ImportError as no_pymisp:
-    raise SystemExit(
-        "The PyMISP package must be installed to use this program."
-        ) from no_pymisp
+#import signal
 from cs_misp_import import (
-    ActorsImporter, IndicatorsImporter, ReportsImporter,
-    IntelAPIClient, MISP
+    IntelAPIClient, CrowdstrikeToMISPImporter
 )
+#import concurrent.futures
 
-
-def graceful_close():
+def graceful_close(sig, event):
     print("Shutting down background threads, please wait...")
+    #with concurrent.futures.wait()
 
 
-class CrowdstrikeToMISPImporter:
-    """Tool used to import indicators and reports from the Crowdstrike Intel API.
-
-    :param intel_api_client: client for the Crowdstrike Intel API
-    :param import_settings: dictionary containing settings specified in settings.py
-    :param provided_arguments: dictionary containing provided command line arguments
-    """
-
-    def __init__(self, intel_api_client, import_settings, provided_arguments, settings):
-        """Construct an instance of the CrowdstrikeToMISPImporter class."""
-        confirm_settings = ["misp_url", "misp_auth_key", "crowdstrike_org_uuid", "reports_timestamp_filename",
-                            "indicators_timestamp_filename", "actors_timestamp_filename"
-                            ]
-        for item in confirm_settings:
-            try:
-                _ = import_settings[item]
-            except KeyError as err:
-                err_msg = ("%s value must be specified in the settings.py file."
-                           " Please check your configuration and retry.\n%s",
-                           item,
-                           err
-                           )
-                logging.error(err_msg)
-                raise SystemExit(err_msg) from err
-
-        self.misp_client = MISP(import_settings["misp_url"],
-                                import_settings["misp_auth_key"],
-                                import_settings["misp_enable_ssl"],
-                                False,
-                                max_threads=import_settings["max_threads"]
-                                )
-        self.max_threads = int(import_settings["max_threads"])
-        self.config = provided_arguments
-        self.settings = settings
-        self.unique_tags = {
-            "reports": import_settings["reports_unique_tag"],
-            "indicators": import_settings["indicators_unique_tag"],
-            "actors": import_settings["actors_unique_tag"],
-        }
-
-        self.event_ids = {}
-
-        if self.config["reports"]:
-            self.reports_importer = ReportsImporter(self.misp_client,
-                                                    intel_api_client,
-                                                    import_settings["crowdstrike_org_uuid"],
-                                                    import_settings["reports_timestamp_filename"],
-                                                    self.settings
-                                                    )
-        if self.config["related_indicators"] or self.config["all_indicators"]:
-            self.indicators_importer = IndicatorsImporter(self.misp_client, intel_api_client,
-                                                          import_settings["crowdstrike_org_uuid"],
-                                                          import_settings["indicators_timestamp_filename"],
-                                                          self.config["all_indicators"],
-                                                          self.config["delete_outdated_indicators"],
-                                                          self.settings
-                                                          )
-        if self.config["actors"]:
-            self.actors_importer = ActorsImporter(self.misp_client, intel_api_client, import_settings["crowdstrike_org_uuid"],
-                                                  import_settings["actors_timestamp_filename"], self.settings, import_settings["unknown_mapping"])
-
-    def clean_crowdstrike_events(self, clean_reports, clean_indicators, clean_actors):
-        """Delete events from a MISP instance."""
-        tags = []
-        if clean_reports:
-            tags.append(self.unique_tags["reports"])
-        if clean_indicators:
-            tags.append(self.unique_tags["indicators"])
-        if clean_actors:
-            tags.append(self.unique_tags["actors"])
-
-        if clean_reports or clean_indicators or clean_actors:
-            with concurrent.futures.ThreadPoolExecutor(self.max_threads) as executor:
-                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags))
-            logging.info("Finished cleaning up Crowdstrike related events from MISP.")
-
-    def clean_old_crowdstrike_events(self, max_age):
-        """Remove events from MISP that are dated greater than the specified max_age value."""
-        if max_age is not None:
-            timestamp_max = int((datetime.date.today() - datetime.timedelta(max_age)).strftime("%s"))
-            events = self.misp_client.search(tags=[self.unique_tags["reports"],
-                                                   self.unique_tags["indicators"],
-                                                   self.unique_tags["actors"]
-                                                   ],
-                                             timestamp=[0, timestamp_max]
-                                             )
-            with concurrent.futures.ThreadPoolExecutor(self.max_threads) as executor:
-                executor.map(self.misp_client.delete_event, events)
-            logging.info("Finished cleaning up Crowdstrike related events from MISP.")
-
-    def import_from_crowdstrike(self,
-                                reports_days_before: int = 7,
-                                indicators_days_before: int = 7,
-                                actors_days_before: int = 7
-                                ):
-        """Import reports and events from Crowdstrike Intel API.
-
-        :param reports_days_before: in case on an initial run, this is the age of the reports pulled in days
-        :param indicators_days_before: in case on an initial run, this is the age of the indicators pulled in days
-        :param actors_days_before: in case on an initial run, this is the age of the actors pulled in days
-        """
-        if self.config["reports"]:
-            self.reports_importer.process_reports(reports_days_before, self.event_ids)
-        if self.config["related_indicators"] or self.config["all_indicators"]:
-            self.indicators_importer.process_indicators(indicators_days_before, self.event_ids)
-        if self.config["actors"]:
-            self.actors_importer.process_actors(actors_days_before, self.event_ids)
-
-    def import_from_misp(self, tags):
-        """Retrieve existing MISP events."""
-        events = self.misp_client.search_index(tags=tags)
-        for event in events:
-            if event.get('info'):
-                self.event_ids[event.get('info')] = True
-            else:
-                logging.warning("Event %s missing info field.", event)
+#signal.signal(signal.SIGINT, graceful_close)
 
 
 def parse_command_line():
@@ -279,9 +143,9 @@ def main():
     # Dictionary of settings provided by settings.py
     
     
-    thread_count = settings["MISP"].get("max_threads", min(32, (os.cpu_count() or 1) * 4))
-    if not thread_count:
-        thread_count = min(32, (os.cpu_count() or 1) * 4)
+    thread_count = settings["MISP"].get("max_threads", None)
+    # if not thread_count:
+    #     thread_count = min(32, (os.cpu_count() or 1) * 4)
 
     import_settings = {
         "misp_url": settings["MISP"]["misp_url"],
@@ -297,6 +161,8 @@ def main():
         "max_threads": thread_count,
         "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True
     }
+    if not import_settings["unknown_mapping"]:
+        import_settings["unknown_mapping"] = "Unidentified"
     # Dictionary of provided command line arguments
     provided_arguments = {
         "reports": args.reports,
@@ -334,5 +200,4 @@ def main():
 
 
 if __name__ == '__main__':
-    atexit.register(graceful_close)
     main()
