@@ -91,12 +91,15 @@ class MISP(ExpandedPyMISP):
     #             else:
     #                 logging.exception('Caught an error from MISP server. Exceeded number of retries')
 
-    def delete_event(self, event, *args, **kwargs):
+    def delete_event(self, *args, **kwargs):
+        self._retry(super().delete_event, *args, **kwargs)
+
+    def _retry(self, f, *args, **kwargs):
         for i in range(self.MAX_RETRIES):
             try:
-                response = super().delete_event(event, *args, **kwargs)
+                response = f(*args, **kwargs)
                 if 'errors' not in response:
-                    return
+                    return response
 
                 if i + 1 < self.MAX_RETRIES:
                     timeout = 0.3 * 2 ** i
