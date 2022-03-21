@@ -75,9 +75,7 @@ class IndicatorsImporter:
 
         indicators_count = 0
         for indicators_page in self.intel_api_client.get_indicators(start_get_events, self.delete_outdated):
-            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
-                executor.submit(self.push_indicators, indicators_page)
-
+            self.push_indicators(indicators_page)
             indicators_count += len(indicators_page)
 
         logging.info("Got %i indicators from the Crowdstrike Intel API.", indicators_count)
