@@ -142,18 +142,16 @@ class IndicatorsImporter:
                         if indicator_name is not None:
                             events_already_imported[indicator_name] = True
 
-            if indicator.get('last_updated') is None:
-                logging.warning("Failed to confirm indicator %s in file.", indicator)
-                return
-
-            self._note_timestamp(str(indicator.get('last_updated')))
-
             return indicator.get("id", True)
 
         if events_already_imported == None:
             events_already_imported = self.already_imported
         with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
             executor.map(threaded_indicator_push, indicators)
+
+        last_updated = next(i.get('last_updated') for i in reversed(indicators) if i.get('last_updated') is not None)
+        self._note_timestamp(str(last_updated))
+
         logging.info("Pushed %i indicators to MISP.", len(indicators))
 
     def __add_indicator_event(self, indicator):
