@@ -91,7 +91,6 @@ class IndicatorsImporter:
     def push_indicators(self, indicators, events_already_imported = None):
         """Push valid indicators into MISP."""
         def threaded_indicator_push(indicator):
-            FINISHED = False
             if self.import_all_indicators or len(indicator.get('reports', [])) > 0:
 
                 indicator_name = indicator.get('indicator')
@@ -109,9 +108,9 @@ class IndicatorsImporter:
                                           str(err)
                                           )
                         logging.warning('deleted indicator %s', indicator_name)
-                    FINISHED = True
+                    return
                 elif indicator_name is not None and events_already_imported.get(indicator_name) is not None:
-                    FINISHED = True
+                    return
                 else:
                     self.__create_object_for_indicator(indicator)
 
@@ -145,10 +144,9 @@ class IndicatorsImporter:
 
             if indicator.get('last_updated') is None:
                 logging.warning("Failed to confirm indicator %s in file.", indicator)
-                FINISHED = True
+                return
 
-            if not FINISHED:
-                self._note_timestamp(str(indicator.get('last_updated')))
+            self._note_timestamp(str(indicator.get('last_updated')))
 
             return indicator.get("id", True)
 
