@@ -110,11 +110,9 @@ class IndicatorsImporter:
                                           )
                         logging.warning('deleted indicator %s', indicator_name)
                     FINISHED = True
-                if not FINISHED:
-                    if indicator_name is not None:
-                        if events_already_imported.get(indicator_name) is not None:
-                            FINISHED = True
-                if not FINISHED:
+                elif indicator_name is not None and events_already_imported.get(indicator_name) is not None:
+                    FINISHED = True
+                else:
                     self.__create_object_for_indicator(indicator)
 
                     related_to_a_misp_report = False
