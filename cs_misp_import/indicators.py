@@ -81,8 +81,7 @@ class IndicatorsImporter:
         logging.info("Got %i indicators from the Crowdstrike Intel API.", indicators_count)
 
         if indicators_count == 0:
-            with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                ts_file.write(time_send_request.strftime("%s"))
+            self._note_timestamp(time_send_request.strftime(("%s")))
         #else:
             #self.get_cs_reports_from_misp()
             #self.push_indicators(indicators, events_already_imported)
@@ -151,8 +150,7 @@ class IndicatorsImporter:
                 FINISHED = True
 
             if not FINISHED:
-                with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                    ts_file.write(str(indicator.get('last_updated')))
+                self._note_timestamp(str(indicator.get('last_updated')))
 
             return indicator.get("id", True)
 
@@ -280,3 +278,7 @@ class IndicatorsImporter:
         # Not found, log the miss
         logging.warning("Unable to map indicator type %s to a MISP object or attribute.", indicator.get('type'))
         return False
+
+    def _note_timestamp(self, timestamp):
+        with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
+            ts_file.write(timestamp)
