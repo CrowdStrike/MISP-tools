@@ -96,9 +96,6 @@ class MISP(ExpandedPyMISP):
             try:
                 response = super().delete_event(event, *args, **kwargs)
                 if 'errors' not in response:
-                    event_id = event["id"]
-                    event_info = event["info"]
-                    logging.info(f'Event {event_id} deleted. ({event_info})')
                     return
 
                 if i + 1 < self.MAX_RETRIES:
