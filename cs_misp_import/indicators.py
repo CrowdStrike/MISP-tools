@@ -142,8 +142,6 @@ class IndicatorsImporter:
                         if indicator_name is not None:
                             events_already_imported[indicator_name] = True
 
-            return indicator.get("id", True)
-
         if events_already_imported == None:
             events_already_imported = self.already_imported
         with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
