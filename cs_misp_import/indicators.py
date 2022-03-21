@@ -112,8 +112,6 @@ class IndicatorsImporter:
                 elif indicator_name is not None and events_already_imported.get(indicator_name) is not None:
                     return
                 else:
-                    self.__create_object_for_indicator(indicator)
-
                     related_to_a_misp_report = False
                     indicator_value = indicator.get('indicator')
                     if indicator_value:
