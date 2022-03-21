@@ -4,7 +4,7 @@ import time
 import os
 
 try:
-    from pymisp import ExpandedPyMISP
+    from pymisp import ExpandedPyMISP, PyMISPError
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP project must be installed in order to use this program."
@@ -106,7 +106,7 @@ class MISP(ExpandedPyMISP):
                     logging.warning('Caught an error from MISP server: %s. Re-trying the request %f seconds', response['errors'], timeout)
                     time.sleep(timeout)
                 else:
-                    logging.warning('Caught an error from MISP server: %s. Exceeded number of retries', response['errors'])
+                    raise PyMISPError("MISP Error: {}".format(response['errors']))
             except Exception as e:
                 if i + 1 < self.MAX_RETRIES:
                     timeout = 0.3 * 2 ** i
@@ -114,3 +114,4 @@ class MISP(ExpandedPyMISP):
                     time.sleep(timeout)
                 else:
                     logging.exception('Caught an error from MISP server. Exceeded number of retries')
+                    raise e
