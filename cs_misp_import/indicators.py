@@ -75,16 +75,13 @@ class IndicatorsImporter:
 
         indicators_count = 0
         for indicators_page in self.intel_api_client.get_indicators(start_get_events, self.delete_outdated):
-            with concurrent.futures.ThreadPoolExecutor(self.misp.MAX_THREAD_COUNT) as executor:
-                executor.submit(self.push_indicators, indicators_page)
-
+            self.push_indicators(indicators_page)
             indicators_count += len(indicators_page)
 
         logging.info("Got %i indicators from the Crowdstrike Intel API.", indicators_count)
 
         if indicators_count == 0:
-            with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                ts_file.write(time_send_request.strftime("%s"))
+            self._note_timestamp(time_send_request.strftime(("%s")))
         #else:
             #self.get_cs_reports_from_misp()
             #self.push_indicators(indicators, events_already_imported)
@@ -94,74 +91,63 @@ class IndicatorsImporter:
     def push_indicators(self, indicators, events_already_imported = None):
         """Push valid indicators into MISP."""
         def threaded_indicator_push(indicator):
-            FINISHED = False
-            if self.import_all_indicators or len(indicator.get('reports', [])) > 0:
+            if not self.import_all_indicators and len(indicators.get('reports', [])) == 0:
+                return
 
-                indicator_name = indicator.get('indicator')
+            indicator_name = indicator.get('indicator')
 
-                if self.delete_outdated and indicator_name is not None and indicator.get('deleted', False):
-                    events = self.misp.search_index(eventinfo=indicator_name, pythonify=True)
-                    for event in events:
-                        self.misp.delete_event(event)
-                        try:
-                            events_already_imported.pop(indicator_name)
-                        except Exception as err:
-                            logging.debug("indicator %s was marked as deleted in intel API but is not stored in MISP."
-                                          " skipping.\n%s",
-                                          indicator_name,
-                                          str(err)
-                                          )
-                        logging.warning('deleted indicator %s', indicator_name)
-                    FINISHED = True
-                if not FINISHED:
+            if self.delete_outdated and indicator_name is not None and indicator.get('deleted', False):
+                events = self.misp.search_index(eventinfo=indicator_name, pythonify=True)
+                for event in events:
+                    self.misp.delete_event(event)
+                    try:
+                        events_already_imported.pop(indicator_name)
+                    except Exception as err:
+                        logging.debug("indicator %s was marked as deleted in intel API but is not stored in MISP."
+                                      " skipping.\n%s",
+                                      indicator_name,
+                                      str(err)
+                                      )
+                    logging.warning('deleted indicator %s', indicator_name)
+                return
+            elif indicator_name is not None and events_already_imported.get(indicator_name) is not None:
+                return
+            else:
+                related_to_a_misp_report = False
+                if indicator_name:
+                    for report in indicator.get('reports', []):
+                        event = self.reports_ids.get(report)
+                        if event:
+                            related_to_a_misp_report = True
+                            indicator_object = self.__create_object_for_indicator(indicator)
+                            if indicator_object:
+                                try:
+                                    if isinstance(indicator_object, MISPObject):
+                                        self.misp.add_object(event, indicator_object, True)
+                                    elif isinstance(indicator_object, MISPAttribute):
+                                        self.misp.add_attribute(event, indicator_object, True)
+                                except Exception as err:
+                                    logging.warning("Could not add object or attribute %s for event %s.\n%s",
+                                                    indicator_object,
+                                                    event,
+                                                    str(err)
+                                                    )
+                else:
+                    logging.warning("Indicator %s missing indicator field.", indicator.get('id'))
+
+                if related_to_a_misp_report or self.import_all_indicators:
+                    self.__add_indicator_event(indicator)
                     if indicator_name is not None:
-                        if events_already_imported.get(indicator_name) is not None:
-                            FINISHED = True
-                if not FINISHED:
-                    self.__create_object_for_indicator(indicator)
-
-                    related_to_a_misp_report = False
-                    indicator_value = indicator.get('indicator')
-                    if indicator_value:
-                        for report in indicator.get('reports', []):
-                            event = self.reports_ids.get(report)
-                            if event:
-                                related_to_a_misp_report = True
-                                indicator_object = self.__create_object_for_indicator(indicator)
-                                if indicator_object:
-                                    try:
-                                        if isinstance(indicator_object, MISPObject):
-                                            self.misp.add_object(event, indicator_object, True)
-                                        elif isinstance(indicator_object, MISPAttribute):
-                                            self.misp.add_attribute(event, indicator_object, True)
-                                    except Exception as err:
-                                        logging.warning("Could not add object or attribute %s for event %s.\n%s",
-                                                        indicator_object,
-                                                        event,
-                                                        str(err)
-                                                        )
-                    else:
-                        logging.warning("Indicator %s missing indicator field.", indicator.get('id'))
-
-                    if related_to_a_misp_report or self.import_all_indicators:
-                        self.__add_indicator_event(indicator)
-                        if indicator_name is not None:
-                            events_already_imported[indicator_name] = True
-
-            if indicator.get('last_updated') is None:
-                logging.warning("Failed to confirm indicator %s in file.", indicator)
-                FINISHED = True
-
-            if not FINISHED:
-                with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                    ts_file.write(str(indicator.get('last_updated')))
-
-            return indicator.get("id", True)
+                        events_already_imported[indicator_name] = True
 
         if events_already_imported == None:
             events_already_imported = self.already_imported
-        with concurrent.futures.ThreadPoolExecutor(self.misp.MAX_THREAD_COUNT) as executor:
+        with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
             executor.map(threaded_indicator_push, indicators)
+
+        last_updated = next(i.get('last_updated') for i in reversed(indicators) if i.get('last_updated') is not None)
+        self._note_timestamp(str(last_updated))
+
         logging.info("Pushed %i indicators to MISP.", len(indicators))
 
     def __add_indicator_event(self, indicator):
@@ -282,3 +268,7 @@ class IndicatorsImporter:
         # Not found, log the miss
         logging.warning("Unable to map indicator type %s to a MISP object or attribute.", indicator.get('type'))
         return False
+
+    def _note_timestamp(self, timestamp):
+        with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
+            ts_file.write(timestamp)
