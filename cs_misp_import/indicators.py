@@ -113,8 +113,7 @@ class IndicatorsImporter:
                     return
                 else:
                     related_to_a_misp_report = False
-                    indicator_value = indicator.get('indicator')
-                    if indicator_value:
+                    if indicator_name:
                         for report in indicator.get('reports', []):
                             event = self.reports_ids.get(report)
                             if event:
