@@ -26,7 +26,6 @@ class MISP(ExpandedPyMISP):
         super().__init__(*args, **kwargs)
         
         self._PyMISP__session.mount('https://', requests.adapters.HTTPAdapter(pool_connections=int(max_thread_count), pool_maxsize=int(max_thread_count)))
-        self.MAX_THREAD_COUNT = max_thread_count
 
     @staticmethod
     def _thread_count():
