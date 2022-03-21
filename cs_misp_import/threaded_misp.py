@@ -13,23 +13,11 @@ except ImportError as no_pymisp:
 
 class MISP(ExpandedPyMISP):
     MAX_RETRIES = 3
-    MAX_THREAD_COUNT = 32
     def __init__(self, *args, **kwargs):
-        max_thread_count = kwargs.get("max_threads", self._thread_count())
-        if not max_thread_count:
-            max_thread_count = self._thread_count()
-#        try:
-        max_thread_count = int(max_thread_count)
- #       except TypeConversionError:
-  #          max_thread_count = self._thread_count
+        self.thread_count = kwargs.get("max_threads") or min(32, (os.cpu_count() or 1) * 4)
         kwargs.pop("max_threads")
         super().__init__(*args, **kwargs)
-        
-        self._PyMISP__session.mount('https://', requests.adapters.HTTPAdapter(pool_connections=int(max_thread_count), pool_maxsize=int(max_thread_count)))
-
-    @staticmethod
-    def _thread_count():
-        return min(32, (os.cpu_count() or 1) * 4)
+        self._PyMISP__session.mount('https://', requests.adapters.HTTPAdapter(pool_connections=int(self.thread_count), pool_maxsize=int(self.thread_count)))
 
     # def add_event(self, event, *args, **kwargs):
     #     for i in range(self.MAX_RETRIES):

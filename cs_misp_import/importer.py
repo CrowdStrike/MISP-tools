@@ -40,9 +40,6 @@ class CrowdstrikeToMISPImporter:
                                 False,
                                 max_threads=import_settings["max_threads"]
                                 )
-        self.max_threads = self.misp_client.MAX_THREAD_COUNT
-        if not self.max_threads:
-            self.max_threads = MISP._thread_count()
         self.config = provided_arguments
         self.settings = settings
         self.unique_tags = {
@@ -87,9 +84,8 @@ class CrowdstrikeToMISPImporter:
         # from .processor import FUTURES, threaded_request
         if clean_reports or clean_indicators or clean_actors:
             # threaded_request(self.misp_client.delete_event, self.misp_client.search_index(tags=tags), self.max_threads)
-            with concurrent.futures.ThreadPoolExecutor(self.max_threads) as executor:
+            with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
                 executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags))
-#                executor.map(self.misp_client.delete_event, self.misp_client.search_index())
             logging.info("Finished cleaning up Crowdstrike related events from MISP.")
 
     def clean_old_crowdstrike_events(self, max_age):
@@ -102,7 +98,7 @@ class CrowdstrikeToMISPImporter:
                                                    ],
                                              timestamp=[0, timestamp_max]
                                              )
-            with concurrent.futures.ThreadPoolExecutor(self.max_threads) as executor:
+            with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
                 executor.map(self.misp_client.delete_event, events)
             logging.info("Finished cleaning up Crowdstrike related events from MISP.")
 

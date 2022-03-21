@@ -75,7 +75,7 @@ class IndicatorsImporter:
 
         indicators_count = 0
         for indicators_page in self.intel_api_client.get_indicators(start_get_events, self.delete_outdated):
-            with concurrent.futures.ThreadPoolExecutor(self.misp.MAX_THREAD_COUNT) as executor:
+            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
                 executor.submit(self.push_indicators, indicators_page)
 
             indicators_count += len(indicators_page)
@@ -160,7 +160,7 @@ class IndicatorsImporter:
 
         if events_already_imported == None:
             events_already_imported = self.already_imported
-        with concurrent.futures.ThreadPoolExecutor(self.misp.MAX_THREAD_COUNT) as executor:
+        with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
             executor.map(threaded_indicator_push, indicators)
         logging.info("Pushed %i indicators to MISP.", len(indicators))
 
