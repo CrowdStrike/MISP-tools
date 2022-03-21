@@ -36,18 +36,9 @@ from configparser import ConfigParser, ExtendedInterpolation
 import logging
 import os
 import urllib3
-#import signal
 from cs_misp_import import (
     IntelAPIClient, CrowdstrikeToMISPImporter
 )
-#import concurrent.futures
-
-def graceful_close(sig, event):
-    print("Shutting down background threads, please wait...")
-    #with concurrent.futures.wait()
-
-
-#signal.signal(signal.SIGINT, graceful_close)
 
 
 def parse_command_line():
