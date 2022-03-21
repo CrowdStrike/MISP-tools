@@ -94,6 +94,9 @@ class MISP(ExpandedPyMISP):
     def delete_event(self, *args, **kwargs):
         self._retry(super().delete_event, *args, **kwargs)
 
+    def get_organisation(self, *args, **kwargs):
+        return self._retry(super().get_organisation, *args, **kwargs)
+
     def _retry(self, f, *args, **kwargs):
         for i in range(self.MAX_RETRIES):
             try:
