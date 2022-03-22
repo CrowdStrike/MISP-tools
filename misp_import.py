@@ -132,12 +132,6 @@ def main():
                                       False if "F" in settings["CrowdStrike"]["api_enable_ssl"].upper() else True
                                       )
     # Dictionary of settings provided by settings.py
-    
-    
-    thread_count = settings["MISP"].get("max_threads", None)
-    # if not thread_count:
-    #     thread_count = min(32, (os.cpu_count() or 1) * 4)
-
     import_settings = {
         "misp_url": settings["MISP"]["misp_url"],
         "misp_auth_key": settings["MISP"]["misp_auth_key"],
@@ -149,7 +143,8 @@ def main():
         "indicators_unique_tag": settings["CrowdStrike"]["indicators_unique_tag"],
         "actors_unique_tag": settings["CrowdStrike"]["actors_unique_tag"],
         "unknown_mapping": settings["CrowdStrike"]["unknown_mapping"],
-        "max_threads": thread_count,
+        "max_threads": settings["MISP"].get("max_threads", None),
+        "miss_track_file": settings["MISP"]["miss_track_file"],
         "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True
     }
     if not import_settings["unknown_mapping"]:

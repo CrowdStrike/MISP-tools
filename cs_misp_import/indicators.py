@@ -20,7 +20,7 @@ class IndicatorsImporter:
     :param misp_client: client for a MISP instance
     :param intel_api_client: client for the Crowdstrike Intel API
     """
-
+    MISSING_GALAXIES = None
     def __init__(self,
                  misp_client,
                  intel_api_client,
@@ -44,7 +44,23 @@ class IndicatorsImporter:
         self.already_imported = None
         self.reports_ids = {}
         self.import_settings = import_settings
+        self.galaxy_miss_file = import_settings.get("miss_track_file", "no_galaxy_mapping.log")
+        
 
+    def _log_galaxy_miss(self, family: str):
+        if self.MISSING_GALAXIES == None:
+            if os.path.exists(self.galaxy_miss_file):
+                with open(self.galaxy_miss_file, "r", encoding="utf-8") as miss_file:
+                    missing = miss_file.read()
+                missing = missing.split("\n")
+                if "" in missing:
+                    missing.remove("")
+            else:
+                missing = []
+            self.MISSING_GALAXIES = missing
+        if family not in self.MISSING_GALAXIES:
+            self.MISSING_GALAXIES.append(family)
+      
     def get_cs_reports_from_misp(self):
         """Retrieve any report events in MISP based upon tag."""
         logging.info("Checking for previous events.")
@@ -152,9 +168,29 @@ class IndicatorsImporter:
 
     def __add_indicator_event(self, indicator):
         """Add an indicator event for the indicator specified."""
+        #MISSING_GALAXIES = None
         event = MISPEvent()
         event.analysis = 2
         event.orgc = self.crowdstrike_org
+
+        # def _log_galaxy_miss(family: str = None, missing: list = None):
+        #     if family:
+        #         if missing == None:
+        #             galaxy_miss_file = "no_galaxy_mapping.log"
+        #             if os.path.exists(galaxy_miss_file):
+        #                 with open(galaxy_miss_file, "rb") as miss_file:
+        #                     missing = miss_file.read()
+        #                 missing = missing.split("\n")
+        #             else:
+        #                 missing = []
+
+
+        #         if family not in missing:
+        #             with open(galaxy_miss_file, "a") as miss_file:
+        #                 miss_file.write(f"{family}\n")
+        #             missing.append(family)
+        #     print(missing)
+        #     return missing
 
         indicator_value = indicator.get('indicator')
         if indicator_value:
@@ -206,8 +242,9 @@ class IndicatorsImporter:
                 except Exception as err:
                     logging.warning("Could not add event %s in galaxy/cluster.\n%s", event.info, str(err))
             else:
-                self.misp.tag(event, self.import_settings["unknown_mapping"])
                 logging.warning("Don't know how to map malware_family %s to a MISP galaxy.", malware_family)
+                self._log_galaxy_miss(malware_family)
+                self.misp.tag(event, self.import_settings["unknown_mapping"])
 
     @staticmethod
     def __create_object_for_indicator(indicator):
@@ -272,3 +309,6 @@ class IndicatorsImporter:
     def _note_timestamp(self, timestamp):
         with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
             ts_file.write(timestamp)
+        if self.MISSING_GALAXIES:
+            with open(self.galaxy_miss_file, "w", encoding="utf-8") as track_file:
+                track_file.write("\n".join(self.MISSING_GALAXIES))
