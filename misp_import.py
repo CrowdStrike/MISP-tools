@@ -144,7 +144,7 @@ def main():
         "actors_unique_tag": settings["CrowdStrike"]["actors_unique_tag"],
         "unknown_mapping": settings["CrowdStrike"]["unknown_mapping"],
         "max_threads": settings["MISP"].get("max_threads", None),
-        "miss_track_file": settings["MISP"]["miss_track_file"],
+        "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
         "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True
     }
     if not import_settings["unknown_mapping"]:
