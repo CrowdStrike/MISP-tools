@@ -77,7 +77,8 @@ class IndicatorsImporter:
         :param indicators_days_before: in case on an initial run, this is the age of the indicators pulled in days
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
-        start_get_events = int((datetime.date.today() - datetime.timedelta(indicators_days_before)).strftime("%s"))
+        #start_get_events = int((datetime.date.today() - datetime.timedelta(indicators_days_before)).strftime("%s"))
+        start_get_events = int((datetime.date.today() - datetime.timedelta(indicators_days_before/4)).strftime("%s"))
         if os.path.isfile(self.indicators_timestamp_filename):
             with open(self.indicators_timestamp_filename, 'r', encoding="utf-8") as ts_file:
                 line = ts_file.readline()
