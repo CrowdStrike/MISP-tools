@@ -109,6 +109,11 @@ def main():
     settings = ConfigParser(interpolation=ExtendedInterpolation())
     settings.read(args.config_file)
 
+
+    galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
+    galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
+
+
     try:
         if not settings["MISP"]["misp_enable_ssl"]:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -145,8 +150,10 @@ def main():
         "unknown_mapping": settings["CrowdStrike"]["unknown_mapping"],
         "max_threads": settings["MISP"].get("max_threads", None),
         "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
-        "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True
+        "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True,
+        "galaxy_map": galaxy_maps["Galaxy"]
     }
+    
     if not import_settings["unknown_mapping"]:
         import_settings["unknown_mapping"] = "Unidentified"
     # Dictionary of provided command line arguments
