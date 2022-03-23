@@ -127,7 +127,7 @@ def main():
     if args.debug:
         #logging.root.setLevel(logging.DEBUG)
         LOG_LEVEL = logging.DEBUG
-    logging.basicConfig(filename="misp-import.log", encoding="utf-8", level=LOG_LEVEL)
+    logging.basicConfig(filename="misp-import.log", level=LOG_LEVEL)
 
     # Interface to the CrowdStrike Falcon Intel API
     intel_api_client = IntelAPIClient(settings["CrowdStrike"]["client_id"],
