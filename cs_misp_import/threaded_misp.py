@@ -14,7 +14,7 @@ except ImportError as no_pymisp:
 class MISP(ExpandedPyMISP):
     MAX_RETRIES = 3
     def __init__(self, *args, **kwargs):
-        self.thread_count = kwargs.get("max_threads") or min(32, (os.cpu_count() or 1) * 4)
+        self.thread_count = int(kwargs.get("max_threads") or min(32, (os.cpu_count() or 1) * 4))
         kwargs.pop("max_threads")
         super().__init__(*args, **kwargs)
         self._PyMISP__session.mount('https://', requests.adapters.HTTPAdapter(pool_connections=int(self.thread_count), pool_maxsize=int(self.thread_count)))
@@ -29,7 +29,15 @@ class MISP(ExpandedPyMISP):
         for i in range(self.MAX_RETRIES):
             try:
                 response = f(*args, **kwargs)
-                if 'errors' not in response:
+                try:
+                    event_id = args[0]["id"]
+                    event_info = args[0]["info"]
+                    event_msg = response["message"]
+                    logging.info(f'{event_msg} [{event_id}] {event_info}')
+                except KeyError:
+                    pass
+
+                if "errors" not in response:
                     return response
 
                 if i + 1 < self.MAX_RETRIES:
