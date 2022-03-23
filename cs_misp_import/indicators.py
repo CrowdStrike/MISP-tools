@@ -173,25 +173,6 @@ class IndicatorsImporter:
         event.analysis = 2
         event.orgc = self.crowdstrike_org
 
-        # def _log_galaxy_miss(family: str = None, missing: list = None):
-        #     if family:
-        #         if missing == None:
-        #             galaxy_miss_file = "no_galaxy_mapping.log"
-        #             if os.path.exists(galaxy_miss_file):
-        #                 with open(galaxy_miss_file, "rb") as miss_file:
-        #                     missing = miss_file.read()
-        #                 missing = missing.split("\n")
-        #             else:
-        #                 missing = []
-
-
-        #         if family not in missing:
-        #             with open(galaxy_miss_file, "a") as miss_file:
-        #                 miss_file.write(f"{family}\n")
-        #             missing.append(family)
-        #     print(missing)
-        #     return missing
-
         indicator_value = indicator.get('indicator')
         if indicator_value:
             event.info = indicator_value
@@ -235,7 +216,7 @@ class IndicatorsImporter:
             logging.warning("Could not add or tag event %s.\n%s", event.info, str(err))
 
         for malware_family in indicator.get('malware_families', []):
-            galaxy = self.settings["Galaxy"].get(malware_family)
+            galaxy = self.import_settings["galaxy_map"].get(malware_family)
             if galaxy is not None:
                 try:
                     self.misp.tag(event, galaxy)
