@@ -34,13 +34,6 @@ class MISP(ExpandedPyMISP):
         for i in range(self.MAX_RETRIES):
             try:
                 response = f(*args, **kwargs)
-                # try:
-                #     event_id = args[0]["id"]
-                #     event_info = args[0]["info"]
-                #     event_msg = response["message"]
-                #     logging.info(f'{event_msg} [{event_id}] {event_info}')
-                # except KeyError:
-                #     pass
 
                 if "errors" not in response:
                     return response
