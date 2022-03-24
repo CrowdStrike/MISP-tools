@@ -224,9 +224,7 @@ class IndicatorsImporter:
             if galaxy is not None:
                 tag_list = __update_tag_list(tag_list, galaxy)
                 family_found = True
-                # logging.info(f"{malware_family} maps to {galaxy} from {indicator.get('malware_families', [])}")
-#            else:
-                # logging.warning("Don't know how to map malware_family %s to a MISP galaxy.", malware_family)
+
         if not family_found:
             self._log_galaxy_miss(malware_family)
             tag_list = __update_tag_list(tag_list, self.import_settings["unknown_mapping"])
@@ -302,6 +300,5 @@ class IndicatorsImporter:
         with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
             ts_file.write(timestamp)
         if self.MISSING_GALAXIES:
-            logging.warning("The following malware familys do not have galaxy mappings: %s", self.MISSING_GALAXIES)
-#            with open(self.galaxy_miss_file, "w", encoding="utf-8") as track_file:
-#                track_file.write("\n".join(self.MISSING_GALAXIES))
+            for _galaxy in self.MISSING_GALAXIES:
+                logging.warning("No galaxy mapping found for %s malware family.", _galaxy)
