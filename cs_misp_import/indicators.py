@@ -221,6 +221,7 @@ class IndicatorsImporter:
 
         for malware_family in indicator.get('malware_families', []):
             galaxy = self.import_settings["galaxy_map"].get(malware_family)
+            logging.info(f"{malware_family} maps to {galaxy}")
             if galaxy is not None:
                 tag_list = __update_tag_list(tag_list, galaxy)
             else:
