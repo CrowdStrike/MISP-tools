@@ -23,7 +23,7 @@ class MISP(ExpandedPyMISP):
 
     def delete_event(self, *args, **kwargs):
         if self.deleted_event_count % 5000 == 0:
-            logging.info("%i events deleted.")
+            logging.info("%i events deleted.", self.deleted_event_count)
         self._retry(super().delete_event, *args, **kwargs)
         self.deleted_event_count += 1
 
