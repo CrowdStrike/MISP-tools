@@ -72,8 +72,9 @@ class CrowdstrikeToMISPImporter:
             self.actors_importer = ActorsImporter(self.misp_client, intel_api_client, import_settings["crowdstrike_org_uuid"],
                                                   import_settings["actors_timestamp_filename"], self.settings, import_settings["unknown_mapping"])
 
-    def clean_crowdstrike_events(self, clean_reports, clean_indicators, clean_actors):
+    def clean_crowdstrike_events(self, clean_reports, clean_indicators, clean_actors, starting, ending):
         """Delete events from a MISP instance."""
+
         tags = []
         if clean_reports:
             tags.append(self.unique_tags["reports"])
@@ -81,13 +82,15 @@ class CrowdstrikeToMISPImporter:
             tags.append(self.unique_tags["indicators"])
         if clean_actors:
             tags.append(self.unique_tags["actors"])
-        # from .processor import FUTURES, threaded_request
+        time_step = -28800  # *Modem noise*
+        ending = ending - time_step
         if clean_reports or clean_indicators or clean_actors:
             self.misp_client.deleted_event_count = 0
             # threaded_request(self.misp_client.delete_event, self.misp_client.search_index(tags=tags), self.max_threads)
-            with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
-                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
-            logging.info("Finished cleaning up Crowdstrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
+            for page_time in range(ending, starting, time_step):
+                with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
+                    executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True, timestamp=page_time))
+                logging.info("Finished cleaning up a batch of Crowdstrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
 
     def clean_old_crowdstrike_events(self, max_age):
         """Remove events from MISP that are dated greater than the specified max_age value."""
@@ -106,7 +109,9 @@ class CrowdstrikeToMISPImporter:
     def import_from_crowdstrike(self,
                                 reports_days_before: int = 7,
                                 indicators_days_before: int = 7,
-                                actors_days_before: int = 7
+                                actors_days_before: int = 7,
+                                starting: int = None,
+                                ending: int = None
                                 ):
         """Import reports and events from Crowdstrike Intel API.
 
@@ -117,7 +122,7 @@ class CrowdstrikeToMISPImporter:
         if self.config["reports"]:
             self.reports_importer.process_reports(reports_days_before, self.event_ids)
         if self.config["related_indicators"] or self.config["all_indicators"]:
-            self.indicators_importer.process_indicators(indicators_days_before, self.event_ids)
+            self.indicators_importer.process_indicators(indicators_days_before, self.event_ids, starting, ending)
         if self.config["actors"]:
             self.actors_importer.process_actors(actors_days_before, self.event_ids)
 
