@@ -169,11 +169,16 @@ class IndicatorsImporter:
 
     def __add_indicator_event(self, indicator):
         """Add an indicator event for the indicator specified."""
-        #MISSING_GALAXIES = None
         event = MISPEvent()
         event.analysis = 2
         event.orgc = self.crowdstrike_org
         tag_list = []
+        def __update_tag_list(tagging_list:list, tag_value: str):
+            _tag = MISPTag()
+            _tag.from_dict(name=tag_value)
+            tagging_list.append(_tag)
+            return tagging_list
+
         indicator_value = indicator.get('indicator')
         if indicator_value:
             event.info = indicator_value
@@ -207,48 +212,22 @@ class IndicatorsImporter:
             industry_object.add_attribute('sectors', target)
             event.add_object(industry_object)
 
-        try:
-            # event = self.misp.add_event(event, True)
-            for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
-                _tag = MISPTag()
-                _tag.from_dict(name=tag)
-#                self.misp.tag(event, tag)
-                #event.add_tag(tag=_tag)
-                tag_list.append(_tag)
-            if indicator.get('type', None):
-                #event.add_tag(MISPTag(name=indicator.get("type").upper()))
-                _tag = MISPTag()
-                _tag.from_dict(name=indicator.get("type").upper())
-                tag_list.append(_tag)
-                #event.add_tag(tag=_tag)
-                # self.misp.tag(event, indicator.get('type').upper())
-        except Exception as err:
-            logging.warning("Could not add or tag event %s.\n%s", event.info, str(err))
+
+        for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
+            tag_list = __update_tag_list(tag_list, tag)
+        if indicator.get('type', None):
+            tag_list = __update_tag_list(tag_list, indicator.get("type").upper())
+
 
         for malware_family in indicator.get('malware_families', []):
             galaxy = self.import_settings["galaxy_map"].get(malware_family)
             if galaxy is not None:
-                try:
-                    # event.add_tag(MISPTag(name=galaxy))
-                    _tag = MISPTag()
-                    _tag.from_dict(name=galaxy)
-                    #event.add_tag(tag=_tag)
-                    tag_list.append(_tag)
-#                    self.misp.tag(event, galaxy)
-                except Exception as err:
-                    logging.warning("Could not add event %s in galaxy/cluster.\n%s", event.info, str(err))
+                tag_list = __update_tag_list(tag_list, galaxy)
             else:
                 # logging.warning("Don't know how to map malware_family %s to a MISP galaxy.", malware_family)
                 self._log_galaxy_miss(malware_family)
-                #self.misp.tag(event, self.import_settings["unknown_mapping"])
-                # event.add_tag(MISPTag(name=self.import_settings["unknown_mapping"]))
-                _tag = MISPTag()
-                _tag.from_dict(name=self.import_settings["unknown_mapping"])
-                #event.add_tag(tag=_tag)
-                tag_list.append(_tag)
-                #tag_list.append(MISPTag(name=self.import_settings["unknown_mapping"]))
+                tag_list = __update_tag_list(tag_list, self.import_settings["unknown_mapping"])
 
-        # event = event.tags(tags=tag_list)
         for _tag in tag_list:
             event.add_tag(_tag)
         try:
