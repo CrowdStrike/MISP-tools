@@ -14,13 +14,18 @@ except ImportError as no_pymisp:
 class MISP(ExpandedPyMISP):
     MAX_RETRIES = 3
     def __init__(self, *args, **kwargs):
-        self.thread_count = kwargs.get("max_threads") or min(32, (os.cpu_count() or 1) * 4)
+        self.thread_count = int(kwargs.get("max_threads") or min(32, (os.cpu_count() or 1) * 4))
         kwargs.pop("max_threads")
         super().__init__(*args, **kwargs)
         self._PyMISP__session.mount('https://', requests.adapters.HTTPAdapter(pool_connections=int(self.thread_count), pool_maxsize=int(self.thread_count)))
 
+        self.deleted_event_count = 0
+
     def delete_event(self, *args, **kwargs):
+        if self.deleted_event_count % 5000 == 0 and self.deleted_event_count:
+            logging.info("%i events deleted.", self.deleted_event_count)
         self._retry(super().delete_event, *args, **kwargs)
+        self.deleted_event_count += 1
 
     def get_organisation(self, *args, **kwargs):
         return self._retry(super().get_organisation, *args, **kwargs)
@@ -29,7 +34,8 @@ class MISP(ExpandedPyMISP):
         for i in range(self.MAX_RETRIES):
             try:
                 response = f(*args, **kwargs)
-                if 'errors' not in response:
+
+                if "errors" not in response:
                     return response
 
                 if i + 1 < self.MAX_RETRIES:

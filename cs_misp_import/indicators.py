@@ -6,7 +6,7 @@ import concurrent.futures
 from .confidence import MaliciousConfidence
 
 try:
-    from pymisp import MISPObject, MISPEvent, MISPAttribute, MISPOrganisation
+    from pymisp import MISPObject, MISPEvent, MISPAttribute, MISPOrganisation, MISPTag
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
@@ -78,6 +78,7 @@ class IndicatorsImporter:
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
         start_get_events = int((datetime.date.today() - datetime.timedelta(indicators_days_before)).strftime("%s"))
+        #start_get_events = int((datetime.date.today() - datetime.timedelta(hours=indicators_days_before)).strftime("%s"))
         if os.path.isfile(self.indicators_timestamp_filename):
             with open(self.indicators_timestamp_filename, 'r', encoding="utf-8") as ts_file:
                 line = ts_file.readline()
@@ -168,29 +169,15 @@ class IndicatorsImporter:
 
     def __add_indicator_event(self, indicator):
         """Add an indicator event for the indicator specified."""
-        #MISSING_GALAXIES = None
         event = MISPEvent()
         event.analysis = 2
         event.orgc = self.crowdstrike_org
-
-        # def _log_galaxy_miss(family: str = None, missing: list = None):
-        #     if family:
-        #         if missing == None:
-        #             galaxy_miss_file = "no_galaxy_mapping.log"
-        #             if os.path.exists(galaxy_miss_file):
-        #                 with open(galaxy_miss_file, "rb") as miss_file:
-        #                     missing = miss_file.read()
-        #                 missing = missing.split("\n")
-        #             else:
-        #                 missing = []
-
-
-        #         if family not in missing:
-        #             with open(galaxy_miss_file, "a") as miss_file:
-        #                 miss_file.write(f"{family}\n")
-        #             missing.append(family)
-        #     print(missing)
-        #     return missing
+        tag_list = []
+        def __update_tag_list(tagging_list:list, tag_value: str):
+            _tag = MISPTag()
+            _tag.from_dict(name=tag_value)
+            tagging_list.append(_tag)
+            return tagging_list
 
         indicator_value = indicator.get('indicator')
         if indicator_value:
@@ -225,26 +212,29 @@ class IndicatorsImporter:
             industry_object.add_attribute('sectors', target)
             event.add_object(industry_object)
 
-        try:
-            event = self.misp.add_event(event, True)
-            for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
-                self.misp.tag(event, tag)
-            if indicator.get('type', None):
-                self.misp.tag(event, indicator.get('type').upper())
-        except Exception as err:
-            logging.warning("Could not add or tag event %s.\n%s", event.info, str(err))
 
+        for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
+            tag_list = __update_tag_list(tag_list, tag)
+        if indicator.get('type', None):
+            tag_list = __update_tag_list(tag_list, indicator.get("type").upper())
+
+        family_found = False
         for malware_family in indicator.get('malware_families', []):
-            galaxy = self.settings["Galaxy"].get(malware_family)
+            galaxy = self.import_settings["galaxy_map"].get(malware_family)
             if galaxy is not None:
-                try:
-                    self.misp.tag(event, galaxy)
-                except Exception as err:
-                    logging.warning("Could not add event %s in galaxy/cluster.\n%s", event.info, str(err))
-            else:
-                logging.warning("Don't know how to map malware_family %s to a MISP galaxy.", malware_family)
-                self._log_galaxy_miss(malware_family)
-                self.misp.tag(event, self.import_settings["unknown_mapping"])
+                tag_list = __update_tag_list(tag_list, galaxy)
+                family_found = True
+
+        if not family_found:
+            self._log_galaxy_miss(malware_family)
+            tag_list = __update_tag_list(tag_list, self.import_settings["unknown_mapping"])
+
+        for _tag in tag_list:
+            event.add_tag(_tag)
+        try:
+            self.misp.add_event(event)
+        except Exception as err:
+            logging.warning("Could not add event %s.\n%s", event.info, str(err))
 
     @staticmethod
     def __create_object_for_indicator(indicator):
@@ -310,5 +300,5 @@ class IndicatorsImporter:
         with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
             ts_file.write(timestamp)
         if self.MISSING_GALAXIES:
-            with open(self.galaxy_miss_file, "w", encoding="utf-8") as track_file:
-                track_file.write("\n".join(self.MISSING_GALAXIES))
+            for _galaxy in self.MISSING_GALAXIES:
+                logging.warning("No galaxy mapping found for %s malware family.", _galaxy)
