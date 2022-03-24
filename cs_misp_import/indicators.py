@@ -6,7 +6,7 @@ import concurrent.futures
 from .confidence import MaliciousConfidence
 
 try:
-    from pymisp import MISPObject, MISPEvent, MISPAttribute, MISPOrganisation
+    from pymisp import MISPObject, MISPEvent, MISPAttribute, MISPOrganisation, MISPTag
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
@@ -208,11 +208,14 @@ class IndicatorsImporter:
             event.add_object(industry_object)
 
         try:
-            event = self.misp.add_event(event, True)
+            # event = self.misp.add_event(event, True)
             for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
-                self.misp.tag(event, tag)
+                _tag = MISPTag(name=tag)
+#                self.misp.tag(event, tag)
+                event.add_tag(_tag)
             if indicator.get('type', None):
-                self.misp.tag(event, indicator.get('type').upper())
+                event.add_tag(MISPTag(name=indicator.get("type").upper()))
+                # self.misp.tag(event, indicator.get('type').upper())
         except Exception as err:
             logging.warning("Could not add or tag event %s.\n%s", event.info, str(err))
 
@@ -220,13 +223,20 @@ class IndicatorsImporter:
             galaxy = self.import_settings["galaxy_map"].get(malware_family)
             if galaxy is not None:
                 try:
-                    self.misp.tag(event, galaxy)
+                    event.add_tag(MISPTag(name=galaxy))
+#                    self.misp.tag(event, galaxy)
                 except Exception as err:
                     logging.warning("Could not add event %s in galaxy/cluster.\n%s", event.info, str(err))
             else:
                 # logging.warning("Don't know how to map malware_family %s to a MISP galaxy.", malware_family)
                 self._log_galaxy_miss(malware_family)
-                self.misp.tag(event, self.import_settings["unknown_mapping"])
+                #self.misp.tag(event, self.import_settings["unknown_mapping"])
+                event.add_tag(MISPTag(name=self.import_settings["unknown_mapping"]))
+
+        try:
+            self.misp.add_event(event)
+        except Exception as err:
+            logging.warning("Could not add event %s.\n%s", event.info, str(err))
 
     @staticmethod
     def __create_object_for_indicator(indicator):
