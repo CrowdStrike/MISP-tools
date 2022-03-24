@@ -243,7 +243,7 @@ class IndicatorsImporter:
                 #self.misp.tag(event, self.import_settings["unknown_mapping"])
                 # event.add_tag(MISPTag(name=self.import_settings["unknown_mapping"]))
                 _tag = MISPTag()
-                _tag.from_dict(name=self.import_settings["unknown_mapping"]))
+                _tag.from_dict(name=self.import_settings["unknown_mapping"])
                 event.add_tag(tag=_tag)
                 #tag_list.append(_tag)
                 #tag_list.append(MISPTag(name=self.import_settings["unknown_mapping"]))
