@@ -85,9 +85,9 @@ class CrowdstrikeToMISPImporter:
         time_step = -28800  # *Modem noise*
         ending = ending - time_step
         if clean_reports or clean_indicators or clean_actors:
-            self.misp_client.deleted_event_count = 0
             # threaded_request(self.misp_client.delete_event, self.misp_client.search_index(tags=tags), self.max_threads)
             for page_time in range(ending, starting, time_step):
+                self.misp_client.deleted_event_count = 0
                 with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
                     executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True, timestamp=page_time))
                 logging.info("Finished cleaning up a batch of Crowdstrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
