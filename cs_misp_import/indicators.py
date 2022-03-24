@@ -224,7 +224,7 @@ class IndicatorsImporter:
                 except Exception as err:
                     logging.warning("Could not add event %s in galaxy/cluster.\n%s", event.info, str(err))
             else:
-                logging.warning("Don't know how to map malware_family %s to a MISP galaxy.", malware_family)
+                # logging.warning("Don't know how to map malware_family %s to a MISP galaxy.", malware_family)
                 self._log_galaxy_miss(malware_family)
                 self.misp.tag(event, self.import_settings["unknown_mapping"])
 
@@ -292,5 +292,6 @@ class IndicatorsImporter:
         with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
             ts_file.write(timestamp)
         if self.MISSING_GALAXIES:
-            with open(self.galaxy_miss_file, "w", encoding="utf-8") as track_file:
-                track_file.write("\n".join(self.MISSING_GALAXIES))
+            logging.warning("The following malware familys do not have galaxy mappings: %s", self.MISSING_GALAXIES)
+#            with open(self.galaxy_miss_file, "w", encoding="utf-8") as track_file:
+#                track_file.write("\n".join(self.MISSING_GALAXIES))
