@@ -86,7 +86,7 @@ class CrowdstrikeToMISPImporter:
             self.misp_client.deleted_event_count = 0
             # threaded_request(self.misp_client.delete_event, self.misp_client.search_index(tags=tags), self.max_threads)
             with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
-                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags))
+                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
             logging.info("Finished cleaning up Crowdstrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
 
     def clean_old_crowdstrike_events(self, max_age):
