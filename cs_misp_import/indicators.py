@@ -223,7 +223,7 @@ class IndicatorsImporter:
             galaxy = self.import_settings["galaxy_map"].get(malware_family)
             if galaxy is not None:
                 tag_list = __update_tag_list(tag_list, galaxy)
-                logging.info(f"{malware_family} maps to {galaxy}")
+                logging.info(f"{malware_family} maps to {galaxy} from {indicator.get('malware_families', [])}")
             else:
                 # logging.warning("Don't know how to map malware_family %s to a MISP galaxy.", malware_family)
                 self._log_galaxy_miss(malware_family)
