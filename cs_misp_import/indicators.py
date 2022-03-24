@@ -173,7 +173,7 @@ class IndicatorsImporter:
         event = MISPEvent()
         event.analysis = 2
         event.orgc = self.crowdstrike_org
-
+        tag_list = []
         indicator_value = indicator.get('indicator')
         if indicator_value:
             event.info = indicator_value
@@ -212,9 +212,12 @@ class IndicatorsImporter:
             for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
                 _tag = MISPTag(name=tag)
 #                self.misp.tag(event, tag)
-                event.add_tag(_tag)
+                # event.add_tag(_tag)
+                tag_list.append(_tag)
             if indicator.get('type', None):
-                event.add_tag(MISPTag(name=indicator.get("type").upper()))
+                #event.add_tag(MISPTag(name=indicator.get("type").upper()))
+                _tag = MISPTag(name=indicator.get("type").upper())
+                tag_list.append(_tag)
                 # self.misp.tag(event, indicator.get('type').upper())
         except Exception as err:
             logging.warning("Could not add or tag event %s.\n%s", event.info, str(err))
@@ -223,7 +226,8 @@ class IndicatorsImporter:
             galaxy = self.import_settings["galaxy_map"].get(malware_family)
             if galaxy is not None:
                 try:
-                    event.add_tag(MISPTag(name=galaxy))
+                    # event.add_tag(MISPTag(name=galaxy))
+                    tag_list.append(MISPTag(name=galaxy))
 #                    self.misp.tag(event, galaxy)
                 except Exception as err:
                     logging.warning("Could not add event %s in galaxy/cluster.\n%s", event.info, str(err))
@@ -231,8 +235,10 @@ class IndicatorsImporter:
                 # logging.warning("Don't know how to map malware_family %s to a MISP galaxy.", malware_family)
                 self._log_galaxy_miss(malware_family)
                 #self.misp.tag(event, self.import_settings["unknown_mapping"])
-                event.add_tag(MISPTag(name=self.import_settings["unknown_mapping"]))
+                # event.add_tag(MISPTag(name=self.import_settings["unknown_mapping"]))
+                tag_list.append(MISPTag(name=self.import_settings["unknown_mapping"]))
 
+        event = event.tags(tags=tag_list)
         try:
             self.misp.add_event(event)
         except Exception as err:
