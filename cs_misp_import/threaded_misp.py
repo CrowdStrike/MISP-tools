@@ -21,9 +21,19 @@ class MISP(ExpandedPyMISP):
 
         self.deleted_event_count = 0
 
+    def paged_search(self, tags, timestamp):
+        PAGE_LIMIT = 5000
+        while True:
+            for page in self.search(tags=tags, timestamp=timestamp, limit=PAGE_LIMIT):
+                yield page
+
+                if not page['Event']:
+                    break
+            #break
+
     def delete_event(self, *args, **kwargs):
-        if self.deleted_event_count % 5000 == 0 and self.deleted_event_count:
-            logging.info("%i events deleted.", self.deleted_event_count)
+        # if self.deleted_event_count % 5000 == 0 and self.deleted_event_count:
+        #    logging.info("%i events deleted.", self.deleted_event_count)
         self._retry(super().delete_event, *args, **kwargs)
         self.deleted_event_count += 1
 
@@ -37,13 +47,13 @@ class MISP(ExpandedPyMISP):
 
                 if "errors" not in response:
                     return response
-
-                if i + 1 < self.MAX_RETRIES:
-                    timeout = 0.3 * 2 ** i
-                    logging.warning('Caught an error from MISP server: %s. Re-trying the request %f seconds', response['errors'], timeout)
-                    time.sleep(timeout)
-                else:
-                    raise PyMISPError("MISP Error: {}".format(response['errors']))
+                if response["errors"][0] != 404:
+                    if i + 1 < self.MAX_RETRIES:
+                        timeout = 0.3 * 2 ** i
+                        logging.warning('Caught an error from MISP server: %s. Re-trying the request %f seconds', response['errors'], timeout)
+                        time.sleep(timeout)
+                    else:
+                        raise PyMISPError("MISP Error: {}".format(response['errors']))
             except Exception as e:
                 if i + 1 < self.MAX_RETRIES:
                     timeout = 0.3 * 2 ** i

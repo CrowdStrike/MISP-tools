@@ -88,47 +88,23 @@ class CrowdstrikeToMISPImporter:
         if clean_reports or clean_indicators or clean_actors:
             # threaded_request(self.misp_client.delete_event, self.misp_client.search_index(tags=tags), self.max_threads)
            #for page_time in range(starting, ending, time_step):
-           running = True
-           page = 1
-           while running:
+           #running = True
+           #page = 1
+           #while running:
                #next_step = page_time + time_step - 1
                #print(f"{starting}: {page_time} to {next_step}")
 
-                self.misp_client.deleted_event_count = 0
-                with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
+            self.misp_client.deleted_event_count = 0
+            with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
 #                    executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True, timestamp=page_time, date_to=next_step))
-                    executor.map(self.misp_client.delete_event, self.misp_client.search(tags=tags, timestamp=starting, page=page, limit=5000))
+                executor.map(self.misp_client.delete_event, self.misp_client.paged_search(tags=tags, timestamp=starting))
 #                    executor.map(self.misp_client.delete_event, page)
-                page += 1
-                if self.misp_client.deleted_event_count == 0:
-                    running = False
-                else:
-                    logging.info("Finished cleaning up a batch of Crowdstrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
-            # running = True
-            # page = 1
-            # while running:
-            #     self.misp_client.deleted_event_count = 0
-            #     event_list = self.misp_client.search(tags=tags, page=page, limit=500, pythonify=True)
-
-            #     with concurrent.futures.ThreadPoolExecutor() as executor:
-
-            #         futures = {
-            #             executor.submit(self.misp_client.delete_event, evt)
-            #             for evt in itertools.islice(event_list, self.misp_client.thread_count)
-            #         }
-            #         while futures:
-            #             done, futures = concurrent.futures.wait(
-            #                 futures, return_when=concurrent.futures.FIRST_COMPLETED
-            #             )
-            #             for evt in itertools.islice(event_list, len(done)):
-            #                 futures.add(
-            #                     executor.submit(self.misp_client.delete_event, evt)
-            #                 )
-
-            #     logging.info("Finished cleaning up a batch of Crowdstrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
-            #     page += 1
-            #     if self.misp_client.deleted_event_count == 0:
-            #         running = False
+            #page += 1
+            #if self.misp_client.deleted_event_count == 0:
+            #    running = False
+            #else:
+            logging.info("Finished cleaning up a batch of Crowdstrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
+            
 
 
     def clean_old_crowdstrike_events(self, max_age):
