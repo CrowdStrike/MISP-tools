@@ -93,7 +93,7 @@ class CrowdstrikeToMISPImporter:
            while running:
                #next_step = page_time + time_step - 1
                #print(f"{starting}: {page_time} to {next_step}")
-                print(f"Page: {page}")
+
                 self.misp_client.deleted_event_count = 0
                 with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
 #                    executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True, timestamp=page_time, date_to=next_step))
@@ -101,6 +101,8 @@ class CrowdstrikeToMISPImporter:
                 page += 1
                 if self.misp_client.deleted_event_count == 0:
                     running = False
+                else:
+                    logging.info("Finished cleaning up a batch of Crowdstrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
             # running = True
             # page = 1
             # while running:
