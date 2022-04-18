@@ -190,7 +190,7 @@ def main():
             # Retrieve all tags for selected options
             tags = retrieve_tags(args, settings)
             # Retrieve all events from MISP matching these tags
-            importer.import_from_misp(tags)
+            importer.import_from_misp(tags, int(START_TIME))
             # Import new events from CrowdStrike into MISP
             importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
                                              int(settings["CrowdStrike"]["init_indicators_days_before"]),

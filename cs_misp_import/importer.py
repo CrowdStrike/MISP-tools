@@ -96,8 +96,8 @@ class CrowdstrikeToMISPImporter:
 
             self.misp_client.deleted_event_count = 0
             with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
-#                    executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True, timestamp=page_time, date_to=next_step))
-                executor.map(self.misp_client.delete_event, self.misp_client.paged_search(tags=tags, timestamp=starting))
+                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
+                # executor.map(self.misp_client.delete_event, self.misp_client.paged_search(tags=tags, timestamp=starting))
 #                    executor.map(self.misp_client.delete_event, page)
             #page += 1
             #if self.misp_client.deleted_event_count == 0:
@@ -141,8 +141,9 @@ class CrowdstrikeToMISPImporter:
         if self.config["actors"]:
             self.actors_importer.process_actors(actors_days_before, self.event_ids)
 
-    def import_from_misp(self, tags):
+    def import_from_misp(self, tags, starting):
         """Retrieve existing MISP events."""
+        #events = self.misp_client.paged_search(tags=tags, timestamp=starting)
         events = self.misp_client.search_index(tags=tags)
         for event in events:
             if event.get('info'):
