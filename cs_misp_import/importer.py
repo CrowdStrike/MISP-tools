@@ -1,6 +1,5 @@
 import datetime
 import logging
-import itertools
 import concurrent.futures
 
 from .actors import ActorsImporter
@@ -82,27 +81,11 @@ class CrowdstrikeToMISPImporter:
             tags.append(self.unique_tags["indicators"])
         if clean_actors:
             tags.append(self.unique_tags["actors"])
-        time_step = 3600  # *Modem noise*
-        #ending = ending - time_step
-        last_step = starting
         if clean_reports or clean_indicators or clean_actors:
-            # threaded_request(self.misp_client.delete_event, self.misp_client.search_index(tags=tags), self.max_threads)
-           #for page_time in range(starting, ending, time_step):
-           #running = True
-           #page = 1
-           #while running:
-               #next_step = page_time + time_step - 1
-               #print(f"{starting}: {page_time} to {next_step}")
-
             self.misp_client.deleted_event_count = 0
             with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
                 executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
-                # executor.map(self.misp_client.delete_event, self.misp_client.paged_search(tags=tags, timestamp=starting))
-#                    executor.map(self.misp_client.delete_event, page)
-            #page += 1
-            #if self.misp_client.deleted_event_count == 0:
-            #    running = False
-            #else:
+
             logging.info("Finished cleaning up a batch of Crowdstrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
             
 
@@ -122,11 +105,9 @@ class CrowdstrikeToMISPImporter:
             logging.info("Finished cleaning up Crowdstrike related events from MISP.")
 
     def import_from_crowdstrike(self,
-                                reports_days_before: int = 7,
-                                indicators_days_before: int = 7,
-                                actors_days_before: int = 7,
-                                starting: int = None,
-                                ending: int = None
+                                reports_days_before: int = 1,
+                                indicators_days_before: int = 1,
+                                actors_days_before: int = 1
                                 ):
         """Import reports and events from Crowdstrike Intel API.
 
@@ -137,13 +118,12 @@ class CrowdstrikeToMISPImporter:
         if self.config["reports"]:
             self.reports_importer.process_reports(reports_days_before, self.event_ids)
         if self.config["related_indicators"] or self.config["all_indicators"]:
-            self.indicators_importer.process_indicators(indicators_days_before, self.event_ids, starting, ending)
+            self.indicators_importer.process_indicators(indicators_days_before, self.event_ids)
         if self.config["actors"]:
             self.actors_importer.process_actors(actors_days_before, self.event_ids)
 
-    def import_from_misp(self, tags, starting):
+    def import_from_misp(self, tags):
         """Retrieve existing MISP events."""
-        #events = self.misp_client.paged_search(tags=tags, timestamp=starting)
         events = self.misp_client.search_index(tags=tags)
         for event in events:
             if event.get('info'):
