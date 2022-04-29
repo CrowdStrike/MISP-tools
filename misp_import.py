@@ -66,8 +66,8 @@ def parse_command_line():
     parser.add_argument("--reports", action="store_true", help="Set this to import reports.")
     parser.add_argument("--actors", action="store_true", help="Set this to import actors.")
     parser.add_argument("--config", dest="config_file", help="Path to local configuration file", required=False)
-    parser.add_argument("--start", dest="start_time", help="Starting timestamp (seconds)", required=False)
-    parser.add_argument("--end", dest="end_time", help="End timestamp (seconds, defaults to now.", required=False)
+    # parser.add_argument("--start", dest="start_time", help="Starting timestamp (seconds)", required=False)
+    # parser.add_argument("--end", dest="end_time", help="End timestamp (seconds, defaults to now.", required=False)
     parser.add_argument("--no_dupe_check",
                         dest="no_dupe_check",
                         help="Enable or disable duplicate checking on import, defaults to False.",

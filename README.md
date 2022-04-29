@@ -3,13 +3,14 @@
 [![Twitter URL](https://img.shields.io/twitter/url?label=Follow%20%40CrowdStrike&style=social&url=https%3A%2F%2Ftwitter.com%2FCrowdStrike)](https://twitter.com/CrowdStrike)
 
 # MISP
-This repository contains solutions related to integrating CrowdStrike Intel with the [MISP project](https://github.com/MISP/MISP).
+This repository is focused on solutions for integrating CrowdStrike with the [MISP project](https://github.com/MISP/MISP).
 
-- [Manual Import](#manual-import) - Manually import Actors, Indicators or Reports from CrowdStrike into your MISP instance.
+- [Manual Import](#manual-import) - Manually import Actors, Indicators or Reports from CrowdStrike Falcon X into your MISP instance.
+- [MISP Modules](#modules) - MISP modules that leverage CrowdStrike.
 
 
 ## Manual import
-This solution will import actors, indicators or reports from CrowdStrike Threat Intel into your MISP instance from a specified number of days backwards in time.
+This solution will import actors, indicators or reports from CrowdStrike Falcon X into your MISP instance from a specified number of days backwards in time.
 
 This solution supports standalone execution as well as container deployment.
 
@@ -22,8 +23,8 @@ This solution supports standalone execution as well as container deployment.
 #### Requirements
 The following Python packages must be installed in order for this application to function.
 
-- `crowdstrike-falconpy` (v1.0.0 or greater)
-- `pymisp`
+- [`crowdstrike-falconpy`](https://github.com/CrowdStrike/falconpy) (v1.0.0 or greater)
+- [`pymisp`](https://github.com/MISP/MISP)
 
 #### CrowdStrike API credential Scope
 Your API credentials will need **READ** access to:
@@ -36,7 +37,7 @@ Your API credentials will need **READ** access to:
 You will need to generate an authorization key (and potentially a user) to use for access to the MISP instance. You will also need to create an organization called "CrowdStrike", and provide the UUID for this organization in the configuration file as detailed below.
 
 #### misp_import.ini
-The are two sections within the `misp_import.ini` configuration file, `CrowdStrike` and `MISP`.
+The are two sections within the `misp_import.ini` configuration file, [`CrowdStrike`](#crowdstrike) and [`MISP`](#misp-1).
 
 ##### CrowdStrike
 The CrowdStrike section contains configuration detail for communicating with your CrowdStrike tenant.
@@ -86,6 +87,8 @@ MalwareFamily = Misp_Galaxy_Mapping
 ```ini
 njRAT = misp-galaxy:malpedia="NjRAT"
 ```
+
+> More malware family detail and additional mappings for unidentified malware families can be found at https://www.misp-project.org/galaxy.html.
 
 #### Command line arguments
 This solution accepts the following command line arguments.
@@ -159,3 +162,11 @@ python misp_import.py --clean_indicators
 ```python
 python misp_import.py --related_indicators --reports
 ```
+
+
+## Modules
+The MISP project supports autonomous modules that can be used to extend overal functionality. These modules are broken out into three categories, _expansion_, _import_ and _export_.
+
+The following MISP modules currently leverage CrowdStrike to extend MISP tenant functionality:
+
+- [CrowdStrike Falcon expansion module](https://github.com/MISP/misp-modules/blob/main/misp_modules/modules/expansion/crowdstrike_falcon.py)
