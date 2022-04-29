@@ -37,10 +37,6 @@ class IntelAPIClient:
         first_run = True
 
         while offset < total or first_run:
-            params = {"sort": "last_modified_date.asc",
-                      "filter": f'last_modified_date:>{start_time}',
-                      'limit': self.request_size_limit,
-                      'offset': offset}
             resp_json = self.falcon.query_report_entities(
                 sort="last_modified_date.asc",
                 filter=f'last_modified_date:>{start_time}',
@@ -68,9 +64,6 @@ class IntelAPIClient:
         first_run = True
 
         while len(indicators_in_request) == self.request_size_limit or first_run:
-            # if include_deleted:
-            #     params['include_deleted'] = True
-
             resp_json = self.falcon.query_indicator_entities(
                 sort="_marker.asc",
                 filter=f"_marker:>='{start_time}'",
