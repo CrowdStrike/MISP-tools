@@ -165,8 +165,8 @@ python misp_import.py --related_indicators --reports
 
 
 ## Modules
-The MISP project supports autonomous modules that can be used to extend overal functionality. These modules are broken out into three categories, _expansion_, _import_ and _export_.
+The MISP project supports autonomous modules that can be used to extend overall functionality. These modules are broken out into three categories; _expansion_, _import_ and _export_.
 
-The following MISP modules currently leverage CrowdStrike to extend MISP tenant functionality:
+The following MISP modules currently leverage CrowdStrike:
 
 - [CrowdStrike Falcon expansion module](https://github.com/MISP/misp-modules/blob/main/misp_modules/modules/expansion/crowdstrike_falcon.py)
