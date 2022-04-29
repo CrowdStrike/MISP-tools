@@ -21,6 +21,8 @@ This solution supports standalone execution as well as container deployment.
 ### Configuration
 
 #### Requirements
+This application requires Python **3.6 or greater**.
+
 The following Python packages must be installed in order for this application to function.
 
 - [`crowdstrike-falconpy`](https://github.com/CrowdStrike/falconpy) (v0.8.3 or greater)
