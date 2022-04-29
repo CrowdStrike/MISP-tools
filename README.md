@@ -2,7 +2,7 @@
 
 [![Twitter URL](https://img.shields.io/twitter/url?label=Follow%20%40CrowdStrike&style=social&url=https%3A%2F%2Ftwitter.com%2FCrowdStrike)](https://twitter.com/CrowdStrike)
 
-# MISP
+# MISP Tools
 This repository is focused on solutions for integrating CrowdStrike with the [MISP project](https://github.com/MISP/MISP).
 
 - [Manual Import](#manual-import) - Manually import Actors, Indicators or Reports from CrowdStrike Falcon X into your MISP instance.
