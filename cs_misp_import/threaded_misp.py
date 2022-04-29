@@ -21,16 +21,6 @@ class MISP(ExpandedPyMISP):
 
         self.deleted_event_count = 0
 
-    def paged_search(self, tags, timestamp):
-        PAGE_LIMIT = 5000
-        while True:
-            for page in self.search(tags=tags, timestamp=timestamp, limit=PAGE_LIMIT):
-                yield page
-
-                if not page['Event']:
-                    break
-            #break
-
     def delete_event(self, *args, **kwargs):
         if self.deleted_event_count % 5000 == 0 and self.deleted_event_count:
             logging.info("%i events deleted.", self.deleted_event_count)
