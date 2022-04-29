@@ -71,7 +71,7 @@ class CrowdstrikeToMISPImporter:
             self.actors_importer = ActorsImporter(self.misp_client, intel_api_client, import_settings["crowdstrike_org_uuid"],
                                                   import_settings["actors_timestamp_filename"], self.settings, import_settings["unknown_mapping"])
 
-    def clean_crowdstrike_events(self, clean_reports, clean_indicators, clean_actors, starting, ending):
+    def clean_crowdstrike_events(self, clean_reports, clean_indicators, clean_actors):
         """Delete events from a MISP instance."""
 
         tags = []
