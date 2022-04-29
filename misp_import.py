@@ -8,7 +8,7 @@ r"""CrowdStrike Falcon Intel API to MISP Import utility.
 |. [_]  |.  |____   |.  ____|     _|   |_ |        |  _  |  _  |   _||   _|  -__|   _|
 |:  |   |:  |:  1   |:  |        |_______||__|__|__|   __|_____|__|  |____|_____|__|
 |::.|:. |::.|::.. . |::.|                          |__|
-`--- ---`---`-------`---'                                   CrowdStrike FalconPy v0.8.0+
+`--- ---`---`-------`---'                                   CrowdStrike FalconPy v0.9.0+
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
