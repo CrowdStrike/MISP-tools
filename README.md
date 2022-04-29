@@ -23,7 +23,7 @@ This solution supports standalone execution as well as container deployment.
 #### Requirements
 The following Python packages must be installed in order for this application to function.
 
-- [`crowdstrike-falconpy`](https://github.com/CrowdStrike/falconpy) (v1.0.0 or greater)
+- [`crowdstrike-falconpy`](https://github.com/CrowdStrike/falconpy) (v0.8.3 or greater)
 - [`pymisp`](https://github.com/MISP/MISP)
 
 #### CrowdStrike API credential Scope
