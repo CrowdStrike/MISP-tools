@@ -68,18 +68,22 @@ def parse_command_line():
     parser.add_argument("--config", dest="config_file", help="Path to local configuration file", required=False)
     parser.add_argument("--start", dest="start_time", help="Starting timestamp (seconds)", required=False)
     parser.add_argument("--end", dest="end_time", help="End timestamp (seconds, defaults to now.", required=False)
+    parser.add_argument("--no_dupe_check",
+                        dest="no_dupe_check",
+                        help="Enable or disable duplicate checking on import, defaults to False.",
+                        required=False,
+                        action="store_true"
+                        )
     return parser.parse_args()
 
 
 def perform_local_cleanup(args: argparse.Namespace,
                           importer: CrowdstrikeToMISPImporter,
-                          settings: configparser.ConfigParser,
-                          start: int,
-                          end: int
+                          settings: configparser.ConfigParser
                           ):
     """Remove local offset cache files to reset the marker for data pulls from the CrowdStrike API."""
     try:
-        importer.clean_crowdstrike_events(args.clean_reports, args.clean_indicators, args.clean_actors, start, end)
+        importer.clean_crowdstrike_events(args.clean_reports, args.clean_indicators, args.clean_actors)
         if args.clean_reports and os.path.isfile(settings["CrowdStrike"]["reports_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["reports_timestamp_filename"])
             logging.info("Finished resetting CrowdStrike Report offset.")
@@ -183,20 +187,19 @@ def main():
     importer = CrowdstrikeToMISPImporter(intel_api_client, import_settings, provided_arguments, settings)
 
     if args.clean_reports or args.clean_indicators or args.clean_actors:
-        perform_local_cleanup(args, importer, settings, int(START_TIME), int(END_TIME))
+        perform_local_cleanup(args, importer, settings)
 
     if args.reports or args.actors or args.related_indicators or args.all_indicators:
         try:
-            # Retrieve all tags for selected options
-            tags = retrieve_tags(args, settings)
-            # Retrieve all events from MISP matching these tags
-            importer.import_from_misp(tags, int(START_TIME))
+            if not args.no_dupe_check:
+                # Retrieve all tags for selected options
+                tags = retrieve_tags(args, settings)
+                # Retrieve all events from MISP matching these tags
+                importer.import_from_misp(tags)
             # Import new events from CrowdStrike into MISP
             importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
                                              int(settings["CrowdStrike"]["init_indicators_days_before"]),
-                                             int(settings["CrowdStrike"]["init_actors_days_before"]),
-                                             int(START_TIME),
-                                             int(END_TIME)
+                                             int(settings["CrowdStrike"]["init_actors_days_before"])
                                              )
         except Exception as err:
             logging.exception(err)
