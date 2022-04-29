@@ -105,7 +105,7 @@ This solution accepts the following command line arguments.
 | `--max_age` | Maximum age (in days) of actors, indicators or reports to import. |
 | `--related_indicators` | Import indicators related to reports. |
 | `--all_indicators` | Import all indicators. |
-| `--delete_outdated_indicators` | Checks as indicators are imported to see if they are flagged for deletion, if so they are removed if they exist and are not imported. |
+| `--delete_outdated_indicators` | Checks as indicators are imported to see if they are flagged for deletion, if so they are removed instead of imported. |
 | `--reports` | Import reports. |
 | `--actors` | Import actors. |
 | `--config` | Path to the local configuration file, defaults to `misp_import.ini`. |
