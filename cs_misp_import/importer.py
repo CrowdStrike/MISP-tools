@@ -1,6 +1,5 @@
 import datetime
 import logging
-
 import concurrent.futures
 
 from .actors import ActorsImporter
@@ -74,6 +73,7 @@ class CrowdstrikeToMISPImporter:
 
     def clean_crowdstrike_events(self, clean_reports, clean_indicators, clean_actors):
         """Delete events from a MISP instance."""
+
         tags = []
         if clean_reports:
             tags.append(self.unique_tags["reports"])
@@ -81,13 +81,14 @@ class CrowdstrikeToMISPImporter:
             tags.append(self.unique_tags["indicators"])
         if clean_actors:
             tags.append(self.unique_tags["actors"])
-        # from .processor import FUTURES, threaded_request
         if clean_reports or clean_indicators or clean_actors:
             self.misp_client.deleted_event_count = 0
-            # threaded_request(self.misp_client.delete_event, self.misp_client.search_index(tags=tags), self.max_threads)
             with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
-                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags))
-            logging.info("Finished cleaning up Crowdstrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
+                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
+
+            logging.info("Finished cleaning up a batch of Crowdstrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
+            
+
 
     def clean_old_crowdstrike_events(self, max_age):
         """Remove events from MISP that are dated greater than the specified max_age value."""
@@ -104,9 +105,9 @@ class CrowdstrikeToMISPImporter:
             logging.info("Finished cleaning up Crowdstrike related events from MISP.")
 
     def import_from_crowdstrike(self,
-                                reports_days_before: int = 7,
-                                indicators_days_before: int = 7,
-                                actors_days_before: int = 7
+                                reports_days_before: int = 1,
+                                indicators_days_before: int = 1,
+                                actors_days_before: int = 1
                                 ):
         """Import reports and events from Crowdstrike Intel API.
 

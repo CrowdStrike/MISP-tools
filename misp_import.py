@@ -33,6 +33,7 @@ SOFTWARE.
 import argparse
 import configparser
 from configparser import ConfigParser, ExtendedInterpolation
+from datetime import datetime, timedelta
 import logging
 import os
 import urllib3
@@ -65,10 +66,21 @@ def parse_command_line():
     parser.add_argument("--reports", action="store_true", help="Set this to import reports.")
     parser.add_argument("--actors", action="store_true", help="Set this to import actors.")
     parser.add_argument("--config", dest="config_file", help="Path to local configuration file", required=False)
+    parser.add_argument("--start", dest="start_time", help="Starting timestamp (seconds)", required=False)
+    parser.add_argument("--end", dest="end_time", help="End timestamp (seconds, defaults to now.", required=False)
+    parser.add_argument("--no_dupe_check",
+                        dest="no_dupe_check",
+                        help="Enable or disable duplicate checking on import, defaults to False.",
+                        required=False,
+                        action="store_true"
+                        )
     return parser.parse_args()
 
 
-def perform_local_cleanup(args: argparse.Namespace, importer: CrowdstrikeToMISPImporter, settings: configparser.ConfigParser):
+def perform_local_cleanup(args: argparse.Namespace,
+                          importer: CrowdstrikeToMISPImporter,
+                          settings: configparser.ConfigParser
+                          ):
     """Remove local offset cache files to reset the marker for data pulls from the CrowdStrike API."""
     try:
         importer.clean_crowdstrike_events(args.clean_reports, args.clean_indicators, args.clean_actors)
@@ -106,6 +118,7 @@ def main():
     if not args.config_file:
         args.config_file = "misp_import.ini"
 
+
     settings = ConfigParser(interpolation=ExtendedInterpolation())
     settings.read(args.config_file)
 
@@ -121,7 +134,14 @@ def main():
         # Not specified, default to enable warnings
         pass
 
+    START_TIME = (datetime.today() - timedelta(days=1)).strftime("%s")  # Default to one day ago
+    if args.start_time:
+        START_TIME = args.start_time
     
+    END_TIME = datetime.now().strftime("%s")
+    if args.end_time:
+        END_TIME = args.end_time
+
     logging.root.setLevel(logging.INFO)
     #LOG_LEVEL = logging.INFO
     if args.debug:
@@ -171,10 +191,11 @@ def main():
 
     if args.reports or args.actors or args.related_indicators or args.all_indicators:
         try:
-            # Retrieve all tags for selected options
-            tags = retrieve_tags(args, settings)
-            # Retrieve all events from MISP matching these tags
-            importer.import_from_misp(tags)
+            if not args.no_dupe_check:
+                # Retrieve all tags for selected options
+                tags = retrieve_tags(args, settings)
+                # Retrieve all events from MISP matching these tags
+                importer.import_from_misp(tags)
             # Import new events from CrowdStrike into MISP
             importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
                                              int(settings["CrowdStrike"]["init_indicators_days_before"]),

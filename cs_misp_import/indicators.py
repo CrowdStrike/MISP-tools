@@ -302,3 +302,6 @@ class IndicatorsImporter:
         if self.MISSING_GALAXIES:
             for _galaxy in self.MISSING_GALAXIES:
                 logging.warning("No galaxy mapping found for %s malware family.", _galaxy)
+        
+            with open(self.galaxy_miss_file, "w", encoding="utf-8") as miss_file:
+                miss_file.write("\n".join(self.MISSING_GALAXIES))
