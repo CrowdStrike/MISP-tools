@@ -25,7 +25,7 @@ This application requires Python **3.6+**.
 
 The following Python packages must be installed in order for this application to function.
 
-- [`crowdstrike-falconpy`](https://github.com/CrowdStrike/falconpy) (v0.8.3+)
+- [`crowdstrike-falconpy`](https://github.com/CrowdStrike/falconpy) (v0.9.0+)
 - [`pymisp`](https://github.com/MISP/MISP)
 
 #### CrowdStrike API credential Scope
