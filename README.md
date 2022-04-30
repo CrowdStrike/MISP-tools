@@ -12,6 +12,8 @@ This repository is focused on solutions for integrating CrowdStrike with the [MI
 ## Manual import
 This solution will import actors, indicators or reports from CrowdStrike Falcon X into your MISP instance from a specified number of days backwards in time.
 
+![MISP Import](docs/misp-import.gif)
+
 This solution supports standalone execution as well as container deployment.
 
 - [Configuration](#configuration)
