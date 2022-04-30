@@ -1,11 +1,17 @@
 import logging
 from functools import reduce
 try:
-    from falconpy import Intel
+    from falconpy import Intel, __version__ as FALCONPY_VERSION
 except ImportError as no_falconpy:
     raise SystemExit(
         "The CrowdStrike FalconPy package must be installed to use this program."
         ) from no_falconpy
+
+current = FALCONPY_VERSION.split(".")
+requested = "0.9.0".split(".")
+if bool(float(f"{current[0]}.{current[1]}") < float(f"{requested[0]}.{requested[1]}")):
+    raise SystemExit("This application requires FalconPy v0.9.0 or greater.")
+
 
 class IntelAPIClient:
     """This class provides the interface for the CrowdStrike Intel API."""
