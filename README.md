@@ -115,7 +115,7 @@ This solution accepts the following command line arguments.
 
 
 ### Running the solution as a container
-This solution can also be run as a container using the provider Docker file.
+This solution can also be run as a container using the provided Docker file.
 
 #### Building the container
 To build the container, execute the following command. Depending upon permissions within your environment, you may need to execute this with escalated permissions.
