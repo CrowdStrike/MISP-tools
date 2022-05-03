@@ -154,17 +154,17 @@ The following examples demonstrate different variations of executing the solutio
 
 **Import all data (actors, indicators and reports)**
 ```python
-python misp_import.py --actors --all_indicators --reports
+python3 misp_import.py --actors --all_indicators --reports
 ```
 
 **Delete just indicators**
 ```python
-python misp_import.py --clean_indicators
+python3 misp_import.py --clean_indicators
 ```
 
 **Only import reports and related indicators**
 ```python
-python misp_import.py --related_indicators --reports
+python3 misp_import.py --related_indicators --reports
 ```
 
 
