@@ -31,9 +31,7 @@ SOFTWARE.
 © Copyright CrowdStrike 2019-2022
 """
 import argparse
-import configparser
 from configparser import ConfigParser, ExtendedInterpolation
-from datetime import datetime, timedelta
 import logging
 import os
 import urllib3
@@ -77,7 +75,7 @@ def parse_command_line():
 
 def perform_local_cleanup(args: argparse.Namespace,
                           importer: CrowdstrikeToMISPImporter,
-                          settings: configparser.ConfigParser
+                          settings: ConfigParser
                           ):
     """Remove local offset cache files to reset the marker for data pulls from the CrowdStrike API."""
     try:

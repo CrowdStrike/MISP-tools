@@ -48,7 +48,7 @@ class IndicatorsImporter:
         
 
     def _log_galaxy_miss(self, family: str):
-        if self.MISSING_GALAXIES == None:
+        if self.MISSING_GALAXIES is None:
             if os.path.exists(self.galaxy_miss_file):
                 with open(self.galaxy_miss_file, "r", encoding="utf-8") as miss_file:
                     missing = miss_file.read()
@@ -157,7 +157,7 @@ class IndicatorsImporter:
                     if indicator_name is not None:
                         events_already_imported[indicator_name] = True
 
-        if events_already_imported == None:
+        if events_already_imported is None:
             events_already_imported = self.already_imported
         with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
             executor.map(threaded_indicator_push, indicators)
