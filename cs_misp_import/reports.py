@@ -113,20 +113,21 @@ class ReportsImporter:
             else:
                 logging.warning("Actor from report %s missing name field.", report.get('id'))
 
-        for country in report.get('target_countries', []):
-            if country.get('value'):
-                country_object = MISPObject('victim')
-                country_object.add_attribute('regions', country.get('value'))
-                event.add_object(country_object)
-            else:
-                logging.warning("Target country from report %s missing value field.", report.get('id'))
-
-        for industry in report.get('target_industries', []):
-            if industry.get('value'):
-                industry_object = MISPObject('victim')
-                industry_object.add_attribute('sectors', industry.get('value'))
-                event.add_object(industry_object)
-            else:
-                logging.warning("Target industry from report %s missing value field.", report.get('id'))
+        if report.get("target_countries", None):
+            for country in report.get('target_countries', []):
+                if country.get('value'):
+                    country_object = MISPObject('victim')
+                    country_object.add_attribute('regions', country.get('value'))
+                    event.add_object(country_object)
+                else:
+                    logging.warning("Target country from report %s missing value field.", report.get('id'))
+        if report.get("target_industries", None):
+            for industry in report.get('target_industries', []):
+                if industry.get('value'):
+                    industry_object = MISPObject('victim')
+                    industry_object.add_attribute('sectors', industry.get('value'))
+                    event.add_object(industry_object)
+                else:
+                    logging.warning("Target industry from report %s missing value field.", report.get('id'))
 
         return event
