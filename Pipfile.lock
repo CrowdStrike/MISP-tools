@@ -74,11 +74,11 @@
         },
         "pymisp": {
             "hashes": [
-                "sha256:54133f133a8ca468b95b89317f42f527cb2cf5e049a187061c10be59fcb91ae5",
-                "sha256:5701662c15ba983796be6ea9a0ac1263d9b06b804b112260589d35be1dd32eeb"
+                "sha256:7af4f80180bd32411448628940b19d5fa434307e979a6a8a2d41b13fbc86f7a7",
+                "sha256:b42ae4bb92ec2be92962957ed7b7c112fe0648ac0ad095900dc2d71df7f4e37e"
             ],
             "index": "pypi",
-            "version": "==2.4.155.1"
+            "version": "==2.4.159"
         },
         "pyrsistent": {
             "hashes": [
