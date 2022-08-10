@@ -1,34 +1,125 @@
+"""CrowdStrike reports to MISP events importer."""
 import datetime
-import logging
+from logging import Logger
 import os
-
+import time
+import concurrent.futures
 try:
-    from pymisp import MISPObject, MISPEvent, MISPOrganisation
+    from pymisp import MISPObject, MISPEvent, MISPAttribute
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
         ) from no_pymisp
 
+from .adversary import Adversary
+from .helper import gen_indicator
 
 class ReportsImporter:
     """Tool used to import reports from the Crowdstrike Intel API and push them as events in MISP through the MISP API."""
 
-    def __init__(self, misp_client, intel_api_client, crowdstrike_org_uuid, reports_timestamp_filename, settings):
+    def __init__(self,
+                 misp_client,
+                 intel_api_client,
+                 crowdstrike_org_uuid: str,
+                 reports_timestamp_filename: str,
+                 settings: dict,
+                 import_settings: dict,
+                 logger: Logger
+                 ):
         """Construct an instance of the ReportsImporter class.
 
         :param misp_client: MISP API client object
         :param intel_api_client: CrowdStrike Intel API client object
         :param crowdstrike_org_uuid: UUID for the CrowdStrike organization within the MISP instance
         :param reports_timestamp_filename: Filename for the reports _marker tracking file
-
+        :param settings: Configuration settings dictionary
+        :param import_settings: Import settings dictionary
+        :param logger: Logging object
         """
         self.misp = misp_client
         self.intel_api_client = intel_api_client
         self.reports_timestamp_filename = reports_timestamp_filename
         self.settings = settings
-        org = MISPOrganisation()
-        org.uuid = crowdstrike_org_uuid
-        self.crowdstrike_org = self.misp.get_organisation(org, True)
+        self.import_settings = import_settings
+        self.crowdstrike_org = self.misp.get_organisation(crowdstrike_org_uuid, True)
+        self.log = logger
+        self.events_already_imported: dict = {}
+
+    def batch_report_detail(self, id_list):
+        return self.intel_api_client.falcon.get_report_entities(ids=id_list, fields="__full__")["body"]["resources"]
+
+    def batch_import_reports(self, report, rpt_detail, ind_list):
+        report_name = report.get('name')
+        if report_name is not None:
+            if self.events_already_imported.get(report_name) is None:
+                event: MISPEvent = self.create_event_from_report(report, rpt_detail, ind_list)
+                if event is not None:
+                    self.log.info("%s report created.", report_name)
+                    try:
+                        for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
+                            event.add_tag(tag)
+                        for rtype in self.intel_api_client.valid_report_types:
+                            if rtype.upper() in report.get('name', None):
+                                event.add_tag(f"CrowdStrike:report: {rtype.upper()}")
+                        self.events_already_imported[report_name] = True
+                        event = self.misp.add_event(event, True)
+                    except Exception as err:
+                        self.log.warning("Could not add or tag event %s.\n%s", event.info, str(err))
+                else:
+                    self.log.warning("Failed to create a MISP event for report %s.", report)
+
+                if report.get('last_modified_date') is None:
+                    self.log.warning("Failed to confirm report %s in file.", report)
+                else:
+                    if report.get('last_modified_date') > self.last_pos:
+                        self.last_pos = report.get("last_modified_date")
+
+    def get_indicator_detail(self, id_list):
+        def query_api(filter_str: str):
+            return self.intel_api_client.falcon.query_indicator_entities(
+                sort="_marker.asc",
+                filter=filter_str,
+                limit=5000
+            )
+        start_time = ""
+        startup = True
+        returned = []
+        marker_check = ""
+        while len(returned) > 0 or startup:
+            startup = False
+            if start_time:
+                marker_check = f"_marker:>='{start_time}'+"
+            filters = f"{marker_check}reports:{id_list}"
+            indicator_lookup = query_api(filters)
+            fcnt = 0
+            if not isinstance(indicator_lookup, bytes):
+                if indicator_lookup["status_code"] == 429:
+                    fcnt += 1
+                    if fcnt > 3:
+                        raise SystemExit("Too many API communication issues.")
+                    time.sleep(1*fcnt)
+                    indicator_lookup = query_api(filters)
+            else:
+                indicator_lookup = query_api(filters)
+
+            try:       
+                returned = indicator_lookup["body"].get("resources", {})
+            
+                if returned:
+                    yield returned
+
+                    last_marker = returned[-1].get('_marker', '')
+                    if last_marker == '' or last_marker == start_time:
+                        break
+                    start_time = last_marker
+            except TypeError:
+                pass
+
+    def batch_related_indicators(self, ids):
+        found = []
+        for indicators_page in self.get_indicator_detail(id_list=ids):
+            found.extend(indicators_page)
+        return found
 
     def process_reports(self, reports_days_before, events_already_imported):
         """Pull and process reports.
@@ -36,98 +127,225 @@ class ReportsImporter:
         :param reports_days_before: in case on an initialisation run, this is the age of the reports pulled in days
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
-        start_get_events = int((datetime.date.today() - datetime.timedelta(reports_days_before)).strftime("%s"))
+        start_get_events = int((datetime.date.today() - datetime.timedelta(min(reports_days_before, 365))).strftime("%s"))
         if os.path.isfile(self.reports_timestamp_filename):
             with open(self.reports_timestamp_filename, 'r', encoding="utf-8") as ts_file:
                 line = ts_file.readline()
-                start_get_events = int(line)
+                if line:
+                    start_get_events = int(line)
 
-        log_msg = "Started getting reports from Crowdstrike Intel API and pushing them as events in MISP."
-        print(log_msg)
-        logging.info(log_msg)
+        log_msg = f"Start getting reports from Crowdstrike Intel API and pushing them as events in MISP (past {reports_days_before} days)."
+        self.log.info(log_msg)
         time_send_request = datetime.datetime.now()
         reports = self.intel_api_client.get_reports(start_get_events)
         log_msg = f"Got {str(len(reports))} reports from the Crowdstrike Intel API."
-        print(log_msg)
-        logging.info(log_msg)
+        self.log.info(log_msg)
 
         if len(reports) == 0:
             with open(self.reports_timestamp_filename, 'w', encoding="utf-8") as ts_file:
                 ts_file.write(time_send_request.strftime("%s"))
         else:
-            for report in reports:
-                report_name = report.get('name')
-                if report_name is not None:
-                    if events_already_imported.get(report_name) is not None:
-                        continue
+            adversary_events = self.misp.get_adversaries()
+            report_ids = [rep.get("name").split(" ")[0] for rep in reports]
+            rep_batches = [report_ids[i:i+500] for i in range(0, len(report_ids), 500)]
+            # Batched retrieval of extended report details
+            details = []
+            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
+                futures = {
+                    executor.submit(self.batch_report_detail, rep) for rep in rep_batches
+                }
+                for fut in concurrent.futures.as_completed(futures):
+                    details.extend(fut.result())
 
-                event = self.create_event_from_report(report)
-                if event is not None:
-                    try:
-                        event = self.misp.add_event(event, True)
-                        for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
-                            self.misp.tag(event, tag)
-                        for rtype in self.intel_api_client.valid_report_types:
-                            if rtype.upper() in report.get('name', None):
-                                self.misp.tag(event, rtype.upper())
-                        if report_name is not None:
-                            events_already_imported[report_name] = True
-                    except Exception as err:
-                        logging.warning("Could not add or tag event %s.\n%s", event.info, str(err))
-                else:
-                    logging.warning("Failed to create a MISP event for report %s.", report)
+            self.log.info(f"{len(details)} report details retrieved")
 
-                if report.get('last_modified_date') is None:
-                    logging.warning("Failed to confirm report %s in file.", report)
-                    continue
+            # Batched retrieval of related indicator details
+            indicator_list = []
+            batches = [report_ids[i:i+200] for i in range(0, len(report_ids), 200)]
+            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
+                futures = {
+                    executor.submit(self.batch_related_indicators, bat) for bat in batches
+                }
+                for fut in concurrent.futures.as_completed(futures):
+                    indicator_list.extend(fut.result())
+
+            self.log.info(f"{len(indicator_list)} related indicators found")
+            self.last_pos = reports[-1].get('last_modified_date', '')
+
+            # Threaded insert of report events into MISP instance
+            reported = []
+            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
+                futures = {
+                    executor.submit(self.batch_import_reports, rp, details, indicator_list) for rp in reports
+                }
+                for fut in concurrent.futures.as_completed(futures):
+                    reported.append(fut.done())
 
                 with open(self.reports_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                    ts_file.write(str(report.get('last_modified_date')))
+                    ts_file.write(str(self.last_pos))
 
-        logging.info("Finished getting reports from Crowdstrike Intel API and pushing them as events in MISP.")
 
-    def create_event_from_report(self, report):
-        """Create a MISP event from a Intel report."""
-        event = MISPEvent()
-        event.analysis = 2
-        event.orgc = self.crowdstrike_org
+        self.log.info("Finished importing %i Crowdstrike Intel reports as events in MISP.", len(reports))
 
-        if report.get('name'):
-            event.info = report.get('name')
-        else:
-            logging.warning("Report %s missing name field.", report.get('id'))
-
-        if report.get('url'):
-            event.add_attribute('link', report.get('url'))
-        else:
-            logging.warning("Report %s missing url field.", report.get('id'))
-
-        if report.get('short_description'):
-            event.add_attribute('comment', report.get('short_description'))
-        else:
-            logging.warning("Report %s missing short_description field.", report.get('id'))
-
+    def add_actor_detail(self, report: dict, event: MISPEvent) -> MISPEvent:
         for actor in report.get('actors', []):
             if actor.get('name'):
-                event.add_attribute('threat-actor', actor.get('name'))
-            else:
-                logging.warning("Actor from report %s missing name field.", report.get('id'))
+                actor_detail = self.intel_api_client.falcon.get_actor_entities(ids=actor.get("id"))
+                if actor_detail["status_code"] == 200:
+                    actor_detail = actor_detail["body"]["resources"][0]
+                actor_name = actor.get('name').split(" ")
+                first = actor_detail.get("first_activity_date", 0)
+                last = actor_detail.get("last_activity_date", 0)
+                actor_att = {
+                    "type": "threat-actor",
+                    "value": actor.get("name"),
+                }
+                if first:
+                    actor_att["first_seen"] = first
+                if last:
+                    actor_att["last_seen"] = last
+                att = event.add_attribute(**actor_att)
+                for stem in actor_name:
+                    for adversary in Adversary:
+                        if adversary.name == stem.upper():
+                            event.add_tag(f"CrowdStrike:adversary: {stem.upper()}")
+                            event.add_attribute_tag(f"CrowdStrike:adversary: {stem.upper()}", att.uuid)
+                for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
+                    event.add_attribute_tag(tag, att.uuid)
 
+        return event
+
+    def add_indicator_detail(self, event: MISPEvent, report_id: str, indicator_list: list) -> MISPEvent:
+        if report_id:
+            ind_list = [i for i in indicator_list if report_id in i.get("reports")]
+            indicator_count = len(ind_list)
+            if indicator_count:
+                self.log.info("Retrieved %i indicators detailed within report %s", indicator_count, report_id)
+            for ind in ind_list:
+                galaxies = []
+                galaxy_tags = []
+                for malware_family in ind.get('malware_families', []):
+                    galaxy = self.import_settings["galaxy_map"].get(malware_family)
+                    if galaxy:
+                        galaxies.append(galaxy)
+                    else:
+                        galaxy_tags.append(malware_family)
+                indicator_object = gen_indicator(ind, self.settings["CrowdStrike"]["indicators_tags"].split(","))
+                if isinstance(indicator_object, MISPObject):
+                    event.add_object(indicator_object)
+
+                elif isinstance(indicator_object, MISPAttribute):
+                    ind_seen = {}
+                    if ind.get("published_date"):
+                        ind_seen["first_seen"] = ind.get("published_date")
+                    if ind.get("last_updated"):
+                        ind_seen["last_seen"] = ind.get("last_updated")
+                    added = event.add_attribute(indicator_object.type, indicator_object.value, category=indicator_object.category, **ind_seen)
+                    event.add_attribute_tag(f"CrowdStrike:indicator: {indicator_object.type.upper()}", added.uuid)
+                    for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
+                        event.add_attribute_tag(tag, added.uuid)
+
+                for gal in list(set(galaxy_tags)):
+                    event.add_tag(f"CrowdStrike:no-galaxy: {gal}")
+                for galactic in list(set(galaxies)):
+                    event.add_tag(galactic)
+
+        return event
+
+    def add_victim_detail(self, report: dict, event: MISPEvent) -> MISPEvent:
+        # Targeted countries
         if report.get("target_countries", None):
             for country in report.get('target_countries', []):
-                if country.get('value'):
-                    country_object = MISPObject('victim')
-                    country_object.add_attribute('regions', country.get('value'))
-                    event.add_object(country_object)
-                else:
-                    logging.warning("Target country from report %s missing value field.", report.get('id'))
+                region = country.get('value')
+                if region:
+                    # Also create a target-location attribute for this value
+                    reg = event.add_attribute('target-location', region)
+                    event.add_attribute_tag(f"CrowdStrike:target: {region.upper()}", reg.uuid)
+
+        # Targeted industries
         if report.get("target_industries", None):
             for industry in report.get('target_industries', []):
-                if industry.get('value'):
-                    industry_object = MISPObject('victim')
-                    industry_object.add_attribute('sectors', industry.get('value'))
-                    event.add_object(industry_object)
-                else:
-                    logging.warning("Target industry from report %s missing value field.", report.get('id'))
+                sector = industry.get('value', None)
+                if sector:
+                    victim = MISPObject("victim")
+                    vic = victim.add_attribute('sectors', sector)
+                    vic.add_tag(f"CrowdStrike:target: {sector.upper()}")
+                    event.add_object(victim)
+
+        return event
+
+    def add_report_content(self, report: dict, event: MISPEvent, details: dict, report_id: str, seen: dict) -> MISPEvent:
+        attributes: list[MISPAttribute] = []
+        report_tag = None
+        for rtype in self.intel_api_client.valid_report_types:
+            if report.get('name', None).startswith(rtype.upper()):
+                report_tag = rtype.upper()
+        rpt_cat = "Internal reference"
+        if details.get('short_description'):
+            rpt = MISPObject("report")
+            if report_id:
+                attributes.append(rpt.add_attribute("case-number", report_id, category=rpt_cat, **seen))
+            attributes.append(rpt.add_attribute("type", "Report", category=rpt_cat, **seen))
+            attributes.append(rpt.add_attribute("summary", report.get("short_description"), category=rpt_cat, **seen))
+            attributes.append(rpt.add_attribute("link", report.get("url"), **seen))
+            if details.get("attachments"):
+                for attachment in details.get("attachments"):
+                    attributes.append(rpt.add_attribute("report-file", attachment.get("url"), **seen))
+            event.add_object(rpt)
+
+        # Report Annotation and full text
+        if details.get('description'):
+            annot = MISPObject("annotation")
+            attributes.append(annot.add_attribute("text", details.get("description"), category=rpt_cat, **seen))
+            attributes.append(annot.add_attribute("format", "text", category=rpt_cat, **seen))
+            attributes.append(annot.add_attribute("type", "Full Report", category=rpt_cat, **seen))
+            attributes.append(annot.add_attribute("ref", report.get("url"), **seen))
+            event.add_object(annot)
+
+            event.add_event_report(report.get("name"), details.get("description"))
+
+        for att in attributes:
+            for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
+                event.add_attribute_tag(tag, att.uuid)
+            if att.value not in ["text", "Full Report", "Report", report_id]:
+                event.add_attribute_tag(f"CrowdStrike:report:{report_id.lower().replace('-',': ')}", att.uuid)
+            if report_tag:
+                event.add_attribute_tag(f"CrowdStrike:report: {report_tag.upper()}", att.uuid)
+
+        return event
+
+    def create_event_from_report(self, report, report_details, indicator_list) -> MISPEvent:
+        """Create a MISP event from a Intel report."""
+        if report.get('name'):
+            event = MISPEvent()
+            event.analysis = 2
+            event.orgc = self.crowdstrike_org
+            # Extended report details lookup
+            details = {}
+            for det in report_details:
+                if det.get("id") == report.get("id"):
+                    details = det
+            # Report / Event name
+            event.info = report.get('name')
+            # Report ID
+            report_id = report.get("name").split(" ")[0]
+            # First / Last seen timestamps
+            seen = {}
+            if details.get("created_date"):
+                seen["first_seen"] = details.get("created_date")
+            if details.get("last_modified_date"):
+                seen["last_seen"] = details.get("last_modified_date")
+
+            # Actors - Attribution attributes
+            event = self.add_actor_detail(report, event)
+            # Victim Object
+            event = self.add_victim_detail(report, event)
+            # Report indicators
+            event = self.add_indicator_detail(event, report_id, indicator_list)
+            # Formatted report link and case number
+            event = self.add_report_content(report, event, details, report_id, seen)
+
+        else:
+            self.log.warning("Report %s missing name field.", report.get('id'))
 
         return event
