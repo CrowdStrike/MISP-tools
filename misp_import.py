@@ -36,7 +36,7 @@ import logging
 import os
 import urllib3
 from cs_misp_import import (
-    IntelAPIClient, CrowdstrikeToMISPImporter
+    IntelAPIClient, CrowdstrikeToMISPImporter, MISP_BANNER, FINISHED_BANNER
 )
 
 
@@ -46,27 +46,34 @@ def parse_command_line():
                                                  "API into a MISP instance.")
     parser.add_argument("--clean_reports", action="store_true", help="Set this to run a cleaning round on reports.")
     parser.add_argument("--clean_indicators", action="store_true", help="Set this to run a cleaning round on indicators.")
-    parser.add_argument("--clean_actors", action="store_true", help="Set this to run a cleaning round on actors,")
+    parser.add_argument("--clean_actors", "--clean_adversaries", dest="clean_actors", action="store_true", help="Set this to run a cleaning round on adversaries.")
     parser.add_argument("--debug", action="store_true", help="Set this to activate debug logs.")
     parser.add_argument("--max_age", type=int,
                         help="Maximum age of the objects to be stored in MISP in days."
                              " Objects older than that will be deleted."
                         )
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--related_indicators", action="store_true",
-                       help="Set this to only import indicators related to reports."
-                       )
-    group.add_argument("--all_indicators", action="store_true", help="Set this to import all indicators.")
+    #group = parser.add_mutually_exclusive_group()
+    # group.add_argument("--related_indicators", action="store_true",
+    #                    help="Set this to only import indicators related to reports."
+    #                    )
+    parser.add_argument("--indicators", action="store_true", help="Set this to import all indicators.")
+    parser.add_argument("--force", action="store_true", help="Ignore previous timestamp and use minutes setting from ini file.")
     parser.add_argument("--delete_outdated_indicators", action='store_true',
                         help="Set this to check if the indicators you are imported have been marked as deleted and"
                              " if they have been already inserted, delete them."
                         )
     parser.add_argument("--reports", action="store_true", help="Set this to import reports.")
-    parser.add_argument("--actors", action="store_true", help="Set this to import actors.")
+    parser.add_argument("--actors", "--adversaries", dest="actors", action="store_true", help="Set this to import adversaries.")
     parser.add_argument("--config", dest="config_file", help="Path to local configuration file", required=False)
     parser.add_argument("--no_dupe_check",
                         dest="no_dupe_check",
                         help="Enable or disable duplicate checking on import, defaults to False.",
+                        required=False,
+                        action="store_true"
+                        )
+    parser.add_argument("--clean_tags",
+                        dest="clean_tags",
+                        help="Remove all CrowdStrike tags from the MISP instance",
                         required=False,
                         action="store_true"
                         )
@@ -88,7 +95,7 @@ def perform_local_cleanup(args: argparse.Namespace,
             logging.info("Finished resetting CrowdStrike Indicator offset.")
         if args.clean_actors and os.path.isfile(settings["CrowdStrike"]["actors_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["actors_timestamp_filename"])
-            logging.info("Finished resetting CrowdStrike Actor offset.")
+            logging.info("Finished resetting CrowdStrike Adversary offset.")
     except Exception as err:
         logging.exception(err)
         raise SystemExit(err) from err
@@ -99,7 +106,7 @@ def retrieve_tags(args: argparse.Namespace, settings):
     tags = []
     if args.reports:
         tags.append(settings["CrowdStrike"]["reports_unique_tag"])
-    if args.related_indicators or args.all_indicators:
+    if args.indicators:
         tags.append(settings["CrowdStrike"]["indicators_unique_tag"])
     if args.actors:
         tags.append(settings["CrowdStrike"]["actors_unique_tag"])
@@ -130,19 +137,34 @@ def main():
         # Not specified, default to enable warnings
         pass
 
-    logging.root.setLevel(logging.INFO)
+    logger = logging.getLogger("misp_import")
+    logger.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    
+    
     #LOG_LEVEL = logging.INFO
+    ch.setLevel(logging.INFO)
+    
     if args.debug:
-        logging.root.setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+        ch.setLevel(logging.DEBUG)
         #LOG_LEVEL = logging.DEBUG
     #logging.basicConfig(filename="misp-import.log", level=LOG_LEVEL)
+    ch.setFormatter(logging.Formatter("[%(asctime)s] (%(levelname)s) %(message)s"))
+    logger.addHandler(ch)
+    logger.propagate = False
+
+    # Off we go!
+    logger.info(MISP_BANNER)
+    
 
     # Interface to the CrowdStrike Falcon Intel API
     intel_api_client = IntelAPIClient(settings["CrowdStrike"]["client_id"],
                                       settings["CrowdStrike"]["client_secret"],
                                       settings["CrowdStrike"]["crowdstrike_url"],
                                       int(settings["CrowdStrike"]["api_request_max"]),
-                                      False if "F" in settings["CrowdStrike"]["api_enable_ssl"].upper() else True
+                                      False if "F" in settings["CrowdStrike"]["api_enable_ssl"].upper() else True,
+                                      logger
                                       )
     # Dictionary of settings provided by settings.py
     import_settings = {
@@ -159,7 +181,8 @@ def main():
         "max_threads": settings["MISP"].get("max_threads", None),
         "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
         "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True,
-        "galaxy_map": galaxy_maps["Galaxy"]
+        "galaxy_map": galaxy_maps["Galaxy"],
+        "force_indicators": args.force
     }
     
     if not import_settings["unknown_mapping"]:
@@ -167,17 +190,20 @@ def main():
     # Dictionary of provided command line arguments
     provided_arguments = {
         "reports": args.reports,
-        "related_indicators": args.related_indicators,
-        "all_indicators": args.all_indicators,
+#        "related_indicators": args.related_indicators,
+        "indicators": args.indicators,
         "delete_outdated_indicators": args.delete_outdated_indicators,
         "actors": args.actors
     }
-    importer = CrowdstrikeToMISPImporter(intel_api_client, import_settings, provided_arguments, settings)
+    importer = CrowdstrikeToMISPImporter(intel_api_client, import_settings, provided_arguments, settings, logger=logger)
 
     if args.clean_reports or args.clean_indicators or args.clean_actors:
         perform_local_cleanup(args, importer, settings)
 
-    if args.reports or args.actors or args.related_indicators or args.all_indicators:
+    if args.clean_tags:
+        importer.remove_crowdstrike_tags()
+
+    if args.reports or args.actors or args.indicators:
         try:
             if not args.no_dupe_check:
                 # Retrieve all tags for selected options
@@ -186,20 +212,21 @@ def main():
                 importer.import_from_misp(tags)
             # Import new events from CrowdStrike into MISP
             importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
-                                             int(settings["CrowdStrike"]["init_indicators_days_before"]),
+                                             int(settings["CrowdStrike"]["init_indicators_minutes_before"]),
                                              int(settings["CrowdStrike"]["init_actors_days_before"])
                                              )
         except Exception as err:
-            logging.exception(err)
+            logger.exception(err)
             raise SystemExit(err) from err
 
     if args.max_age is not None:
         try:
             importer.clean_old_crowdstrike_events(args.max_age)
         except Exception as err:
-            logging.exception(err)
+            logger.exception(err)
             raise SystemExit(err) from err
 
+    logger.info(FINISHED_BANNER)
 
 if __name__ == '__main__':
     main()

@@ -5,12 +5,12 @@
 # MISP Tools
 This repository is focused on solutions for integrating CrowdStrike with the [MISP project](https://github.com/MISP/MISP).
 
-- [Manual Import](#manual-import) - Manually import Actors, Indicators or Reports from CrowdStrike Falcon X into your MISP instance.
+- [Manual Import](#manual-import) - Manually import Adversaries (Actors), Indicators or Reports from CrowdStrike Falcon X into your MISP instance.
 - [MISP Modules](#modules) - MISP modules that leverage CrowdStrike.
 
 
 ## Manual import
-This solution will import actors, indicators or reports from CrowdStrike Falcon X into your MISP instance from a specified number of days backwards in time.
+This solution will import adversaries, indicators or reports from CrowdStrike Falcon X into your MISP instance from a specified number of days backwards in time.
 
 ![MISP Import](docs/misp-import.gif)
 
@@ -33,7 +33,7 @@ The following Python packages must be installed in order for this application to
 #### CrowdStrike API credential Scope
 Your API credentials will need **READ** access to:
 
-- Actors (Falcon X)
+- Adversaries (Falcon X)
 - Indicators (Falcon X)
 - Reports (Falcon X)
 
@@ -55,16 +55,16 @@ The CrowdStrike section contains configuration detail for communicating with you
 | `api_enable_ssl` | Boolean to specify if SSL verification should be disabled. | 
 | `reports_timestamp_filename` | Filename to use to store the timestamp for the last imported report. |
 | `indicators_timestamp_filename` | Filename to use to store the timestamp for the last imported indicator. |
-| `actors_timestamp_filename` | Filename to use to store the timestamp for the last imported actor. |
+| `actors_timestamp_filename` | Filename to use to store the timestamp for the last imported adversary. |
 | `init_reports_days_before` | Maximum age of reports to import. |
-| `init_indicators_days_before` | Maximum age of indicators to import. |
-| `init_actors_days_before` | Maximum age of actors to import. |
+| `init_indicators_minutes_before` | Maximum age of indicators to import. |
+| `init_actors_days_before` | Maximum age of adversaries to import. |
 | `reports_unique_tag` | Originating from CrowdStrike unique report tag. |
 | `indicators_unique_tag` | Originating from CrowdStrike unique indicator tag. |
-| `actors_unique_tag` | Originating from CrowdStrike unique actor tag. |
+| `actors_unique_tag` | Originating from CrowdStrike unique adversary tag. |
 | `reports_tags` | Tags to apply to imported reports. |
 | `indicators_tags` | Tags to apply to imported indicators. |
-| `actors_tags` | Tags to apply to imported actors. |
+| `actors_tags` | Tags to apply to imported adversaries. |
 | `unknown_mapping` | Name to use for tag used to flag unknown malware families. |
 
 ##### MISP
@@ -102,14 +102,15 @@ This solution accepts the following command line arguments.
 | `-h` or `--help` | Show command line help and exit. |
 | `--clean_reports` | Remove all CrowdStrike tagged reports from the MISP instance. |
 | `--clean_indicators` | Remove all CrowdStrike tagged indicators from the MISP instance. |
-| `--clean_actors` | Remove all CrowdStrike tagged actors from the MISP instance. |
+| `--clean_adversaries` | Remove all CrowdStrike tagged adversaries from the MISP instance. |
+| `--clean_tags` | Remove all CrowdStrike local tags. (WARNING: Run after removing reports, indicators and adversaries.) |
 | `--debug` | Enable debug output. |
-| `--max_age` | Maximum age (in days) of actors, indicators or reports to import. |
-| `--related_indicators` | Import indicators related to reports. |
-| `--all_indicators` | Import all indicators. |
+| `--max_age` | Maximum age (in days) of adversaries, indicators or reports to import. |
+| `--indicators` | Import all indicators. |
+| `--force` | Ignore the timestamp file and import indicators from the "minutes before" configuration setting. |
 | `--delete_outdated_indicators` | Checks as indicators are imported to see if they are flagged for deletion, if so they are removed instead of imported. |
 | `--reports` | Import reports. |
-| `--actors` | Import actors. |
+| `--adversaries` | Import adversaries. |
 | `--config` | Path to the local configuration file, defaults to `misp_import.ini`. |
 | `--no_dupe_check` | Disable duplicate checking on indicator import. |
 
@@ -152,9 +153,9 @@ This solution can be run manually as long as all Python requirements have been m
 The following examples demonstrate different variations of executing the solution locally.
 
 
-**Import all data (actors, indicators and reports)**
+**Import all data (adversaries, indicators and reports)**
 ```python
-python3 misp_import.py --actors --all_indicators --reports
+python3 misp_import.py --adversaries --indicators --reports
 ```
 
 **Delete just indicators**
@@ -164,7 +165,7 @@ python3 misp_import.py --clean_indicators
 
 **Only import reports and related indicators**
 ```python
-python3 misp_import.py --related_indicators --reports
+python3 misp_import.py --reports
 ```
 
 
