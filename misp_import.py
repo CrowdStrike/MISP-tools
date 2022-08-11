@@ -36,7 +36,7 @@ import logging
 import os
 import urllib3
 from cs_misp_import import (
-    IntelAPIClient, CrowdstrikeToMISPImporter
+    IntelAPIClient, CrowdstrikeToMISPImporter, MISP_BANNER, FINISHED_BANNER
 )
 
 
@@ -154,6 +154,10 @@ def main():
     logger.addHandler(ch)
     logger.propagate = False
 
+    # Off we go!
+    logger.info(MISP_BANNER)
+    
+
     # Interface to the CrowdStrike Falcon Intel API
     intel_api_client = IntelAPIClient(settings["CrowdStrike"]["client_id"],
                                       settings["CrowdStrike"]["client_secret"],
@@ -222,6 +226,7 @@ def main():
             logger.exception(err)
             raise SystemExit(err) from err
 
+    logger.info(FINISHED_BANNER)
 
 if __name__ == '__main__':
     main()

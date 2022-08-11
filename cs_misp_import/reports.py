@@ -1,11 +1,24 @@
-"""CrowdStrike reports to MISP events importer."""
+"""CrowdStrike Reports MISP event import.
+
+@@@@@@@   @@@@@@@@  @@@@@@@    @@@@@@   @@@@@@@   @@@@@@@   @@@@@@
+@@@@@@@@  @@@@@@@@  @@@@@@@@  @@@@@@@@  @@@@@@@@  @@@@@@@  @@@@@@@
+@@!  @@@  @@!       @@!  @@@  @@!  @@@  @@!  @@@    @@!    !@@
+!@!  @!@  !@!       !@!  @!@  !@!  @!@  !@!  @!@    !@!    !@!
+@!@!!@!   @!!!:!    @!@@!@!   @!@  !@!  @!@!!@!     @!!    !!@@!!
+!!@!@!    !!!!!:    !!@!!!    !@!  !!!  !!@!@!      !!!     !!@!!!
+!!: :!!   !!:       !!:       !!:  !!!  !!: :!!     !!:         !:!
+:!:  !:!  :!:       :!:       :!:  !:!  :!:  !:!    :!:        !:!
+::   :::   :: ::::   ::       ::::: ::  ::   :::     ::    :::: ::
+ :   : :  : :: ::    :         : :  :    :   : :     :     :: : :
+"""
 import datetime
 from logging import Logger
 import os
 import time
 import concurrent.futures
+
 try:
-    from pymisp import MISPObject, MISPEvent, MISPAttribute
+    from pymisp import MISPObject, MISPEvent, MISPAttribute, ExpandedPyMISP
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
@@ -13,29 +26,43 @@ except ImportError as no_pymisp:
 
 from .adversary import Adversary
 from .report_type import ReportType
-from .helper import gen_indicator
+from .helper import gen_indicator, REPORTS_BANNER
+from .intel_client import IntelAPIClient
 
 class ReportsImporter:
     """Tool used to import reports from the Crowdstrike Intel API and push them as events in MISP through the MISP API."""
 
     def __init__(self,
-                 misp_client,
-                 intel_api_client,
+                 misp_client: ExpandedPyMISP,
+                 intel_api_client: IntelAPIClient,
                  crowdstrike_org_uuid: str,
                  reports_timestamp_filename: str,
                  settings: dict,
                  import_settings: dict,
                  logger: Logger
                  ):
-        """Construct an instance of the ReportsImporter class.
+        """Construct and return an instance of the ReportsImporter class.
 
-        :param misp_client: MISP API client object
-        :param intel_api_client: CrowdStrike Intel API client object
-        :param crowdstrike_org_uuid: UUID for the CrowdStrike organization within the MISP instance
-        :param reports_timestamp_filename: Filename for the reports _marker tracking file
-        :param settings: Configuration settings dictionary
-        :param import_settings: Import settings dictionary
-        :param logger: Logging object
+        Arguments
+        ----
+        misp_client : ExpandedPyMISP
+            MISP API client object
+        intel_api_client : IntelAPIClient
+            CrowdStrike Falcon Intel API client object
+        crowdstrike_org_uuid : str
+            UUID for the CrowdStrike organization within the MISP instance
+        reports_timestamp_filename : str
+            Filename for the reports _marker tracking file
+        settings : dict
+            Dictionary of configuration settings
+        import_settings : dict
+            Dictionary of import settings
+        logger : logging.Logger
+            Logging object
+
+        Returns
+        ----
+        (class) Newly constructed instance of the ReportsImporter class.
         """
         self.misp = misp_client
         self.intel_api_client = intel_api_client
@@ -46,7 +73,18 @@ class ReportsImporter:
         self.log = logger
         self.events_already_imported: dict = {}
 
-    def batch_report_detail(self, id_list):
+    def batch_report_detail(self, id_list: list or str) -> dict:
+        """Retrieve extended report details for the ID list provided.
+        
+        Arguments
+        ----
+        id_list : list or str
+            List of report IDs to retrieve from the CrowdStrike Falcon Intel API.
+
+        Returns
+        ----
+        (dict) Dictionary containing API response.
+        """
         return self.intel_api_client.falcon.get_report_entities(ids=id_list, fields="__full__")["body"]["resources"]
 
     def batch_import_reports(self, report, rpt_detail, ind_list):
@@ -128,6 +166,7 @@ class ReportsImporter:
         :param reports_days_before: in case on an initialisation run, this is the age of the reports pulled in days
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
+        self.log.info(REPORTS_BANNER)
         start_get_events = int((
             datetime.datetime.today() + datetime.timedelta(days=-int(min(reports_days_before, 366)))
         ).timestamp())
@@ -146,7 +185,7 @@ class ReportsImporter:
 
         if len(reports) == 0:
             with open(self.reports_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                ts_file.write(time_send_request.timestamp())
+                ts_file.write(str(time_send_request.timestamp()))
         else:
             #adversary_events = self.misp.get_adversaries()
             report_ids = [rep.get("name").split(" ")[0] for rep in reports]

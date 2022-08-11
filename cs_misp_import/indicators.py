@@ -1,10 +1,32 @@
+"""CrowdStrike Indicator MISP event import.
+
+ _______                        __ _______ __        __ __
+|   _   .----.-----.--.--.--.--|  |   _   |  |_.----|__|  |--.-----.
+|.  1___|   _|  _  |  |  |  |  _  |   1___|   _|   _|  |    <|  -__|
+|.  |___|__| |_____|________|_____|____   |____|__| |__|__|__|_____|
+|:  1   |                         |:  1   |
+|::.. . |                         |::.. . |
+`-------'                         `-------'
+
+@@@  @@@  @@@  @@@@@@@   @@@   @@@@@@@   @@@@@@   @@@@@@@   @@@@@@   @@@@@@@    @@@@@@
+@@@  @@@@ @@@  @@@@@@@@  @@@  @@@@@@@@  @@@@@@@@  @@@@@@@  @@@@@@@@  @@@@@@@@  @@@@@@@
+@@!  @@!@!@@@  @@!  @@@  @@!  !@@       @@!  @@@    @@!    @@!  @@@  @@!  @@@  !@@
+!@!  !@!!@!@!  !@!  @!@  !@!  !@!       !@!  @!@    !@!    !@!  @!@  !@!  @!@  !@!
+!!@  @!@ !!@!  @!@  !@!  !!@  !@!       @!@!@!@!    @!!    @!@  !@!  @!@!!@!   !!@@!!
+!!!  !@!  !!!  !@!  !!!  !!!  !!!       !!!@!!!!    !!!    !@!  !!!  !!@!@!     !!@!!!
+!!:  !!:  !!!  !!:  !!!  !!:  :!!       !!:  !!!    !!:    !!:  !!!  !!: :!!        !:!
+:!:  :!:  !:!  :!:  !:!  :!:  :!:       :!:  !:!    :!:    :!:  !:!  :!:  !:!      !:!
+ ::   ::   ::   :::: ::   ::   ::: :::  ::   :::     ::    ::::: ::  ::   :::  :::: ::
+:    ::    :   :: :  :   :     :: :: :   :   : :     :      : :  :    :   : :  :: : :
+
+"""
 import datetime
 import logging
 import os
 
 import concurrent.futures
 from .confidence import MaliciousConfidence
-from .helper import gen_indicator
+from .helper import gen_indicator, INDICATORS_BANNER
 from .adversary import Adversary
 try:
     from pymisp import MISPObject, MISPEvent, MISPAttribute, ExpandedPyMISP, MISPTag
@@ -77,6 +99,7 @@ class IndicatorsImporter:
         :param indicators_days_before: in case on an initial run, this is the age of the indicators pulled in days
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
+        self.log.info(INDICATORS_BANNER)
         start_get_events = int((
             datetime.datetime.today() + datetime.timedelta(minutes=-int(min(indicators_mins_before, 20220)))
             ).timestamp())
@@ -287,7 +310,7 @@ class IndicatorsImporter:
 
     def _note_timestamp(self, timestamp):
         with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-            ts_file.write(timestamp)
+            ts_file.write(str(timestamp))
         if self.MISSING_GALAXIES:
             for _galaxy in self.MISSING_GALAXIES:
                 self.log.warning("No galaxy mapping found for %s malware family.", _galaxy)

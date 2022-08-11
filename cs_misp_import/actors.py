@@ -32,6 +32,7 @@ except ImportError as no_pymisp:
         ) from no_pymisp
 
 from .adversary import Adversary
+from .helper import ADVERSARIES_BANNER
 
 class ActorsImporter:
     """Tool used to import actors from the Crowdstrike Intel API and push them as events in MISP through the MISP API.
@@ -98,6 +99,7 @@ class ActorsImporter:
         :param actors_days_before: in case on an initialisation run, this is the age of the actors pulled in days
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
+        self.log.info(ADVERSARIES_BANNER)
         start_get_events = int((
             datetime.datetime.today() + datetime.timedelta(days=-int(min(actors_days_before, 730)))
         ).timestamp())
@@ -105,8 +107,8 @@ class ActorsImporter:
         if os.path.isfile(self.actors_timestamp_filename):
             with open(self.actors_timestamp_filename, 'r', encoding="utf-8") as ts_file:
                 line = ts_file.readline()
-                start_get_events = int(line)
-
+                if line:
+                    start_get_events = int(line)
         self.log.info("Started getting adversaries from Crowdstrike Intel API and pushing them as events in MISP.")
         time_send_request = datetime.datetime.now()
         actors = self.intel_api_client.get_actors(start_get_events)
@@ -114,7 +116,7 @@ class ActorsImporter:
 
         if len(actors) == 0:
             with open(self.actors_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                ts_file.write(time_send_request.timestamp())
+                ts_file.write(str(time_send_request.timestamp()))
         else:
             actor_details = self.intel_api_client.falcon.get_actor_entities(ids=[x.get("id") for x in actors], fields="__full__")["body"]["resources"]
             reported = 0

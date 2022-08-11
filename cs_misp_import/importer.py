@@ -6,7 +6,7 @@ from .actors import ActorsImporter
 from .indicators import IndicatorsImporter
 from .reports import ReportsImporter
 from .threaded_misp import MISP
-
+from .helper import IMPORT_BANNER, DELETE_BANNER
 
 class CrowdstrikeToMISPImporter:
     """Tool used to import indicators and reports from the Crowdstrike Intel API.
@@ -92,6 +92,7 @@ class CrowdstrikeToMISPImporter:
         if clean_actors:
             tags.append(self.unique_tags["actors"])
         if clean_reports or clean_indicators or clean_actors:
+            self.log.info(DELETE_BANNER)
             self.log.info("Start clean up CrowdStrike related events from MISP.")
             self.misp_client.deleted_event_count = 0
             with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
@@ -100,8 +101,8 @@ class CrowdstrikeToMISPImporter:
             self.log.info("Finished cleaning up CrowdStrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
             
     def remove_crowdstrike_tags(self):
+        self.log.info(DELETE_BANNER)
         removed = 0
-        #tags = self.misp_client.get_cs_tags()
         self.log.info("Retrieving list of tags to remove from MISP instance")
         with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
             futures = {
@@ -113,6 +114,7 @@ class CrowdstrikeToMISPImporter:
 
     def clean_old_crowdstrike_events(self, max_age):
         """Remove events from MISP that are dated greater than the specified max_age value."""
+        self.log.info(DELETE_BANNER)
         if max_age is not None:
             timestamp_max = int((datetime.date.today() - datetime.timedelta(max_age)).strftime("%s"))
             events = self.misp_client.search(tags=[self.unique_tags["reports"],
@@ -136,7 +138,7 @@ class CrowdstrikeToMISPImporter:
         :param indicators_days_before: in case on an initial run, this is the age of the indicators pulled in days
         :param actors_days_before: in case on an initial run, this is the age of the actors pulled in days
         """
-
+        self.log.info(IMPORT_BANNER)
         if self.config["actors"]:
             self.actors_importer.process_actors(actors_days_before, self.event_ids)
         if self.config["reports"]:
