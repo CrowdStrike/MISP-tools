@@ -12,6 +12,7 @@ except ImportError as no_pymisp:
         ) from no_pymisp
 
 from .adversary import Adversary
+from .report_type import ReportType
 from .helper import gen_indicator
 
 class ReportsImporter:
@@ -58,9 +59,9 @@ class ReportsImporter:
                     try:
                         for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
                             event.add_tag(tag)
-                        for rtype in self.intel_api_client.valid_report_types:
-                            if rtype.upper() in report.get('name', None):
-                                event.add_tag(f"CrowdStrike:report: {rtype.upper()}")
+                        #for rtype in self.intel_api_client.valid_report_types:
+                        #    if rtype.upper() in report.get('name', None):
+                        #        event.add_tag(f"CrowdStrike:report: {rtype.upper()}")
                         self.events_already_imported[report_name] = True
                         event = self.misp.add_event(event, True)
                     except Exception as err:
@@ -127,7 +128,9 @@ class ReportsImporter:
         :param reports_days_before: in case on an initialisation run, this is the age of the reports pulled in days
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
-        start_get_events = int((datetime.date.today() - datetime.timedelta(min(reports_days_before, 365))).strftime("%s"))
+        start_get_events = int((
+            datetime.datetime.today() + datetime.timedelta(days=-int(min(reports_days_before, 366)))
+        ).timestamp())
         if os.path.isfile(self.reports_timestamp_filename):
             with open(self.reports_timestamp_filename, 'r', encoding="utf-8") as ts_file:
                 line = ts_file.readline()
@@ -143,9 +146,9 @@ class ReportsImporter:
 
         if len(reports) == 0:
             with open(self.reports_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                ts_file.write(time_send_request.strftime("%s"))
+                ts_file.write(time_send_request.timestamp())
         else:
-            adversary_events = self.misp.get_adversaries()
+            #adversary_events = self.misp.get_adversaries()
             report_ids = [rep.get("name").split(" ")[0] for rep in reports]
             rep_batches = [report_ids[i:i+500] for i in range(0, len(report_ids), 500)]
             # Batched retrieval of extended report details
@@ -157,7 +160,7 @@ class ReportsImporter:
                 for fut in concurrent.futures.as_completed(futures):
                     details.extend(fut.result())
 
-            self.log.info(f"{len(details)} report details retrieved")
+            self.log.info(f"Retrieved extended report details for {len(details)} reports")
 
             # Batched retrieval of related indicator details
             indicator_list = []
@@ -208,10 +211,11 @@ class ReportsImporter:
                 for stem in actor_name:
                     for adversary in Adversary:
                         if adversary.name == stem.upper():
-                            event.add_tag(f"CrowdStrike:adversary: {stem.upper()}")
-                            event.add_attribute_tag(f"CrowdStrike:adversary: {stem.upper()}", att.uuid)
-                for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
-                    event.add_attribute_tag(tag, att.uuid)
+                            event.add_tag(f"CrowdStrike:adversary:branch: {stem.upper()}")
+                            event.add_attribute_tag(f"CrowdStrike:adversary:branch: {stem.upper()}", att.uuid)
+                 # Event level only
+#                for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
+#                    event.add_attribute_tag(tag, att.uuid)
 
         return event
 
@@ -242,51 +246,61 @@ class ReportsImporter:
                         ind_seen["last_seen"] = ind.get("last_updated")
                     added = event.add_attribute(indicator_object.type, indicator_object.value, category=indicator_object.category, **ind_seen)
                     event.add_attribute_tag(f"CrowdStrike:indicator: {indicator_object.type.upper()}", added.uuid)
-                    for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
-                        event.add_attribute_tag(tag, added.uuid)
+                    # Event level only
+                    #for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
+                    #    event.add_attribute_tag(tag, added.uuid)
 
                 for gal in list(set(galaxy_tags)):
-                    event.add_tag(f"CrowdStrike:no-galaxy: {gal}")
+                    event.add_tag(f'CrowdStrike:malware:unmapped:="{gal}"')
                 for galactic in list(set(galaxies)):
                     event.add_tag(galactic)
 
         return event
 
     def add_victim_detail(self, report: dict, event: MISPEvent) -> MISPEvent:
+        victim = None
         # Targeted countries
         if report.get("target_countries", None):
-            for country in report.get('target_countries', []):
-                region = country.get('value')
-                if region:
-                    # Also create a target-location attribute for this value
-                    reg = event.add_attribute('target-location', region)
-                    event.add_attribute_tag(f"CrowdStrike:target: {region.upper()}", reg.uuid)
+            region_list = [c.get('value') for c in report.get('target_countries', [])]
+            for country in region_list:
+                if not victim:
+                    victim = MISPObject("victim")
+                vic = victim.add_attribute('regions', country)
+                vic.add_tag(f"CrowdStrike:target:location: {country.upper()}")
+                # Also create a target-location attribute for this value  (Too noisy?)
+                # reg = event.add_attribute('target-location', country)
+                # event.add_attribute_tag(f"CrowdStrike:target: {country.upper()}", reg.uuid)
 
         # Targeted industries
         if report.get("target_industries", None):
             for industry in report.get('target_industries', []):
                 sector = industry.get('value', None)
                 if sector:
-                    victim = MISPObject("victim")
+                    if not victim:
+                        victim = MISPObject("victim")
                     vic = victim.add_attribute('sectors', sector)
-                    vic.add_tag(f"CrowdStrike:target: {sector.upper()}")
-                    event.add_object(victim)
+                    vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
+            if victim:
+                event.add_object(victim)
 
         return event
 
     def add_report_content(self, report: dict, event: MISPEvent, details: dict, report_id: str, seen: dict) -> MISPEvent:
         attributes: list[MISPAttribute] = []
-        report_tag = None
-        for rtype in self.intel_api_client.valid_report_types:
-            if report.get('name', None).startswith(rtype.upper()):
-                report_tag = rtype.upper()
+        # report_tag = None
+        # for rtype in [r for r in dir(ReportType) if "__" not in r]: #self.intel_api_client.valid_report_types:
+        #     if report.get('name', None).startswith(rtype.upper()):
+        #         report_tag = rtype.upper()
         rpt_cat = "Internal reference"
-        if details.get('short_description'):
+        short_desc = details.get("short_description")
+        if not short_desc:
+            short_desc = report.get("short_description")
+        if short_desc:
             rpt = MISPObject("report")
             if report_id:
                 attributes.append(rpt.add_attribute("case-number", report_id, category=rpt_cat, **seen))
             attributes.append(rpt.add_attribute("type", "Report", category=rpt_cat, **seen))
-            attributes.append(rpt.add_attribute("summary", report.get("short_description"), category=rpt_cat, **seen))
+            attributes.append(rpt.add_attribute("summary", short_desc, category=rpt_cat, **seen))
             attributes.append(rpt.add_attribute("link", report.get("url"), **seen))
             if details.get("attachments"):
                 for attachment in details.get("attachments"):
@@ -305,12 +319,13 @@ class ReportsImporter:
             event.add_event_report(report.get("name"), details.get("description"))
 
         for att in attributes:
-            for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
-                event.add_attribute_tag(tag, att.uuid)
+            # Event level only
+            #for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
+            #    event.add_attribute_tag(tag, att.uuid)
             if att.value not in ["text", "Full Report", "Report", report_id]:
                 event.add_attribute_tag(f"CrowdStrike:report:{report_id.lower().replace('-',': ')}", att.uuid)
-            if report_tag:
-                event.add_attribute_tag(f"CrowdStrike:report: {report_tag.upper()}", att.uuid)
+            #if report_tag:
+            #    event.add_attribute_tag(f"CrowdStrike:report: {report_tag.upper()}", att.uuid)
 
         return event
 
@@ -325,10 +340,21 @@ class ReportsImporter:
             for det in report_details:
                 if det.get("id") == report.get("id"):
                     details = det
+            report_name = report.get('name')
             # Report / Event name
-            event.info = report.get('name')
+            event.info = report_name
             # Report ID
-            report_id = report.get("name").split(" ")[0]
+            report_id = report_name.split(" ")[0]
+            # Report type tag
+            report_type = None
+            report_type_id = report_id.split("-")[0]
+            for rpt_type in [r for r in dir(ReportType) if "__" not in r]:
+                if rpt_type == report_type_id:
+                    report_type = ReportType[rpt_type].value
+            if "Q" in report_id.upper():
+                report_type = "Quarterly Report"
+            event.add_tag(f"CrowdStrike:report:type: {report_type_id}")
+            event.add_tag(f"CrowdStrike:report: {report_type.upper()}")
             # First / Last seen timestamps
             seen = {}
             if details.get("created_date"):
