@@ -1,7 +1,7 @@
 """Helper methods."""
-import logging
+
 try:
-    from pymisp import MISPObject, MISPEvent, MISPAttribute
+    from pymisp import MISPObject, MISPAttribute
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
@@ -10,7 +10,6 @@ except ImportError as no_pymisp:
 def gen_indicator(indicator, tag_list) -> MISPObject or MISPAttribute:
         """Create the appropriate MISP event object for the indicator (based upon type)."""
         if not indicator.get('type') or not indicator.get('indicator'):
-            logging.warning("Indicator %s missing type or indicator field.", indicator.get('id'))
             return False
 
         indicator_type = indicator.get('type')
@@ -50,8 +49,7 @@ def gen_indicator(indicator, tag_list) -> MISPObject or MISPAttribute:
                 att.add_tag(f"CrowdStrike:indicator: {ind_obj[2].lower()}")
                 for tag in tag_list:
                     att.add_tag(tag)
-                #att.add_tag("INDICATOR")
-                #att.add_tag("CROWDSTRIKE")
+
                 return indicator_object
 
         # Type, Category, Attribute Type
@@ -87,6 +85,4 @@ def gen_indicator(indicator, tag_list) -> MISPObject or MISPAttribute:
 
                 return indicator_attribute
 
-        # Not found, log the miss
-        #logging.warning("Unable to map indicator type %s to a MISP object or attribute.", indicator.get('type'))
         return False
