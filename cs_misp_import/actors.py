@@ -76,9 +76,17 @@ class ActorsImporter:
                         if os.path.exists(self.actors_timestamp_filename):
                             with open(self.actors_timestamp_filename, 'r', encoding="utf-8") as ts_file:
                                 ts_check = ts_file.read()
-                        if int(act.get('last_modified_date')) > int(ts_check):
+                        # This might be a little over the top
+                        nowstamp = None
+                        try:
+                            if int(act.get('last_modified_date')) > int(ts_check):
+                                nowstamp = act.get('last_modified_date')
+                        except ValueError:
+                            nowstamp = int(datetime.datetime.today().timestamp())
+                        if nowstamp:
                             with open(self.actors_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                                ts_file.write(str(int(act.get('last_modified_date'))+1))
+                                ts_file.write(str(int(nowstamp)+1))
+
                 else:
                     self.log.warning("Failed to create a MISP event for actor %s.", act)
         return True
@@ -90,7 +98,10 @@ class ActorsImporter:
         :param actors_days_before: in case on an initialisation run, this is the age of the actors pulled in days
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
-        start_get_events = int((datetime.date.today() - datetime.timedelta(actors_days_before)).strftime("%s"))
+        start_get_events = int((
+            datetime.datetime.today() + datetime.timedelta(days=-int(min(actors_days_before, 730)))
+        ).timestamp())
+
         if os.path.isfile(self.actors_timestamp_filename):
             with open(self.actors_timestamp_filename, 'r', encoding="utf-8") as ts_file:
                 line = ts_file.readline()
@@ -103,7 +114,7 @@ class ActorsImporter:
 
         if len(actors) == 0:
             with open(self.actors_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                ts_file.write(time_send_request.strftime("%s"))
+                ts_file.write(time_send_request.timestamp())
         else:
             actor_details = self.intel_api_client.falcon.get_actor_entities(ids=[x.get("id") for x in actors], fields="__full__")["body"]["resources"]
             reported = 0
@@ -373,25 +384,32 @@ class ActorsImporter:
                         event.add_attribute_tag(f"CrowdStrike:adversary:origin: {locale.upper()}", kar.uuid)
                         event.add_tag(f"CrowdStrike:adversary:origin: {locale.upper()}")
 
-            for country in actor.get('target_countries', []):
-                region = country.get('value')
-                if region:
-                    # Also create a target-location attribute for this value
-                    reg = event.add_attribute('target-location', region)
-                    event.add_attribute_tag(f"CrowdStrike:target: {region.upper()}", reg.uuid)
-
 
             victim = None
-            for industry in actor.get('target_industries', []):
-                sector = industry.get('value', None)
-                if sector:
-                    if not victim:
-                        victim = MISPObject("victim")
-                    vic = victim.add_attribute('sectors', sector)
-                    vic.add_tag(f"CrowdStrike:adversary:{slug}:target:sector: {sector.upper()}")
-                    vic.add_tag(f"CrowdStrike:adversary:{slug}:target: SECTOR")
-                    vic.add_tag(f"CrowdStrike:adversary:target:sector: {sector.upper()}")
-                    event.add_object(victim)
+            region_list = [c.get('value') for c in actor.get('target_countries', [])]
+            for region in region_list:
+            #for country in actor.get('target_countries', []):
+                
+                #region = country.get('value')
+                #if region:
+                if not victim:
+                    victim = MISPObject("victim")
+                vic = victim.add_attribute('regions', region)
+                vic.add_tag(f"CrowdStrike:target:location: {region.upper()}")
+                vic.add_tag(f"CrowdStrike:adversary:{slug}:target:location: {region.upper()}")
+                #vic.add_tag(f"CrowdStrike:adversary:{slug}:target: LOCATION")
+
+            sector_list = [s.get('value') for s in actor.get('target_industries', [])]
+            for sector in sector_list:
+                #sector = industry.get('value', None)
+                #if sector:
+                if not victim:
+                    victim = MISPObject("victim")
+                vic = victim.add_attribute('sectors', sector)
+                vic.add_tag(f"CrowdStrike:adversary:{slug}:target:sector: {sector.upper()}")
+                #vic.add_tag(f"CrowdStrike:adversary:{slug}:target: SECTOR")
+                vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
+                event.add_object(victim)
 
         else:
             self.log.warning("Actor %s missing field name.", actor.get('id'))
