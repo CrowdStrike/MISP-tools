@@ -347,7 +347,7 @@ class ActorsImporter:
                 actor_att["first_seen"] = actor.get("first_activity_date")
 
             else:
-                self.log.warning("Actor %s missing field first_activity_date.", actor.get('id'))
+                self.log.warning("Adversary %s missing field first_activity_date.", actor.get('id'))
 
             if actor.get('last_activity_date'):
                 timestamp_object.add_attribute('last-seen',
@@ -359,7 +359,7 @@ class ActorsImporter:
 
 
             else:
-                self.log.warning("Actor %s missing field last_activity_date.", actor.get('id'))
+                self.log.warning("Adversary %s missing field last_activity_date.", actor.get('id'))
             ta = event.add_attribute(**actor_att)
             actor_split = actor_name.split(" ")
             actor_branch = actor_split[1] if len(actor_split) > 1 else actor_split[0]
