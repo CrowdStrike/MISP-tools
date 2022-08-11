@@ -6,6 +6,7 @@ except ImportError as no_falconpy:
     raise SystemExit(
         "The CrowdStrike FalconPy package must be installed to use this program."
         ) from no_falconpy
+from ._version import __version__ as MISPImportVersion
 
 current = FALCONPY_VERSION.split(".")
 requested = "0.9.0".split(".")
@@ -25,7 +26,9 @@ class IntelAPIClient:
         :param api_request_max [int]: Maximum number of records to return per API request
         :param use_ssl [bool]: Enable SSL validation to the CrowdStrike Cloud (default: True)
         """
-        self.falcon = Intel(client_id=client_id, client_secret=client_secret, base_url=crowdstrike_url, ssl_verify=use_ssl)
+        
+        ua = f"crowdstrike-misp-import/{MISPImportVersion}"
+        self.falcon = Intel(client_id=client_id, client_secret=client_secret, base_url=crowdstrike_url, ssl_verify=use_ssl, user_agent=ua)
         self.valid_report_types = ["csa", "csir", "csit", "csgt", "csdr", "csia", "csmr", "csta", "cswr"]
         self.request_size_limit = api_request_max
         self.log = logger

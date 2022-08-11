@@ -39,8 +39,6 @@ from cs_misp_import import (
     IntelAPIClient, CrowdstrikeToMISPImporter, MISP_BANNER, FINISHED_BANNER
 )
 
-__version__ = "0.6.0"
-
 def parse_command_line():
     """Parse the running command line provided by the user."""
     parser = argparse.ArgumentParser(description="Tool used to import reports and indicators from Crowdstrike Intel"
