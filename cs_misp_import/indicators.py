@@ -280,6 +280,7 @@ class IndicatorsImporter:
             event.add_tag(_tag)
         try:
             self.misp.add_event(event)
+            self.log.debug("Successfully added unattributed indicator event for indicator %s", event.info)
         except Exception as err:
             self.log.warning("Could not add event %s.\n%s", event.info, str(err))
 

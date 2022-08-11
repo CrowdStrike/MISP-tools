@@ -224,7 +224,7 @@ class ReportsImporter:
             ind_list = [i for i in indicator_list if report_id in i.get("reports")]
             indicator_count = len(ind_list)
             if indicator_count:
-                self.log.info("Retrieved %i indicators detailed within report %s", indicator_count, report_id)
+                self.log.debug("Retrieved %i indicators detailed within report %s", indicator_count, report_id)
             for ind in ind_list:
                 galaxies = []
                 galaxy_tags = []
