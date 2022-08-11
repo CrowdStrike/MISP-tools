@@ -295,9 +295,9 @@ class IndicatorsImporter:
         for label in labels:
             label = label.lower()
             parts = label.split("/")
-            label_val = parts[1].upper()
-            label_type = parts[0].lower().replace("killchain", "kill-chain").replace("threattype", "threat-type")
-            label_type = label_type.replace("maliciousconfidence", "malicious-confidence")
+            label_val = parts[1]
+            label_type = parts[0].lower().replace("killchain", "kill-chain").replace("threattype", "threat")
+            label_type = label_type.replace("maliciousconfidence", "malicious-confidence").replace("mitreattck", "mitre-attck")
             if label_type == "actor":
                 for adv in [a for a in dir(Adversary) if "__" not in a]:
                     if adv in label_val:
@@ -313,8 +313,23 @@ class IndicatorsImporter:
                             actor_att["last-seen"] = datetime.datetime.utcfromtimestamp(indicator.get("last_updated")).isoformat()
                         
                         ta = event.add_attribute(**actor_att)
-            # if label_type in ["malicious-confidence", "threat-type", "kill-chain"]:
-            #     label_type = label_type.upper()
+                        event.add_attribute_tag(f"CrowdStrike:adversary:branch: {adv}", ta.uuid)
+
+            if label_type == "threat":
+                scnt = 0
+                for s in label_val:
+                    scnt += 1
+                    if s.isupper() and scnt > 1:
+                        label_val = label_val.replace(s, f" {s}")
+                threat = MISPObject("internal-reference")
+                threat.add_attribute("identifier", "Threat type")
+                tht = threat.add_attribute("comment", label_val)
+                tht.add_tag(f"CrowdStrike:indicator:threat: {label_val.upper()}")
+                event.add_object(threat)
+
+
+            if label_type in ["malicious-confidence", "kill-chain", "threat", "malware", "mitre-attck"]:
+                label_val = label_val.upper()
             tag_list = __update_tag_list(tag_list, f"CrowdStrike:indicator:{label_type}: {label_val}")
             # else:
             #     tag_list = __update_tag_list(tag_list, f"CrowdStrike:indicator:label: {label}")
