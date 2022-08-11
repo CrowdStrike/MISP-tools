@@ -16,7 +16,7 @@ if bool(float(f"{current[0]}.{current[1]}") < float(f"{requested[0]}.{requested[
 class IntelAPIClient:
     """This class provides the interface for the CrowdStrike Intel API."""
 
-    def __init__(self, client_id, client_secret, crowdstrike_url, api_request_max, use_ssl: bool = True):
+    def __init__(self, client_id, client_secret, crowdstrike_url, api_request_max, use_ssl: bool = True, logger: logging.Logger = None):
         """Construct an instance of the IntelAPIClient class.
 
         :param client_id: CrowdStrike API Client ID
@@ -26,11 +26,9 @@ class IntelAPIClient:
         :param use_ssl [bool]: Enable SSL validation to the CrowdStrike Cloud (default: True)
         """
         self.falcon = Intel(client_id=client_id, client_secret=client_secret, base_url=crowdstrike_url, ssl_verify=use_ssl)
-        self.valid_report_types = ["csa", "csir", "csit", "csgt", "csia", "csmr", "csta", "cswr"]
+        self.valid_report_types = ["csa", "csir", "csit", "csgt", "csdr", "csia", "csmr", "csta", "cswr"]
         self.request_size_limit = api_request_max
-
-        self._is_valid_report = lambda report: any(report.get('name') and report.get('name').lower().startswith(valid_type)
-                                                   for valid_type in self.valid_report_types)
+        self.log = logger
 
     def get_reports(self, start_time):
         """Get all the reports that were updated after a certain moment in time (UNIX).
@@ -57,8 +55,7 @@ class IntelAPIClient:
 
             reports.extend(resp_json.get('resources', []))
 
-        valid_reports = [report for report in reports if self._is_valid_report(report)]
-        return valid_reports
+        return reports
 
     def get_indicators(self, start_time, include_deleted):
         """Get all the indicators that were updated after a certain moment in time (UNIX).
@@ -86,8 +83,7 @@ class IntelAPIClient:
                                      resp_json
                                      )
                 log_msg = f"Retrieved {len(indicators_in_request)} of {total_found} remaining indicators."
-                print(log_msg)
-                logging.info(log_msg)
+                self.log.info(log_msg)
             else:
                 break
 
