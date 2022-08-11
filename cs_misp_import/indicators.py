@@ -293,8 +293,29 @@ class IndicatorsImporter:
 
         labels = [lab.get("name") for lab in indicator.get("labels")]
         for label in labels:
-            if "actor/" not in label:
-                tag_list = __update_tag_list(tag_list, f"CrowdStrike:indicator:label: {label}")
+            label = label.lower()
+            parts = label.split("/")
+            label_val = parts[1].upper()
+            label_type = parts[0].lower().replace("killchain", "kill-chain").replace("threattype", "threat-type")
+            label_type = label_type.replace("maliciousconfidence", "malicious-confidence")
+            if label_type == "actor":
+                for adv in [a for a in dir(Adversary) if "__" not in a]:
+                    if adv in label_val:
+                        label_val = label_val.replace(adv, f" {adv}")
+                        actor_att = {
+                            "type": "threat-actor",
+                            "value": label_val,
+                        }
+                        if indicator.get("published_date"):
+                            actor_att["first-seen"] = datetime.datetime.utcfromtimestamp(indicator.get("published_date")).isoformat()
+                            
+                        if indicator.get("last_updated"):
+                            actor_att["last-seen"] = datetime.datetime.utcfromtimestamp(indicator.get("last_updated")).isoformat()
+                        
+                        ta = event.add_attribute(**actor_att)
+            # if label_type in ["malicious-confidence", "threat-type", "kill-chain"]:
+            #     label_type = label_type.upper()
+            tag_list = __update_tag_list(tag_list, f"CrowdStrike:indicator:{label_type}: {label_val}")
             # else:
             #     tag_list = __update_tag_list(tag_list, f"CrowdStrike:indicator:label: {label}")
             #     event.add_attribute("threat-actor", label.upper().replace("ACTOR/", ""))
