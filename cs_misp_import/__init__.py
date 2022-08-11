@@ -15,10 +15,12 @@ from .helper import (
 )
 from .adversary import Adversary
 from .report_type import ReportType
+from ._version import __version__ as VERSION
+
 __all__ = [
     "ActorsImporter", "IndicatorsImporter", "IntelAPIClient",
     "ReportsImporter", "MISP", "CrowdstrikeToMISPImporter",
     "ADVERSARIES_BANNER", "REPORTS_BANNER", "INDICATORS_BANNER",
     "MISP_BANNER", "Adversary", "ReportType","IMPORT_BANNER",
-    "DELETE_BANNER", "FINISHED_BANNER"
+    "DELETE_BANNER", "FINISHED_BANNER", "VERSION"
     ]
