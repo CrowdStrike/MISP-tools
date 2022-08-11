@@ -3,6 +3,7 @@ from enum import Enum
 class Adversary(Enum):
     """Adversary enumerator."""
 
+    BAT = "Unattributed"
     BEAR = "Russian Federation"
     BUFFALO = "Vietnam"
     CHOLLIMA = "North Korea (DPRK)"
