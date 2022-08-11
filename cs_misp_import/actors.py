@@ -107,7 +107,7 @@ class ActorsImporter:
                 line = ts_file.readline()
                 start_get_events = int(line)
 
-        logging.info("Started getting actors from Crowdstrike Intel API and pushing them as events in MISP.")
+        self.log.info("Started getting actors from Crowdstrike Intel API and pushing them as events in MISP.")
         time_send_request = datetime.datetime.now()
         actors = self.intel_api_client.get_actors(start_get_events)
         self.log.info("Got %i actors from the Crowdstrike Intel API.", len(actors))
