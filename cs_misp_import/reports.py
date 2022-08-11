@@ -251,7 +251,7 @@ class ReportsImporter:
                     #    event.add_attribute_tag(tag, added.uuid)
 
                 for gal in list(set(galaxy_tags)):
-                    event.add_tag(f'CrowdStrike:malware:unmapped:="{gal}"')
+                    event.add_tag(f'CrowdStrike:malware:unmapped="{gal}"')
                 for galactic in list(set(galaxies)):
                     event.add_tag(galactic)
 
