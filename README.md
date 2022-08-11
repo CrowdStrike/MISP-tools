@@ -102,15 +102,15 @@ This solution accepts the following command line arguments.
 | `-h` or `--help` | Show command line help and exit. |
 | `--clean_reports` | Remove all CrowdStrike tagged reports from the MISP instance. |
 | `--clean_indicators` | Remove all CrowdStrike tagged indicators from the MISP instance. |
-| `--clean_actors` | Remove all CrowdStrike tagged adversaries from the MISP instance. |
+| `--clean_adversaries` | Remove all CrowdStrike tagged adversaries from the MISP instance. |
 | `--clean_tags` | Remove all CrowdStrike local tags. (WARNING: Run after removing reports, indicators and adversaries.) |
 | `--debug` | Enable debug output. |
 | `--max_age` | Maximum age (in days) of adversaries, indicators or reports to import. |
-| `--all_indicators` | Import all indicators. |
+| `--indicators` | Import all indicators. |
 | `--force` | Ignore the timestamp file and import indicators from the "minutes before" configuration setting. |
 | `--delete_outdated_indicators` | Checks as indicators are imported to see if they are flagged for deletion, if so they are removed instead of imported. |
 | `--reports` | Import reports. |
-| `--actors` | Import adversaries. |
+| `--adversaries` | Import adversaries. |
 | `--config` | Path to the local configuration file, defaults to `misp_import.ini`. |
 | `--no_dupe_check` | Disable duplicate checking on indicator import. |
 
