@@ -107,10 +107,10 @@ class ActorsImporter:
                 line = ts_file.readline()
                 start_get_events = int(line)
 
-        self.log.info("Started getting actors from Crowdstrike Intel API and pushing them as events in MISP.")
+        self.log.info("Started getting adversaries from Crowdstrike Intel API and pushing them as events in MISP.")
         time_send_request = datetime.datetime.now()
         actors = self.intel_api_client.get_actors(start_get_events)
-        self.log.info("Got %i actors from the Crowdstrike Intel API.", len(actors))
+        self.log.info("Got %i adversaries from the Crowdstrike Intel API.", len(actors))
 
         if len(actors) == 0:
             with open(self.actors_timestamp_filename, 'w', encoding="utf-8") as ts_file:
@@ -125,9 +125,9 @@ class ActorsImporter:
                 for fut in concurrent.futures.as_completed(futures):
                     if fut.result():
                         reported += 1
-            self.log.info("Completed import of %i Adversaries into MISP.", reported)
+            self.log.info("Completed import of %i CrowdStrike adversaries into MISP.", reported)
 
-        self.log.info("Finished getting actors from Crowdstrike Intel API and pushing them as events in MISP.")
+        self.log.info("Finished getting adversaries from Crowdstrike Intel API and pushing them as events in MISP.")
 
     @staticmethod
     def create_internal_reference() -> MISPObject:
@@ -412,6 +412,6 @@ class ActorsImporter:
                 event.add_object(victim)
 
         else:
-            self.log.warning("Actor %s missing field name.", actor.get('id'))
+            self.log.warning("Adversary %s missing field name.", actor.get('id'))
 
         return event
