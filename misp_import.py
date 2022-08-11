@@ -46,7 +46,7 @@ def parse_command_line():
                                                  "API into a MISP instance.")
     parser.add_argument("--clean_reports", action="store_true", help="Set this to run a cleaning round on reports.")
     parser.add_argument("--clean_indicators", action="store_true", help="Set this to run a cleaning round on indicators.")
-    parser.add_argument("--clean_actors", action="store_true", help="Set this to run a cleaning round on actors,")
+    parser.add_argument("--clean_actors", "--clean_adversaries", dest="clean_actors", action="store_true", help="Set this to run a cleaning round on adversaries.")
     parser.add_argument("--debug", action="store_true", help="Set this to activate debug logs.")
     parser.add_argument("--max_age", type=int,
                         help="Maximum age of the objects to be stored in MISP in days."
@@ -63,7 +63,7 @@ def parse_command_line():
                              " if they have been already inserted, delete them."
                         )
     parser.add_argument("--reports", action="store_true", help="Set this to import reports.")
-    parser.add_argument("--actors", action="store_true", help="Set this to import actors.")
+    parser.add_argument("--actors", "--adversaries", dest="actors", action="store_true", help="Set this to import adversaries.")
     parser.add_argument("--config", dest="config_file", help="Path to local configuration file", required=False)
     parser.add_argument("--no_dupe_check",
                         dest="no_dupe_check",
@@ -95,7 +95,7 @@ def perform_local_cleanup(args: argparse.Namespace,
             logging.info("Finished resetting CrowdStrike Indicator offset.")
         if args.clean_actors and os.path.isfile(settings["CrowdStrike"]["actors_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["actors_timestamp_filename"])
-            logging.info("Finished resetting CrowdStrike Actor offset.")
+            logging.info("Finished resetting CrowdStrike Adversary offset.")
     except Exception as err:
         logging.exception(err)
         raise SystemExit(err) from err
