@@ -42,11 +42,11 @@ class CrowdstrikeToMISPImporter:
                                 )
         self.config = provided_arguments
         self.settings = settings
-        self.unique_tags = {
-            "reports": import_settings["reports_unique_tag"],
-            "indicators": import_settings["indicators_unique_tag"],
-            "actors": import_settings["actors_unique_tag"],
-        }
+        # self.unique_tags = {
+        #     "reports": import_settings["reports_unique_tag"],
+        #     "indicators": import_settings["indicators_unique_tag"],
+        #     "actors": import_settings["actors_unique_tag"],
+        # }
         self.import_settings = import_settings
         self.log = logger
         self.event_ids = {}
@@ -86,17 +86,23 @@ class CrowdstrikeToMISPImporter:
 
         tags = []
         if clean_reports:
-            tags.append(self.unique_tags["reports"])
+            #tags.append(self.unique_tags["reports"])
+            tags.append("CrowdStrike:report%")
         if clean_indicators:
-            tags.append(self.unique_tags["indicators"])
+            #tags.append(self.unique_tags["indicators"])
+            tags.append("CrowdStrike:indicator%")
         if clean_actors:
-            tags.append(self.unique_tags["actors"])
+            #tags.append(self.unique_tags["actors"])
+            tags.append("CrowdStrike:adversary%")
         if clean_reports or clean_indicators or clean_actors:
             self.log.info(DELETE_BANNER)
             self.log.info("Start clean up CrowdStrike related events from MISP.")
             self.misp_client.deleted_event_count = 0
             with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
-                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
+                #executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
+                #executor.map(self.misp_client.delete_event, self.misp_client.search(tags=tags, minimal=True))
+                for tag in tags:
+                    executor.map(self.misp_client.delete_event, self.misp_client.search(tag=tag, minimal=True))
 
             self.log.info("Finished cleaning up CrowdStrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
             
@@ -117,9 +123,9 @@ class CrowdstrikeToMISPImporter:
         self.log.info(DELETE_BANNER)
         if max_age is not None:
             timestamp_max = int((datetime.date.today() - datetime.timedelta(max_age)).strftime("%s"))
-            events = self.misp_client.search(tags=[self.unique_tags["reports"],
-                                                   self.unique_tags["indicators"],
-                                                   self.unique_tags["actors"]
+            events = self.misp_client.search(tags=["CrowdStrike:report%",
+                                                   "CrowdStrike:indicator%",
+                                                   "CrowdStrike:adversary%"
                                                    ],
                                              timestamp=[0, timestamp_max]
                                              )
