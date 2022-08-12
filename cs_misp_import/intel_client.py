@@ -53,7 +53,7 @@ class IntelAPIClient:
             self.__check_metadata(resp_json)
 
             total = resp_json.get('meta', {}).get('pagination', {}).get('total')
-            offset += resp_json.get('meta', {}).get('pagination', {}).get('limit')
+            offset += resp_json.get('meta', {}).get('pagination', {}).get('limit', 5000)
             first_run = False
 
             reports.extend(resp_json.get('resources', []))
@@ -116,7 +116,7 @@ class IntelAPIClient:
                 )["body"]
 
             total = resp_json.get('meta', {}).get('pagination', {}).get('total')
-            offset += resp_json.get('meta', {}).get('pagination', {}).get('limit')
+            offset += resp_json.get('meta', {}).get('pagination', {}).get('limit', 5000)
             first_run = False
 
             actors.extend(resp_json.get('resources', []))
