@@ -47,8 +47,8 @@ def gen_indicator(indicator, tag_list) -> MISPObject or MISPAttribute:
                 if indicator_last:
                     att.last_seen = indicator_last
                 att.add_tag(f"CrowdStrike:indicator: {ind_obj[2].lower()}")
-                for tag in tag_list:
-                    att.add_tag(tag)
+                #for tag in tag_list:
+                #    att.add_tag(tag)
 
                 return indicator_object
 

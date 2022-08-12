@@ -275,8 +275,8 @@ class IndicatorsImporter:
             tht.add_tag(f"CrowdStrike:indicator:threat: {threat_type.upper()}")
             event.add_object(threat)
 
-        for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
-            tag_list = __update_tag_list(tag_list, tag)
+        #for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
+        #    tag_list = __update_tag_list(tag_list, tag)
         if indicator.get('type', None):
             tag_list = __update_tag_list(tag_list, f"CrowdStrike:indicator:type: {indicator.get('type').upper()}")
 

@@ -95,8 +95,8 @@ class ReportsImporter:
                 if event is not None:
                     self.log.info("%s report created.", report_name)
                     try:
-                        for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
-                            event.add_tag(tag)
+                        #for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
+                        #    event.add_tag(tag)
                         #for rtype in self.intel_api_client.valid_report_types:
                         #    if rtype.upper() in report.get('name', None):
                         #        event.add_tag(f"CrowdStrike:report: {rtype.upper()}")
