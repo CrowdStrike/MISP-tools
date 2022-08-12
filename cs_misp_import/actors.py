@@ -60,8 +60,8 @@ class ActorsImporter:
                 self.log.info("Created adversary event for %s", act.get('name'))
                 if event:
                     try:
-                        for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
-                            event.add_tag(tag)
+                        #for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
+                        #    event.add_tag(tag)
                         # Create an actor specific tag
                         actor_tag = actor_name.split(" ")[1]
                         event.add_tag(f"CrowdStrike:adversary:branch: {actor_tag}")
