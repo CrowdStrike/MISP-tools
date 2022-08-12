@@ -4,7 +4,10 @@ import time
 import os
 
 try:
+    import pymisp
+    pymisp.api.everything_broken = ""
     from pymisp import ExpandedPyMISP, PyMISPError
+
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP project must be installed in order to use this program."
@@ -13,6 +16,7 @@ except ImportError as no_pymisp:
 
 class MISP(ExpandedPyMISP):
     MAX_RETRIES = 3
+
     def __init__(self, *args, **kwargs):
         self.thread_count = int(kwargs.get("max_threads") or min(32, (os.cpu_count() or 1) * 4))
         self.log: logging.Logger = kwargs.get("logger", None)
