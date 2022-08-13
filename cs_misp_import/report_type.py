@@ -9,7 +9,8 @@ class ReportType(Enum):
     CSDR = "Daily Report"
     CSIT = "Intelligence Tip"
     CSGT = "Global Threat Analysis"
-    CSIA = "Intelligence Assessment"  # Quarterly reports also are flagged with this
+    CSIA = "Intelligence Assessment"  # Quarterly reports can also be flagged with this
+    CSQR = "Quarterly Report"
     CSMR = "Monthly Report"
     CSTA = "Threat Assessment"
     CSWR = "Weekly Report"
