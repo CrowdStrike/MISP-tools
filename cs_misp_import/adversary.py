@@ -9,6 +9,7 @@ class Adversary(Enum):
     CHOLLIMA = "North Korea (DPRK)"
     CRANE = "Republic of Korea (ROK)"
     JACKAL = "Hacktivist"
+    HAWK = "Syria"
     KITTEN = "Iran"
     LEOPARD = "Pakistan"
     LYNX = "Georgia"
