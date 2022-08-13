@@ -93,7 +93,6 @@ class ReportsImporter:
             if self.events_already_imported.get(report_name) is None:
                 event: MISPEvent = self.create_event_from_report(report, rpt_detail, ind_list)
                 if event is not None:
-                    self.log.info("%s report created.", report_name)
                     try:
                         #for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
                         #    event.add_tag(tag)
@@ -102,6 +101,7 @@ class ReportsImporter:
                         #        event.add_tag(f"CrowdStrike:report: {rtype.upper()}")
                         self.events_already_imported[report_name] = True
                         event = self.misp.add_event(event, True)
+                        self.log.debug("%s report created.", report_name)
                     except Exception as err:
                         self.log.warning("Could not add or tag event %s.\n%s", event.info, str(err))
                 else:
@@ -250,7 +250,8 @@ class ReportsImporter:
                 for stem in actor_name:
                     for adversary in Adversary:
                         if adversary.name == stem.upper():
-                            event.add_tag(f"CrowdStrike:adversary:branch: {stem.upper()}")
+                            # Can't cross-tag with this as we're using it for delete
+                            #event.add_tag(f"CrowdStrike:adversary:branch: {stem.upper()}")
                             event.add_attribute_tag(f"CrowdStrike:adversary:branch: {stem.upper()}", att.uuid)
                  # Event level only
 #                for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
@@ -284,7 +285,7 @@ class ReportsImporter:
                     if ind.get("last_updated"):
                         ind_seen["last_seen"] = ind.get("last_updated")
                     added = event.add_attribute(indicator_object.type, indicator_object.value, category=indicator_object.category, **ind_seen)
-                    event.add_attribute_tag(f"CrowdStrike:indicator: {indicator_object.type.upper()}", added.uuid)
+                    event.add_attribute_tag(f"CrowdStrike:indicator:type: {indicator_object.type.upper()}", added.uuid)
                     # Event level only
                     #for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
                     #    event.add_attribute_tag(tag, added.uuid)

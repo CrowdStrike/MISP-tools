@@ -57,7 +57,7 @@ class ActorsImporter:
         if actor_name is not None:
             if already.get(actor_name) is None:
                 event: MISPEvent = self.create_event_from_actor(act, act_det)
-                self.log.info("Created adversary event for %s", act.get('name'))
+                self.log.debug("Created adversary event for %s", act.get('name'))
                 if event:
                     try:
                         #for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
