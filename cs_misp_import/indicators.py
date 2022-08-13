@@ -261,7 +261,8 @@ class IndicatorsImporter:
             ta = event.add_attribute('threat-actor', actor)
             branch = actor.split(" ")[1]
             event.add_attribute_tag(f"CrowdStrike:adversary:branch: {branch}", ta.uuid)
-            event.add_tag(f"CrowdStrike:adversary:branch: {branch}")
+            # Can't cross-tag with this as we're using it for delete
+            #event.add_tag(f"CrowdStrike:adversary:branch: {branch}")
 
         for target in indicator.get('targets', []):
             industry_object = MISPObject('victim')
@@ -314,6 +315,8 @@ class IndicatorsImporter:
                         
                         ta = event.add_attribute(**actor_att)
                         event.add_attribute_tag(f"CrowdStrike:adversary:branch: {adv}", ta.uuid)
+                        #event.add_tag(f"CrowdStrike.adversary: {label_val}")
+                        #tag_list = __update_tag_list(f"CrowdStrike:indicator:adversary: {label_val}")
 
             if label_type == "threat":
                 scnt = 0
@@ -328,14 +331,23 @@ class IndicatorsImporter:
                 event.add_object(threat)
 
 
-            if label_type in ["malicious-confidence", "kill-chain", "threat", "malware", "mitre-attck"]:
+            if label_type in ["malicious-confidence", "kill-chain", "threat", "malware", "mitre-attck", "actor"]:
                 label_val = label_val.upper()
+            if label_type == "actor":
+                label_type = "adversary"
+                for act in [a for a in dir(Adversary) if "__" not in a]:
+                    if act in label_val:
+                        label_val = label_val.replace(act, f" {act}")
+                        # Makes deep searches difficult after there's a lot of data
+                        #tag_list = __update_tag_list(tag_list, f"CrowdStrike:adversary: {label_val}")
+
             tag_list = __update_tag_list(tag_list, f"CrowdStrike:indicator:{label_type}: {label_val}")
             # else:
             #     tag_list = __update_tag_list(tag_list, f"CrowdStrike:indicator:label: {label}")
             #     event.add_attribute("threat-actor", label.upper().replace("ACTOR/", ""))
 
         for _tag in tag_list:
+            #self.log.debug("Indicator event tagged as %s", _tag)
             event.add_tag(_tag)
         try:
             self.misp.add_event(event)
@@ -346,7 +358,7 @@ class IndicatorsImporter:
 
     def _note_timestamp(self, timestamp):
         with open(self.indicators_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-            ts_file.write(str(timestamp))
+            ts_file.write(str(int(timestamp)))
         if self.MISSING_GALAXIES:
             for _galaxy in self.MISSING_GALAXIES:
                 self.log.warning("No galaxy mapping found for %s malware family.", _galaxy)
