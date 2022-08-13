@@ -1,4 +1,5 @@
 """Helper methods."""
+from ._version import __version__ as MISP_IMPORT_VERSION
 
 try:
     from pymisp import MISPObject, MISPAttribute
@@ -46,7 +47,7 @@ def gen_indicator(indicator, tag_list) -> MISPObject or MISPAttribute:
                     att.first_seen = indicator_first
                 if indicator_last:
                     att.last_seen = indicator_last
-                att.add_tag(f"CrowdStrike:indicator: {ind_obj[2].lower()}")
+                att.add_tag(f"CrowdStrike:indicator:type: {ind_obj[2].upper()}")
                 #for tag in tag_list:
                 #    att.add_tag(tag)
 
@@ -116,7 +117,7 @@ REPORTS_BANNER = """
 |  .  Y|     T|  |   l     !|  .  Y |  |  \    |
 l__j\_jl_____jl__j    \___/ l__j\_j l__j   \___j
 """
-MISP_BANNER = """
+MISP_BANNER = f"""
 '##::::'##:'####::'######::'########:::::'####:'##::::'##:'########:::'#######::'########::'########:
  ###::'###:. ##::'##... ##: ##.... ##::::. ##:: ###::'###: ##.... ##:'##.... ##: ##.... ##:... ##..::
  ####'####:: ##:: ##:::..:: ##:::: ##::::: ##:: ####'####: ##:::: ##: ##:::: ##: ##:::: ##:::: ##::::
@@ -134,7 +135,7 @@ MISP_BANNER = """
                               |.  1___|   _|  _  |  |  |  |  _  |   1___|   _|   _|  |    <|  -__|
                               |.  |___|__| |_____|________|_____|____   |____|__| |__|__|__|_____|
                               |:  1   |                         |:  1   |
-                              |::.. . |                         |::.. . |    Threat Intelligence
+                              |::.. . |                         |::.. . |  Threat Intelligence v{MISP_IMPORT_VERSION}
                               `-------'                         `-------'
 """
 DELETE_BANNER = """
@@ -152,3 +153,30 @@ FINISHED_BANNER = r"""
  |______   |   | \  |   |   |______ |_____| |______ |     \
  |       __|__ |  \_| __|__ ______| |     | |______ |_____/
 """
+
+INDICATOR_TYPES = [
+    "hash_md5",
+    "hash_sha256",
+    "hash_sha1",
+    "hash_imphash",
+    "file_name",
+    "file_path",
+    "url",
+    "mutex_name",
+    "bitcoin_address",
+    "coin_address",
+    "email_address",
+    "email_subject",
+    "registry",
+    "device_name",
+    "domain",
+    "campaign_id",
+    "ip_address",
+    "service_name",
+    "user_agent",
+    "port",
+    "password",
+    "username",
+    "x509_serial",
+    "x509_subject",
+]
