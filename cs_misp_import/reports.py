@@ -185,7 +185,7 @@ class ReportsImporter:
 
         if len(reports) == 0:
             with open(self.reports_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                ts_file.write(str(time_send_request.timestamp()))
+                ts_file.write(str(int(time_send_request.timestamp())))
         else:
             #adversary_events = self.misp.get_adversaries()
             report_ids = [rep.get("name").split(" ")[0] for rep in reports]
@@ -224,7 +224,7 @@ class ReportsImporter:
                     reported.append(fut.done())
 
                 with open(self.reports_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                    ts_file.write(str(self.last_pos))
+                    ts_file.write(str(int(self.last_pos)))
 
 
         self.log.info("Finished importing %i Crowdstrike Intel reports as events in MISP.", len(reports))
@@ -253,6 +253,7 @@ class ReportsImporter:
                             # Can't cross-tag with this as we're using it for delete
                             #event.add_tag(f"CrowdStrike:adversary:branch: {stem.upper()}")
                             event.add_attribute_tag(f"CrowdStrike:adversary:branch: {stem.upper()}", att.uuid)
+                event.add_tag(f"CrowdStrike:report:adversary: {actor.get('name')}")
                  # Event level only
 #                for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
 #                    event.add_attribute_tag(tag, att.uuid)
