@@ -116,7 +116,7 @@ class ActorsImporter:
 
         if len(actors) == 0:
             with open(self.actors_timestamp_filename, 'w', encoding="utf-8") as ts_file:
-                ts_file.write(str(time_send_request.timestamp()))
+                ts_file.write(str(int(time_send_request.timestamp())))
         else:
             actor_details = self.intel_api_client.falcon.get_actor_entities(ids=[x.get("id") for x in actors], fields="__full__")["body"]["resources"]
             reported = 0
@@ -161,7 +161,7 @@ class ActorsImporter:
                 "type": "threat-actor",
                 "value": actor_name,
             }
-
+            event.add_tag(f"CrowdStrike:adversary: {actor_name}")
 
             if details.get('url'):
                 event.add_attribute('link', details.get('url'))
