@@ -1,12 +1,13 @@
 import datetime
 import logging
 import concurrent.futures
-
+from .adversary import Adversary
+from .report_type import ReportType
 from .actors import ActorsImporter
 from .indicators import IndicatorsImporter
 from .reports import ReportsImporter
 from .threaded_misp import MISP
-from .helper import IMPORT_BANNER, DELETE_BANNER
+from .helper import IMPORT_BANNER, DELETE_BANNER, INDICATOR_TYPES
 
 class CrowdstrikeToMISPImporter:
     """Tool used to import indicators and reports from the Crowdstrike Intel API.
@@ -83,28 +84,41 @@ class CrowdstrikeToMISPImporter:
 
     def clean_crowdstrike_events(self, clean_reports, clean_indicators, clean_actors):
         """Delete events from a MISP instance."""
-
-        tags = []
-        if clean_reports:
-            #tags.append(self.unique_tags["reports"])
-            tags.append("CrowdStrike:report%")
-        if clean_indicators:
-            #tags.append(self.unique_tags["indicators"])
-            tags.append("CrowdStrike:indicator%")
-        if clean_actors:
-            #tags.append(self.unique_tags["actors"])
-            tags.append("CrowdStrike:adversary%")
-        if clean_reports or clean_indicators or clean_actors:
-            self.log.info(DELETE_BANNER)
-            self.log.info("Start clean up CrowdStrike related events from MISP.")
-            self.misp_client.deleted_event_count = 0
+        # This search currently leverages `search_index` which searches event metadata displayed
+        # on the event listing page. The tags used to identify the different event types CANNOT
+        # be used for cross-tagging purposes at the event level (attributes are still fine).
+        #   Adversaries: "CrowdStrike:adversary:branch: {ADVERSARY TYPE}"
+        #   Indicators: "CrowdStrike:indicator:type: {INDICATOR TYPE}"
+        #   Reports: "CrowdStrike:reports:type: {REPORT TYPE}"
+        #
+        # Passing in a list of tags to the search_index solution is pulling too many matches
+        # back in environments with large numbers of events.
+        def perform_threaded_delete(tag_to_hunt: str, tag_type: str):
+            self.log.info("Start clean up CrowdStrike %s events from MISP.", tag_type)
+            #qry = self.misp_client.build_complex_query(or_parameters=tag_to_hunt)
             with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
                 #executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
-                #executor.map(self.misp_client.delete_event, self.misp_client.search(tags=tags, minimal=True))
-                for tag in tags:
-                    executor.map(self.misp_client.delete_event, self.misp_client.search(tag=tag, minimal=True))
+                #executor.map(self.misp_client.delete_event, self.misp_client.search(tag=qry, minimal=True))  # seems to bog down
+                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=[tag_to_hunt], minimal=True))
 
-            self.log.info("Finished cleaning up CrowdStrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
+        self.log.info(DELETE_BANNER)
+
+        if clean_reports:
+            for report_type in [r for r in dir(ReportType) if "__" not in r]:
+                perform_threaded_delete(tag_to_hunt=f"CrowdStrike:report:type: {report_type}", tag_type=f"{report_type} report")
+
+        if clean_indicators:
+                for ind_type in INDICATOR_TYPES:
+                    perform_threaded_delete(
+                        tag_to_hunt=f"CrowdStrike:indicator:type: {ind_type.upper()}",
+                        tag_type=f"{ind_type.upper()} indicator"
+                        )
+
+        if clean_actors:
+            for adv_type in [a for a in dir(Adversary) if "__" not in a]:
+                perform_threaded_delete(tag_to_hunt=f"CrowdStrike:adversary:branch: {adv_type}", tag_type=f"Adversary ({adv_type})")
+
+        self.log.info("Finished cleaning up CrowdStrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
             
     def remove_crowdstrike_tags(self):
         self.log.info(DELETE_BANNER)
