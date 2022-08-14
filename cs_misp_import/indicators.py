@@ -309,9 +309,10 @@ class IndicatorsImporter:
                 for adv in [a for a in dir(Adversary) if "__" not in a]:
                     if adv in label_val:
                         label_val = label_val.replace(adv, f" {adv}")
+                        actor_proper_name = " ".join([n.title() for n in label_val.split(" ")])
                         actor_att = {
                             "type": "threat-actor",
-                            "value": label_val,
+                            "value": actor_proper_name,
                         }
                         if indicator.get("published_date"):
                             actor_att["first-seen"] = datetime.datetime.utcfromtimestamp(indicator.get("published_date")).isoformat()

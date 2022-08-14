@@ -238,9 +238,10 @@ class ReportsImporter:
                 actor_name = actor.get('name').split(" ")
                 first = actor_detail.get("first_activity_date", 0)
                 last = actor_detail.get("last_activity_date", 0)
+                actor_proper_name = " ".join([n.title() for n in actor.get("name", "").split(" ")])
                 actor_att = {
                     "type": "threat-actor",
-                    "value": actor.get("name"),
+                    "value": actor_proper_name,
                 }
                 if first:
                     actor_att["first_seen"] = first
