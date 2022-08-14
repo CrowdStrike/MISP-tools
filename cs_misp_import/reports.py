@@ -413,7 +413,7 @@ class ReportsImporter:
             event = self.add_victim_detail(report, event)
             # Report indicators
             event = self.add_indicator_detail(event, report_id, indicator_list)
-            # Formatted report link and case number (Not sure this is working?)
+            # Formatted report link and content
             event = self.add_report_content(report, event, details, report_id, seen)
             # TYPE Taxonomic tag, all events
             if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TYPE", False)):
