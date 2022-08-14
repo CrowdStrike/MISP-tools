@@ -26,8 +26,9 @@ import os
 
 import concurrent.futures
 from .confidence import MaliciousConfidence
-from .helper import gen_indicator, INDICATORS_BANNER
+from .helper import confirm_boolean_param, gen_indicator, INDICATORS_BANNER
 from .adversary import Adversary
+from .kill_chain import KillChain
 try:
     from pymisp import MISPObject, MISPEvent, MISPAttribute, ExpandedPyMISP, MISPTag
 except ImportError as no_pymisp:
@@ -64,7 +65,7 @@ class IndicatorsImporter:
         self.settings = settings
         self.crowdstrike_org = self.misp.get_organisation(crowdstrike_org_uuid, True)
         self.already_imported = None
-        self.reports_ids = {}
+        # self.reports_ids = {}
         self.import_settings = import_settings
         self.galaxy_miss_file = import_settings.get("miss_track_file", "no_galaxy_mapping.log")
         self.log: logging.Logger = logger
@@ -83,15 +84,15 @@ class IndicatorsImporter:
         if family not in self.MISSING_GALAXIES:
             self.MISSING_GALAXIES.append(family)
       
-    def get_cs_reports_from_misp(self):
-        """Retrieve any report events in MISP based upon tag."""
-        self.log.info("Checking for previous events.")
-        events = self.misp.search_index(tags=[self.settings["CrowdStrike"]["reports_unique_tag"]])
-        for event in events:
-            if event.get('info'):
-                self.reports_ids[event.get('info').split(' ', 1)[0]] = event
-            else:
-                self.log.warning("Event %s missing info field.", event)
+    # def get_cs_reports_from_misp(self):
+    #     """Retrieve any report events in MISP based upon tag."""
+    #     self.log.info("Checking for previous events.")
+    #     events = self.misp.search_index(tags=["self.settings["CrowdStrike"]["reports_unique_tag"]"])
+    #     for event in events:
+    #         if event.get('info'):
+    #             self.reports_ids[event.get('info').split(' ', 1)[0]] = event
+    #         else:
+    #             self.log.warning("Event %s missing info field.", event)
 
     def process_indicators(self, indicators_mins_before, events_already_imported):
         """Pull and process indicators.
@@ -111,7 +112,7 @@ class IndicatorsImporter:
 
         # Let's see if we can't speed this up a bit
         self.already_imported = events_already_imported
-        self.get_cs_reports_from_misp() # Added to occur before
+        # self.get_cs_reports_from_misp() # Added to occur before
         self.log.info("Started getting indicators from Crowdstrike Intel API and pushing them in MISP.")
         time_send_request = datetime.datetime.now()
 
@@ -133,52 +134,52 @@ class IndicatorsImporter:
     def push_indicators(self, indicators, events_already_imported = None):
         """Push valid indicators into MISP."""
         def threaded_indicator_push(indicator):
-            if not self.import_all_indicators and len(indicators.get('reports', [])) == 0:
-                return
-
+            # if not self.import_all_indicators and len(indicators.get('reports', [])) == 0:
+            #     return
             indicator_name = indicator.get('indicator')
 
-            if self.delete_outdated and indicator_name is not None and indicator.get('deleted', False):
-                events = self.misp.search_index(eventinfo=indicator_name, pythonify=True)
-                for event in events:
-                    self.misp.delete_event(event)
-                    try:
-                        events_already_imported.pop(indicator_name)
-                    except Exception as err:
-                        self.log.debug("indicator %s was marked as deleted in intel API but is not stored in MISP."
-                                      " skipping.\n%s",
-                                      indicator_name,
-                                      str(err)
-                                      )
-                    self.log.warning('deleted indicator %s', indicator_name)
-                return
-            elif indicator_name is not None and events_already_imported.get(indicator_name) is not None:
-                return
-            else:
-                related_to_a_misp_report = False
-                if indicator_name:
-                    for report in indicator.get('reports', []):
-                        event = self.reports_ids.get(report)
-                        if event:
-                            related_to_a_misp_report = True
-                            #indicator_object = self.__create_object_for_indicator(indicator)
-                            indicator_object = gen_indicator(indicator, self.settings["CrowdStrike"]["indicators_tags"].split(","))
-                            if indicator_object:
-                                try:
-                                    if isinstance(indicator_object, MISPObject):
-                                        self.misp.add_object(event, indicator_object, True)
-                                    elif isinstance(indicator_object, MISPAttribute):
-                                        self.misp.add_attribute(event, indicator_object, True)
-                                except Exception as err:
-                                    self.log.warning("Could not add object or attribute %s for event %s.\n%s",
-                                                    indicator_object,
-                                                    event,
-                                                    str(err)
-                                                    )
-                else:
-                    self.log.warning("Indicator %s missing indicator field.", indicator.get('id'))
+            # if self.delete_outdated and indicator_name is not None and indicator.get('deleted', False):
+            #     events = self.misp.search_index(eventinfo=indicator_name, pythonify=True)
+            #     for event in events:
+            #         self.misp.delete_event(event)
+            #         try:
+            #             events_already_imported.pop(indicator_name)
+            #         except Exception as err:
+            #             self.log.debug("indicator %s was marked as deleted in intel API but is not stored in MISP."
+            #                           " skipping.\n%s",
+            #                           indicator_name,
+            #                           str(err)
+            #                           )
+            #         self.log.warning('deleted indicator %s', indicator_name)
+            #     return
+            # elif indicator_name is not None and events_already_imported.get(indicator_name) is not None:
+            #     return
+            # else:
+                #related_to_a_misp_report = False
+            if indicator_name:
+                #for report in indicator.get('reports', []):
+                # #    event = self.reports_ids.get(report)
+                # #    if event:
+                # #        related_to_a_misp_report = True
+                #         #indicator_object = self.__create_object_for_indicator(indicator)
+                # indicator_object = gen_indicator(indicator, self.settings["CrowdStrike"].get("indicators_tags", [])].split(","))
+                # if indicator_object:
+                #     try:
+                #         if isinstance(indicator_object, MISPObject):
+                #             self.misp.add_object(event, indicator_object, True)
+                #         elif isinstance(indicator_object, MISPAttribute):
+                #             self.misp.add_attribute(event, indicator_object, True)
+                #     except Exception as err:
+                #         self.log.warning("Could not add object or attribute %s for event %s.\n%s",
+                #                         indicator_object,
+                #                         event,
+                #                         str(err)
+                #                         )
+                # else:
+                #     self.log.warning("Indicator %s missing indicator field.", indicator.get('id'))
 
-                if related_to_a_misp_report or self.import_all_indicators:
+                #if related_to_a_misp_report or self.import_all_indicators:
+                if self.import_all_indicators:
                     self.__add_indicator_event(indicator)
                     if indicator_name is not None:
                         events_already_imported[indicator_name] = True
@@ -206,12 +207,14 @@ class IndicatorsImporter:
             return tagging_list
 
         indicator_value = indicator.get("indicator")
-        indicator_type = indicator.get("type").replace("hash_", "")
+        # indicator_type = indicator.get("type").replace("hash_", "")
         if indicator_value:
+            #self.log.debug("Reviewing indicator %s", indicator_value)
             #event.info = f"{indicator_value} ({indicator_type.upper()})"
             event.info = indicator_value
             #indicator_object = self.__create_object_for_indicator(indicator)
-            indicator_object = gen_indicator(indicator, self.settings["CrowdStrike"]["indicators_tags"].split(","))
+            indicator_object = gen_indicator(indicator, [])
+
             if indicator_object:
                 if isinstance(indicator_object, MISPObject):
                     event.add_object(indicator_object)
@@ -290,7 +293,10 @@ class IndicatorsImporter:
 
         if not family_found:
             self._log_galaxy_miss(malware_family)
-            tag_list = __update_tag_list(tag_list, self.import_settings["unknown_mapping"])
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_WORKFLOW", False)):
+                tag_list = __update_tag_list(tag_list, 'workflow:todo="add-missing-misp-galaxy-cluster-values"')
+            else:
+                tag_list = __update_tag_list(tag_list, self.import_settings["unknown_mapping"])
 
         labels = [lab.get("name") for lab in indicator.get("labels")]
         for label in labels:
@@ -330,6 +336,12 @@ class IndicatorsImporter:
                 tht.add_tag(f"CrowdStrike:indicator:threat: {label_val.upper()}")
                 event.add_object(threat)
 
+            if label_type == "kill-chain":
+                for kc in list(k for k in dir(KillChain) if "__" not in k):
+                    if kc == label_val.upper():
+                        self.log.debug("Tagging taxonomic kill chain match: kill-chain:%s", KillChain[kc].value)
+                        if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_KILL-CHAIN", False)):
+                            event.add_tag(f"kill-chain:{KillChain[kc].value}")
 
             if label_type in ["malicious-confidence", "kill-chain", "threat", "malware", "mitre-attck", "actor"]:
                 label_val = label_val.upper()
@@ -340,8 +352,9 @@ class IndicatorsImporter:
                         label_val = label_val.replace(act, f" {act}")
                         # Makes deep searches difficult after there's a lot of data
                         #tag_list = __update_tag_list(tag_list, f"CrowdStrike:adversary: {label_val}")
-
-            tag_list = __update_tag_list(tag_list, f"CrowdStrike:indicator:{label_type}: {label_val}")
+            # Skip these for now
+            if label_type not in ["kill-chain"] and confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_KILL-CHAIN", False)):
+                tag_list = __update_tag_list(tag_list, f"CrowdStrike:indicator:{label_type}: {label_val}")
             # else:
             #     tag_list = __update_tag_list(tag_list, f"CrowdStrike:indicator:label: {label}")
             #     event.add_attribute("threat-actor", label.upper().replace("ACTOR/", ""))
@@ -349,6 +362,26 @@ class IndicatorsImporter:
         for _tag in tag_list:
             #self.log.debug("Indicator event tagged as %s", _tag)
             event.add_tag(_tag)
+        # TYPE Taxonomic tag, all events
+        if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TYPE", False)):
+            event.add_tag('type:CYBINT')
+        # INFORMATION-SECURITY-DATA-SOURCE Taxonomic tag, all events
+        if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_INFORMATION-SECURITY-DATA-SOURCE", False)):
+            event.add_tag('information-security-data-source:integrability-interface="api"')
+            event.add_tag('information-security-data-source:originality="original-source"')
+            event.add_tag('information-security-data-source:type-of-source="security-product-vendor-website"')
+        if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP", False)):
+            event.add_tag('iep:commercial-use="MUST NOT"')
+            event.add_tag('iep:provider-attribution="MUST"')
+            event.add_tag('iep:unmodified-resale="MUST NOT"')
+        if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP2", False)):
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP2_VERSION", False)):
+                event.add_tag('iep2-policy:iep_version="2.0"')
+            event.add_tag('iep2-policy:attribution="must"')
+            event.add_tag('iep2-policy:unmodified_resale="must-not"')
+        if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TLP", False)):
+            event.add_tag("tlp:amber")
+
         try:
             self.misp.add_event(event)
             self.log.debug("Successfully added unattributed indicator event for indicator %s", event.info)
