@@ -26,7 +26,7 @@ except ImportError as no_pymisp:
 
 from .adversary import Adversary
 from .report_type import ReportType
-from .helper import gen_indicator, REPORTS_BANNER
+from .helper import confirm_boolean_param, gen_indicator, REPORTS_BANNER
 from .intel_client import IntelAPIClient
 
 class ReportsImporter:
@@ -290,9 +290,12 @@ class ReportsImporter:
                     # Event level only
                     #for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
                     #    event.add_attribute_tag(tag, added.uuid)
-
-                for gal in list(set(galaxy_tags)):
-                    event.add_tag(f'CrowdStrike:malware:unmapped="{gal}"')
+                if confirm_boolean_param(self.settings["TAGGING"].get("tag_unknown_galaxy_maps", False)):
+                    for gal in list(set(galaxy_tags)):
+                        event.add_tag(f'CrowdStrike:malware:unmapped="{gal}"')
+                if galaxy_tags:
+                    if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_WORKFLOW", False)):
+                        event.add_tag('workflow:todo="add-missing-misp-galaxy-cluster-values"')
                 for galactic in list(set(galaxies)):
                     event.add_tag(galactic)
 
@@ -409,8 +412,27 @@ class ReportsImporter:
             event = self.add_victim_detail(report, event)
             # Report indicators
             event = self.add_indicator_detail(event, report_id, indicator_list)
-            # Formatted report link and case number
+            # Formatted report link and case number (Not sure this is working?)
             event = self.add_report_content(report, event, details, report_id, seen)
+            # TYPE Taxonomic tag, all events
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TYPE", False)):
+                event.add_tag('type:CYBINT')
+            # INFORMATION-SECURITY-DATA-SOURCE Taxonomic tag, all events
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_INFORMATION-SECURITY-DATA-SOURCE", False)):
+                event.add_tag('information-security-data-source:integrability-interface="api"')
+                event.add_tag('information-security-data-source:originality="original-source"')
+                event.add_tag('information-security-data-source:type-of-source="security-product-vendor-website"')
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP", False)):
+                event.add_tag('iep:commercial-use="MUST NOT"')
+                event.add_tag('iep:provider-attribution="MUST"')
+                event.add_tag('iep:unmodified-resale="MUST NOT"')
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP2", False)):
+                if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP2_VERSION", False)):
+                    event.add_tag('iep2-policy:iep_version="2.0"')
+                event.add_tag('iep2-policy:attribution="must"')
+                event.add_tag('iep2-policy:unmodified_resale="must-not"')
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TLP", False)):
+                event.add_tag("tlp:amber")
 
         else:
             self.log.warning("Report %s missing name field.", report.get('id'))

@@ -32,7 +32,7 @@ except ImportError as no_pymisp:
         ) from no_pymisp
 
 from .adversary import Adversary
-from .helper import ADVERSARIES_BANNER
+from .helper import ADVERSARIES_BANNER, confirm_boolean_param
 
 class ActorsImporter:
     """Tool used to import actors from the Crowdstrike Intel API and push them as events in MISP through the MISP API.
@@ -412,6 +412,25 @@ class ActorsImporter:
                 #vic.add_tag(f"CrowdStrike:adversary:{slug}:target: SECTOR")
                 vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
                 event.add_object(victim)
+            # TYPE Taxonomic tag, all events
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TYPE", False)):
+                event.add_tag('type:CYBINT')
+            # INFORMATION-SECURITY-DATA-SOURCE Taxonomic tag, all events
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_INFORMATION-SECURITY-DATA-SOURCE", False)):
+                event.add_tag('information-security-data-source:integrability-interface="api"')
+                event.add_tag('information-security-data-source:originality="original-source"')
+                event.add_tag('information-security-data-source:type-of-source="security-product-vendor-website"')
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP", False)):
+                event.add_tag('iep:commercial-use="MUST NOT"')
+                event.add_tag('iep:provider-attribution="MUST"')
+                event.add_tag('iep:unmodified-resale="MUST NOT"')
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP2", False)):
+                if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP2_VERSION", False)):
+                    event.add_tag('iep2-policy:iep_version="2.0"')
+                event.add_tag('iep2-policy:attribution="must"')
+                event.add_tag('iep2-policy:unmodified_resale="must-not"')
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TLP", False)):
+                event.add_tag("tlp:amber")
 
         else:
             self.log.warning("Adversary %s missing field name.", actor.get('id'))
