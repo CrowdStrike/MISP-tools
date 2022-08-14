@@ -124,7 +124,6 @@ def main():
     settings = ConfigParser(interpolation=ExtendedInterpolation())
     settings.read(args.config_file)
 
-
     galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
     galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
 
@@ -173,9 +172,9 @@ def main():
         "reports_timestamp_filename": settings["CrowdStrike"]["reports_timestamp_filename"],
         "indicators_timestamp_filename": settings["CrowdStrike"]["indicators_timestamp_filename"],
         "actors_timestamp_filename": settings["CrowdStrike"]["actors_timestamp_filename"],
-        "reports_unique_tag": settings["CrowdStrike"]["reports_unique_tag"],
-        "indicators_unique_tag": settings["CrowdStrike"]["indicators_unique_tag"],
-        "actors_unique_tag": settings["CrowdStrike"]["actors_unique_tag"],
+#        "reports_unique_tag": settings["CrowdStrike"]["reports_unique_tag"],
+#        "indicators_unique_tag": settings["CrowdStrike"]["indicators_unique_tag"],
+#        "actors_unique_tag": settings["CrowdStrike"]["actors_unique_tag"],
         "unknown_mapping": settings["CrowdStrike"]["unknown_mapping"],
         "max_threads": settings["MISP"].get("max_threads", None),
         "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
@@ -204,11 +203,12 @@ def main():
 
     if args.reports or args.actors or args.indicators:
         try:
-            if not args.no_dupe_check:
-                # Retrieve all tags for selected options
-                tags = retrieve_tags(args, settings)
-                # Retrieve all events from MISP matching these tags
-                importer.import_from_misp(tags)
+            # Commenting out dupe checking for now - 08.14 jshcodes@CrowdStrike
+            # if not args.no_dupe_check:
+            #     # Retrieve all tags for selected options
+            #     tags = retrieve_tags(args, settings)
+            #     # Retrieve all events from MISP matching these tags
+            #     importer.import_from_misp(tags)
             # Import new events from CrowdStrike into MISP
             importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
                                              int(settings["CrowdStrike"]["init_indicators_minutes_before"]),
