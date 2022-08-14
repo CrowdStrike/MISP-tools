@@ -88,6 +88,15 @@ def gen_indicator(indicator, tag_list) -> MISPObject or MISPAttribute:
 
         return False
 
+
+def confirm_boolean_param(val: str or bool) -> bool:
+    returned = False
+    if "T" in str(val).upper():
+        returned = True
+
+    return returned
+
+
 # These are here because I didn't want us to have to import pyFiglet
 ADVERSARIES_BANNER = """
   ____  ___    __ __    ___  ____    _____  ____  ____   ____    ___  _____
