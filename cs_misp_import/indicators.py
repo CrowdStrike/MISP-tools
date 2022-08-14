@@ -274,7 +274,7 @@ class IndicatorsImporter:
 
         for threat_type in indicator.get("threat_types"):
             threat = MISPObject("internal-reference")
-            threat.add_attribute("identifier", "Threat type")
+            threat.add_attribute("identifier", "Threat type", disable_correlation=True)
             tht = threat.add_attribute("comment", threat_type)
             tht.add_tag(f"CrowdStrike:indicator:threat: {threat_type.upper()}")
             event.add_object(threat)
@@ -331,7 +331,7 @@ class IndicatorsImporter:
                     if s.isupper() and scnt > 1:
                         label_val = label_val.replace(s, f" {s}")
                 threat = MISPObject("internal-reference")
-                threat.add_attribute("identifier", "Threat type")
+                threat.add_attribute("identifier", "Threat type", disable_correlation=True)
                 tht = threat.add_attribute("comment", label_val)
                 tht.add_tag(f"CrowdStrike:indicator:threat: {label_val.upper()}")
                 event.add_object(threat)
