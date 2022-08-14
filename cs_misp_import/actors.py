@@ -150,6 +150,7 @@ class ActorsImporter:
                 details = det
 
         actor_name = actor.get("name", None)
+        actor_proper_name = " ".join([n.title() for n in actor.get("name", "").split(" ")])
         slug = details.get("slug", actor_name.lower().replace(" ", "-"))
         actor_region = ""
         if actor_name:
@@ -159,7 +160,7 @@ class ActorsImporter:
             event.info = f"ADV-{actor.get('id')} {actor_name}{actor_region}"
             actor_att = {
                 "type": "threat-actor",
-                "value": actor_name,
+                "value": actor_proper_name,
             }
             event.add_tag(f"CrowdStrike:adversary: {actor_name}")
 
