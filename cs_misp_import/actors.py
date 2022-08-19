@@ -1,4 +1,4 @@
-f"""CrowdStrike Adversary (Actor) MISP event import.
+"""CrowdStrike Adversary (Actor) MISP event import.
 
  _______                        __ _______ __        __ __
 |   _   .----.-----.--.--.--.--|  |   _   |  |_.----|__|  |--.-----.
@@ -54,8 +54,10 @@ class ActorsImporter:
 
     def batch_import_actors(self, act, act_det, already):
         actor_name = act.get('name')
+        act_detail = Adversary[actor_name.split(" ")[1].upper()].value
+        info_str = f"ADV-{act.get('id')} {actor_name} ({act_detail})"
         if actor_name is not None:
-            if already.get(actor_name) is None:
+            if already.get(info_str) is None:
                 event: MISPEvent = self.create_event_from_actor(act, act_det)
                 self.log.debug("Created adversary event for %s", act.get('name'))
                 if event:
@@ -90,6 +92,9 @@ class ActorsImporter:
 
                 else:
                     self.log.warning("Failed to create a MISP event for actor %s.", act)
+            else:
+                self.log.debug("Actor %s already exists, skipping", actor_name)
+
         return True
 
 
@@ -152,10 +157,11 @@ class ActorsImporter:
         actor_name = actor.get("name", None)
         actor_proper_name = " ".join([n.title() for n in actor.get("name", "").split(" ")])
         slug = details.get("slug", actor_name.lower().replace(" ", "-"))
+        actor_branch = actor_name.split(" ")[1].upper()
         actor_region = ""
         if actor_name:
             for act_reg in [adv for adv in dir(Adversary) if "__" not in adv]:
-                if act_reg in actor_name:
+                if act_reg in actor_branch:
                     actor_region = f" ({Adversary[act_reg].value})"
             event.info = f"ADV-{actor.get('id')} {actor_name}{actor_region}"
             actor_att = {

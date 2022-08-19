@@ -36,7 +36,7 @@ import logging
 import os
 import urllib3
 from cs_misp_import import (
-    IntelAPIClient, CrowdstrikeToMISPImporter, MISP_BANNER, FINISHED_BANNER
+    IntelAPIClient, CrowdstrikeToMISPImporter, MISP_BANNER, FINISHED_BANNER, ReportType, Adversary
 )
 
 def parse_command_line():
@@ -56,7 +56,7 @@ def parse_command_line():
     #                    help="Set this to only import indicators related to reports."
     #                    )
     parser.add_argument("--indicators", action="store_true", help="Set this to import all indicators.")
-    parser.add_argument("--force", action="store_true", help="Ignore previous timestamp and use minutes setting from ini file.")
+    parser.add_argument("--force", action="store_true", help="Force operation.")
     parser.add_argument("--delete_outdated_indicators", action='store_true',
                         help="Set this to check if the indicators you are imported have been marked as deleted and"
                              " if they have been already inserted, delete them."
@@ -104,11 +104,14 @@ def retrieve_tags(args: argparse.Namespace, settings):
     """Retrieve all tags used for CrowdStrike elements within MISP (broken out by type)."""
     tags = []
     if args.reports:
-        tags.append(settings["CrowdStrike"]["reports_unique_tag"])
-    if args.indicators:
-        tags.append(settings["CrowdStrike"]["indicators_unique_tag"])
+        for report_type in [r for r in dir(ReportType) if "__" not in r]:
+            tags.append(f"CrowdStrike:report:type: {report_type}")
+    # No indicators dupe checking atm - jshcodes@CrowdStrike / 08.18.22
+    # if args.indicators:
+    #     tags.append(settings["CrowdStrike"]["indicators_unique_tag"])
     if args.actors:
-        tags.append(settings["CrowdStrike"]["actors_unique_tag"])
+        for adv_type in [a for a in dir(Adversary) if "__" not in a]:
+            tags.append(f"CrowdStrike:adversary:branch: {adv_type}")
 
     return tags
 
@@ -180,7 +183,7 @@ def main():
         "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
         "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True,
         "galaxy_map": galaxy_maps["Galaxy"],
-        "force_indicators": args.force
+        "force": args.force
     }
     
     if not import_settings["unknown_mapping"]:
@@ -203,12 +206,12 @@ def main():
 
     if args.reports or args.actors or args.indicators:
         try:
-            # Commenting out dupe checking for now - 08.14 jshcodes@CrowdStrike
-            # if not args.no_dupe_check:
-            #     # Retrieve all tags for selected options
-            #     tags = retrieve_tags(args, settings)
-            #     # Retrieve all events from MISP matching these tags
-            #     importer.import_from_misp(tags)
+            if not args.no_dupe_check:
+                # Retrieve all tags for selected options
+                tags = retrieve_tags(args, settings)
+                # Retrieve all events from MISP matching these tags
+                # This needs to be expanded if we're going to handle reports and other types together
+                importer.import_from_misp(tags, do_reports=args.reports)
             # Import new events from CrowdStrike into MISP
             importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
                                              int(settings["CrowdStrike"]["init_indicators_minutes_before"]),
