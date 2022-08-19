@@ -110,7 +110,7 @@ class IntelAPIClient:
         while offset < total or first_run:
             resp_json = self.falcon.query_actor_entities(
                 sort="last_modified_date.asc",
-                filter=f'last_modified_date:>{start_time}',
+#                filter=f'last_modified_date:>{start_time}',  # Always retrieve all actors
                 limit=self.request_size_limit,
                 offset=offset
                 )["body"]
