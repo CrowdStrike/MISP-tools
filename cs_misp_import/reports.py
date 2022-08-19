@@ -11,6 +11,7 @@
 ::   :::   :: ::::   ::       ::::: ::  ::   :::     ::    :::: ::
  :   : :  : :: ::    :         : :  :    :   : :     :     :: : :
 """
+
 import datetime
 from logging import Logger
 import os
@@ -72,6 +73,7 @@ class ReportsImporter:
         self.crowdstrike_org = self.misp.get_organisation(crowdstrike_org_uuid, True)
         self.log = logger
         self.events_already_imported: dict = {}
+        self.skipped = 0
 
     def batch_report_detail(self, id_list: list or str) -> dict:
         """Retrieve extended report details for the ID list provided.
@@ -89,8 +91,9 @@ class ReportsImporter:
 
     def batch_import_reports(self, report, rpt_detail, ind_list):
         report_name = report.get('name')
+        rpt_id = report_name.split(" ")[0].split("-")[1]
         if report_name is not None:
-            if self.events_already_imported.get(report_name) is None:
+            if self.events_already_imported.get(rpt_id) is None:
                 event: MISPEvent = self.create_event_from_report(report, rpt_detail, ind_list)
                 if event is not None:
                     try:
@@ -112,6 +115,9 @@ class ReportsImporter:
                 else:
                     if report.get('last_modified_date') > self.last_pos:
                         self.last_pos = report.get("last_modified_date")
+            else:
+                self.log.debug("Event %s already created, skipping.", report_name)
+                self.skipped += 1
 
     def get_indicator_detail(self, id_list):
         def query_api(filter_str: str):
@@ -166,15 +172,17 @@ class ReportsImporter:
         :param reports_days_before: in case on an initialisation run, this is the age of the reports pulled in days
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
+        self.events_already_imported = events_already_imported
         self.log.info(REPORTS_BANNER)
         start_get_events = int((
             datetime.datetime.today() + datetime.timedelta(days=-int(min(reports_days_before, 366)))
         ).timestamp())
-        if os.path.isfile(self.reports_timestamp_filename):
-            with open(self.reports_timestamp_filename, 'r', encoding="utf-8") as ts_file:
-                line = ts_file.readline()
-                if line:
-                    start_get_events = int(line)
+        if not self.import_settings["force"]:
+            if os.path.isfile(self.reports_timestamp_filename):
+                with open(self.reports_timestamp_filename, 'r', encoding="utf-8") as ts_file:
+                    line = ts_file.readline()
+                    if line:
+                        start_get_events = int(line)
 
         log_msg = f"Start getting reports from Crowdstrike Intel API and pushing them as events in MISP (past {reports_days_before} days)."
         self.log.info(log_msg)
@@ -227,7 +235,7 @@ class ReportsImporter:
                     ts_file.write(str(int(self.last_pos)))
 
 
-        self.log.info("Finished importing %i Crowdstrike Intel reports as events in MISP.", len(reports))
+        self.log.info("Finished importing %i (%i skipped) Crowdstrike Intel reports as events in MISP.", len(reports), self.skipped)
 
     def add_actor_detail(self, report: dict, event: MISPEvent) -> MISPEvent:
         for actor in report.get('actors', []):
