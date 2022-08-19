@@ -96,10 +96,15 @@ class CrowdstrikeToMISPImporter:
         def perform_threaded_delete(tag_to_hunt: str, tag_type: str):
             self.log.info("Start clean up CrowdStrike %s events from MISP.", tag_type)
             #qry = self.misp_client.build_complex_query(or_parameters=tag_to_hunt)
+            params = {
+                "tags": [tag_to_hunt]
+            }
+            if not self.import_settings["force"]:
+                params["minimal"] = True
             with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
                 #executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
                 #executor.map(self.misp_client.delete_event, self.misp_client.search(tag=qry, minimal=True))  # seems to bog down
-                executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=[tag_to_hunt], minimal=True))
+                executor.map(self.misp_client.delete_event, self.misp_client.search_index(**params))
 
         self.log.info(DELETE_BANNER)
 
@@ -121,6 +126,7 @@ class CrowdstrikeToMISPImporter:
         self.log.info("Finished cleaning up CrowdStrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
             
     def remove_crowdstrike_tags(self):
+        """Remove all CrowdStrike local tags from the MISP instance."""
         self.log.info(DELETE_BANNER)
         removed = 0
         self.log.info("Retrieving list of tags to remove from MISP instance")
@@ -134,6 +140,7 @@ class CrowdstrikeToMISPImporter:
 
     def clean_old_crowdstrike_events(self, max_age):
         """Remove events from MISP that are dated greater than the specified max_age value."""
+        # TODO: Revisions required, this logic will no longer work as it is written.
         self.log.info(DELETE_BANNER)
         if max_age is not None:
             timestamp_max = int((datetime.date.today() - datetime.timedelta(max_age)).strftime("%s"))
@@ -167,11 +174,15 @@ class CrowdstrikeToMISPImporter:
             self.indicators_importer.process_indicators(indicators_minutes_before, self.event_ids)
 
 
-    def import_from_misp(self, tags):
+    def import_from_misp(self, tags, do_reports: bool = False):
         """Retrieve existing MISP events."""
         events = self.misp_client.search_index(tags=tags)
         for event in events:
             if event.get('info'):
-                self.event_ids[event.get('info')] = True
+                if not do_reports:
+                    self.event_ids[event.get('info')] = True
+                else:
+                    self.event_ids[event.get("info").split(" ")[0].split("-")[1]] = True
+
             else:
                 self.log.warning("Event %s missing info field.", event)
