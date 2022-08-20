@@ -100,16 +100,16 @@ def perform_local_cleanup(args: argparse.Namespace,
         raise SystemExit(err) from err
 
 
-def retrieve_tags(args: argparse.Namespace, settings):
+def retrieve_tags(tag_type: str, settings):
     """Retrieve all tags used for CrowdStrike elements within MISP (broken out by type)."""
     tags = []
-    if args.reports:
+    if tag_type == "reports":
         for report_type in [r for r in dir(ReportType) if "__" not in r]:
             tags.append(f"CrowdStrike:report:type: {report_type}")
     # No indicators dupe checking atm - jshcodes@CrowdStrike / 08.18.22
     # if args.indicators:
     #     tags.append(settings["CrowdStrike"]["indicators_unique_tag"])
-    if args.actors:
+    if tag_type == "actors":
         for adv_type in [a for a in dir(Adversary) if "__" not in a]:
             tags.append(f"CrowdStrike:adversary:branch: {adv_type}")
 
@@ -207,11 +207,15 @@ def main():
     if args.reports or args.actors or args.indicators:
         try:
             if not args.no_dupe_check:
+                tags = []
                 # Retrieve all tags for selected options
-                tags = retrieve_tags(args, settings)
-                # Retrieve all events from MISP matching these tags
-                # This needs to be expanded if we're going to handle reports and other types together
-                importer.import_from_misp(tags, do_reports=args.reports)
+                if args.actors:
+                    tags.extend(retrieve_tags("actors", settings))
+                    importer.import_from_misp(tags, do_reports=False)
+                if args.reports:
+                    # Reports dupe identification is a little customized
+                    tags.extend(retrieve_tags("reports", settings))
+                    importer.import_from_misp(tags, do_reports=True)
             # Import new events from CrowdStrike into MISP
             importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
                                              int(settings["CrowdStrike"]["init_indicators_minutes_before"]),
