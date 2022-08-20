@@ -74,6 +74,7 @@ class ReportsImporter:
         self.log = logger
         self.events_already_imported: dict = {}
         self.skipped = 0
+        self.known_actors = []
 
     def batch_report_detail(self, id_list: list or str) -> dict:
         """Retrieve extended report details for the ID list provided.
@@ -196,6 +197,7 @@ class ReportsImporter:
                 ts_file.write(str(int(time_send_request.timestamp())))
         else:
             #adversary_events = self.misp.get_adversaries()
+            self.known_actors = self.intel_api_client.get_actor_name_list()
             report_ids = [rep.get("name").split(" ")[0] for rep in reports]
             rep_batches = [report_ids[i:i+500] for i in range(0, len(report_ids), 500)]
             # Batched retrieval of extended report details
@@ -238,7 +240,15 @@ class ReportsImporter:
         self.log.info("Finished importing %i (%i skipped) Crowdstrike Intel reports as events in MISP.", len(reports), self.skipped)
 
     def add_actor_detail(self, report: dict, event: MISPEvent) -> MISPEvent:
-        for actor in report.get('actors', []):
+        associated_actors = report.get('actors', [])
+        if not associated_actors:
+            # Try to tag any actors mentioned in the report name or short description
+            for act in self.known_actors:
+                # This might have to move to details.get("long_description")
+                if act["name"] in report.get("short_description", "") or act["name"] in report.get("name", ""):
+                    associated_actors.append(act)
+
+        for actor in associated_actors:
             if actor.get('name'):
                 actor_detail = self.intel_api_client.falcon.get_actor_entities(ids=actor.get("id"))
                 if actor_detail["status_code"] == 200:
