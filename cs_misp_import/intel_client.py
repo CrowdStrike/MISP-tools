@@ -123,6 +123,17 @@ class IntelAPIClient:
 
         return actors
 
+    def get_actor_name_list(self):
+        """Get all the actors names and IDs in an easy to search list."""
+        actors = []
+        resp_json = self.falcon.query_actor_entities(sort="last_modified_date.asc")["body"]
+
+        for actor in resp_json.get("resources", []):
+            actors.append({"name": actor["name"], "id": actor["id"]})
+
+        return actors
+
+
     @staticmethod
     def __check_metadata(resp_json):
         if (resp_json.get('meta', {}).get('pagination', {}).get('total') is None) \
