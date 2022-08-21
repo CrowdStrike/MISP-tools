@@ -32,7 +32,7 @@ except ImportError as no_pymisp:
         ) from no_pymisp
 
 from .adversary import Adversary
-from .helper import ADVERSARIES_BANNER, confirm_boolean_param
+from .helper import ADVERSARIES_BANNER, confirm_boolean_param, display_banner
 
 class ActorsImporter:
     """Tool used to import actors from the Crowdstrike Intel API and push them as events in MISP through the MISP API.
@@ -41,14 +41,15 @@ class ActorsImporter:
     :param intel_api_client: client for the Crowdstrike Intel API
     """
 
-    def __init__(self, misp_client, intel_api_client, crowdstrike_org_uuid, actors_timestamp_filename, settings, unknown = "UNIDENTIFIED", logger = None):
+    def __init__(self, misp_client, intel_api_client, crowdstrike_org_uuid, actors_timestamp_filename, settings, import_settings, logger = None):
         """Construct an instance of the ActorsImporter class."""
         self.misp: ExpandedPyMISP = misp_client
         self.intel_api_client = intel_api_client
         self.actors_timestamp_filename = actors_timestamp_filename
         self.crowdstrike_org = self.misp.get_organisation(crowdstrike_org_uuid, True)
         self.settings = settings
-        self.unknown = unknown
+        self.unknown = import_settings.get("unknown_mapping", "UNIDENTIFIED")
+        self.import_settings = import_settings
         self.log: logging.Logger = logger
 
 
@@ -104,7 +105,12 @@ class ActorsImporter:
         :param actors_days_before: in case on an initialisation run, this is the age of the actors pulled in days
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
-        self.log.info(ADVERSARIES_BANNER)
+        display_banner(banner=ADVERSARIES_BANNER,
+                       logger=self.log,
+                       fallback="BEGIN ADVERSARIES IMPORT",
+                       hide_cool_banners=self.import_settings["no_banners"]
+                       )
+        #self.log.info(ADVERSARIES_BANNER)
         start_get_events = int((
             datetime.datetime.today() + datetime.timedelta(days=-int(min(actors_days_before, 730)))
         ).timestamp())

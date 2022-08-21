@@ -27,7 +27,7 @@ except ImportError as no_pymisp:
 
 from .adversary import Adversary
 from .report_type import ReportType
-from .helper import confirm_boolean_param, gen_indicator, REPORTS_BANNER
+from .helper import confirm_boolean_param, gen_indicator, REPORTS_BANNER, display_banner
 from .intel_client import IntelAPIClient
 
 class ReportsImporter:
@@ -174,7 +174,12 @@ class ReportsImporter:
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
         self.events_already_imported = events_already_imported
-        self.log.info(REPORTS_BANNER)
+        display_banner(banner=REPORTS_BANNER,
+                       logger=self.log,
+                       fallback="BEGIN REPORTS IMPORT",
+                       hide_cool_banners=self.import_settings["no_banners"]
+                       )
+        # self.log.info(REPORTS_BANNER)
         start_get_events = int((
             datetime.datetime.today() + datetime.timedelta(days=-int(min(reports_days_before, 366)))
         ).timestamp())
