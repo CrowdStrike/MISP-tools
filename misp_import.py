@@ -36,7 +36,14 @@ import logging
 import os
 import urllib3
 from cs_misp_import import (
-    IntelAPIClient, CrowdstrikeToMISPImporter, MISP_BANNER, FINISHED_BANNER, ReportType, Adversary
+    IntelAPIClient,
+    CrowdstrikeToMISPImporter,
+    MISP_BANNER,
+    FINISHED_BANNER,
+    ReportType,
+    Adversary,
+    display_banner,
+    VERSION
 )
 
 def parse_command_line():
@@ -67,6 +74,13 @@ def parse_command_line():
     parser.add_argument("--no_dupe_check",
                         dest="no_dupe_check",
                         help="Enable or disable duplicate checking on import, defaults to False.",
+                        required=False,
+                        action="store_true"
+                        )
+    parser.add_argument("--no_banner",
+                        dest="no_banner",
+                        help="Enable or disable ASCII banners in logfile output, "
+                        "defaults to False (enable banners).",
                         required=False,
                         action="store_true"
                         )
@@ -156,7 +170,12 @@ def main():
     logger.propagate = False
 
     # Off we go!
-    logger.info(MISP_BANNER)
+    display_banner(banner=MISP_BANNER,
+                   logger=logger,
+                   fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
+                   hide_cool_banners=args.no_banner
+                   )
+    # logger.info(MISP_BANNER)
     
 
     # Interface to the CrowdStrike Falcon Intel API
@@ -183,7 +202,8 @@ def main():
         "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
         "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True,
         "galaxy_map": galaxy_maps["Galaxy"],
-        "force": args.force
+        "force": args.force,
+        "no_banners": args.no_banner
     }
     
     if not import_settings["unknown_mapping"]:
@@ -232,7 +252,12 @@ def main():
             logger.exception(err)
             raise SystemExit(err) from err
 
-    logger.info(FINISHED_BANNER)
+    display_banner(banner=FINISHED_BANNER,
+                   logger=logger,
+                   fallback="FINISHED",
+                   hide_cool_banners=args.no_banner
+                   )
+    #logger.info(FINISHED_BANNER)
 
 if __name__ == '__main__':
     main()

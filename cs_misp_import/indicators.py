@@ -26,7 +26,7 @@ import os
 
 import concurrent.futures
 from .confidence import MaliciousConfidence
-from .helper import confirm_boolean_param, gen_indicator, INDICATORS_BANNER
+from .helper import confirm_boolean_param, gen_indicator, INDICATORS_BANNER, display_banner
 from .adversary import Adversary
 from .kill_chain import KillChain
 try:
@@ -100,7 +100,12 @@ class IndicatorsImporter:
         :param indicators_days_before: in case on an initial run, this is the age of the indicators pulled in days
         :param events_already_imported: the events already imported in misp, to avoid duplicates
         """
-        self.log.info(INDICATORS_BANNER)
+        display_banner(banner=INDICATORS_BANNER,
+                       logger=self.log,
+                       fallback="BEGIN INDICATORS IMPORT",
+                       hide_cool_banners=self.import_settings["no_banners"]
+                       )
+        #self.log.info(INDICATORS_BANNER)
         start_get_events = int((
             datetime.datetime.today() + datetime.timedelta(minutes=-int(min(indicators_mins_before, 20220)))
             ).timestamp())

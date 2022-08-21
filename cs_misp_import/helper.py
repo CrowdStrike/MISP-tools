@@ -1,4 +1,5 @@
 """Helper methods."""
+from logging import Logger
 from ._version import __version__ as MISP_IMPORT_VERSION
 
 try:
@@ -96,6 +97,20 @@ def confirm_boolean_param(val: str or bool) -> bool:
 
     return returned
 
+
+def display_banner(banner: str = None,
+                   logger: Logger = None,
+                   fallback: str = None,
+                   hide_cool_banners: bool = True  # ASCII r00lz!
+                   ):
+    """Logging helper to handle banner disablement."""
+    if banner and logger:
+        if not hide_cool_banners:
+            logger.info(banner)
+        else:
+            if fallback:
+                logger.info(fallback)
+    
 
 # These are here because I didn't want us to have to import pyFiglet
 ADVERSARIES_BANNER = """

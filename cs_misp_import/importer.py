@@ -7,7 +7,7 @@ from .actors import ActorsImporter
 from .indicators import IndicatorsImporter
 from .reports import ReportsImporter
 from .threaded_misp import MISP
-from .helper import IMPORT_BANNER, DELETE_BANNER, INDICATOR_TYPES
+from .helper import IMPORT_BANNER, DELETE_BANNER, INDICATOR_TYPES, display_banner
 
 class CrowdstrikeToMISPImporter:
     """Tool used to import indicators and reports from the Crowdstrike Intel API.
@@ -58,7 +58,7 @@ class CrowdstrikeToMISPImporter:
                                                   import_settings["crowdstrike_org_uuid"],
                                                   import_settings["actors_timestamp_filename"],
                                                   self.settings,
-                                                  import_settings["unknown_mapping"],
+                                                  self.import_settings,
                                                   logger=logger
                                                   )
         if self.config["reports"]:
@@ -127,7 +127,12 @@ class CrowdstrikeToMISPImporter:
             
     def remove_crowdstrike_tags(self):
         """Remove all CrowdStrike local tags from the MISP instance."""
-        self.log.info(DELETE_BANNER)
+        display_banner(banner=DELETE_BANNER,
+                       logger=self.log,
+                       fallback="BEGIN DELETE",
+                       hide_cool_banners=self.import_settings["no_banners"]
+                       )
+        # self.log.info(DELETE_BANNER)
         removed = 0
         self.log.info("Retrieving list of tags to remove from MISP instance")
         with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
@@ -141,7 +146,12 @@ class CrowdstrikeToMISPImporter:
     def clean_old_crowdstrike_events(self, max_age):
         """Remove events from MISP that are dated greater than the specified max_age value."""
         # TODO: Revisions required, this logic will no longer work as it is written.
-        self.log.info(DELETE_BANNER)
+        display_banner(banner=DELETE_BANNER,
+                       logger=self.log,
+                       fallback="BEGIN DELETE",
+                       hide_cool_banners=self.import_settings["no_banners"]
+                       )
+        #self.log.info(DELETE_BANNER)
         if max_age is not None:
             timestamp_max = int((datetime.date.today() - datetime.timedelta(max_age)).strftime("%s"))
             events = self.misp_client.search(tags=["CrowdStrike:report%",
@@ -165,7 +175,12 @@ class CrowdstrikeToMISPImporter:
         :param indicators_days_before: in case on an initial run, this is the age of the indicators pulled in days
         :param actors_days_before: in case on an initial run, this is the age of the actors pulled in days
         """
-        self.log.info(IMPORT_BANNER)
+        display_banner(banner=IMPORT_BANNER,
+                       logger=self.log,
+                       fallback=None,
+                       hide_cool_banners=self.import_settings["no_banners"]
+                       )
+        #self.log.info(IMPORT_BANNER)
         if self.config["actors"]:
             self.actors_importer.process_actors(actors_days_before, self.event_ids)
         if self.config["reports"]:
