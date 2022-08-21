@@ -101,7 +101,7 @@ def confirm_boolean_param(val: str or bool) -> bool:
 def display_banner(banner: str = None,
                    logger: Logger = None,
                    fallback: str = None,
-                   hide_cool_banners: bool = True  # ASCII r00lz!
+                   hide_cool_banners: bool = False  # ASCII r00lz!
                    ):
     """Logging helper to handle banner disablement."""
     if banner and logger:
