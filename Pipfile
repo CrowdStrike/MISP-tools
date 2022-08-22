@@ -7,7 +7,7 @@ name = "pypi"
 urllib3 = "*"
 requests = "*"
 pymisp = "*"
-crowdstrike-falconpy = "==1.0.10"
+crowdstrike-falconpy = "==1.1.6"
 
 [dev-packages]
 
