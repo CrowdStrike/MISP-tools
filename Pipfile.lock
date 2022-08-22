@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "ad8568e7f79189ff14b4ac6b401d480b48b6d055fcb8c3068479b5d70062d4bc"
+            "sha256": "48a3c7e365a75dea0dd30f8e5e747c3fba1ed9a46a3fc3e9bc93d4d117d1bdf8"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -34,19 +34,19 @@
         },
         "charset-normalizer": {
             "hashes": [
-                "sha256:5189b6f22b01957427f35b6a08d9a0bc45b46d3788ef5a92e978433c7a35f8a5",
-                "sha256:575e708016ff3a5e3681541cb9d79312c416835686d054a23accb873b254f413"
+                "sha256:5a3d016c7c547f69d6f81fb0db9449ce888b418b5b9952cc5e6e66843e9dd845",
+                "sha256:83e9a75d1911279afd89352c68b45348559d1fc0506b054b346651b5e7fee29f"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==2.1.0"
+            "version": "==2.1.1"
         },
         "crowdstrike-falconpy": {
             "hashes": [
-                "sha256:029d5c7f93f5db685a5cc23742c88fee5c460dfb34b44fd5c5781f48bd2002d1",
-                "sha256:7eda4daf1bdb0bb5be8b24fb1b8b14ea848fa7dbaecb62ec8e27d7b39a0377be"
+                "sha256:144b3f89090495f9cba4361c898e72faf25b2e1b0e99dba0b57fe4b8385483bc",
+                "sha256:c68c80e8f9a30bb5cd938bf53473e01a2104ff5a0e86def8c7303ec074d03e8d"
             ],
             "index": "pypi",
-            "version": "==1.0.10"
+            "version": "==1.1.6"
         },
         "deprecated": {
             "hashes": [
@@ -66,11 +66,11 @@
         },
         "jsonschema": {
             "hashes": [
-                "sha256:408c4c8ed0dede3b268f7a441784f74206380b04f93eb2d537c7befb3df3099f",
-                "sha256:8ebad55894c002585271af2d327d99339ef566fb085d9129b69e2623867c4106"
+                "sha256:15062f4cc6f591400cd528d2c355f2cfa6a57e44c820dc783aee5e23d36a831f",
+                "sha256:9892b8d630a82990521a9ca630d3446bd316b5ad54dbe981338802787f3e0d2d"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==4.9.1"
+            "version": "==4.14.0"
         },
         "publicsuffixlist": {
             "hashes": [
