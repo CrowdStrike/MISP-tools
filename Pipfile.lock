@@ -26,11 +26,11 @@
         },
         "certifi": {
             "hashes": [
-                "sha256:43dadad18a7f168740e66944e4fa82c6611848ff9056ad910f8f7a3e46ab89e0",
-                "sha256:cffdcd380919da6137f76633531a5817e3a9f268575c128249fb637e4f9e73fb"
+                "sha256:0d9c601124e5a6ba9712dbc60d9c53c21e34f5f641fe83002317394311bdce14",
+                "sha256:90c1a32f1d68f940488354e36370f6cca89f0f106db09518524c88d6ed83f382"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==2022.6.15.1"
+            "version": "==2022.9.24"
         },
         "charset-normalizer": {
             "hashes": [
@@ -58,11 +58,11 @@
         },
         "idna": {
             "hashes": [
-                "sha256:84d9dd047ffa80596e0f246e2eab0b391788b0503584e8945f2368256d2735ff",
-                "sha256:9d643ff0a55b762d5cdb124b8eaa99c66322e2157b69160bc32796e824360e6d"
+                "sha256:814f528e8dead7d329833b91c5faa87d60bf71824cd12a7530b5526063d02cb4",
+                "sha256:90b77e79eaa3eba6de819a0c442c0b4ceefc341a7a2ab77d7562bf49f425c5c2"
             ],
             "markers": "python_version >= '3.5'",
-            "version": "==3.3"
+            "version": "==3.4"
         },
         "jsonschema": {
             "hashes": [
@@ -74,19 +74,19 @@
         },
         "publicsuffixlist": {
             "hashes": [
-                "sha256:3b24ad28a7d96b966187b5cbb9f217b06d07ed294cfbfc2a9ca5afcced70cdd5",
-                "sha256:cc2b74179184a27d9e23b09913d5035b8b040f9e4bfbe47bacf688c15371487f"
+                "sha256:3e652ecef032aa5ffc7a8b2f7253d8f1700103c87a1f21cefbb47c3034e98d2d",
+                "sha256:f09af48a481bb20f1279a4a154e4be261d5f064813359222322cb28b22a6f792"
             ],
             "markers": "python_version >= '2.6'",
-            "version": "==0.7.14"
+            "version": "==0.8.0"
         },
         "pymisp": {
             "hashes": [
-                "sha256:018c6d384af2bde151f09893c04399982c9048109c7d54ffd07ff7688e9ba506",
-                "sha256:ba4b2a0a1333e9c757cf31965e8e0f0592eee2f05418f591e6f592ec2c19f2a2"
+                "sha256:c20c81fad6310e62f67be93ad1397267903950dbbf250b86724832aa927a06fd",
+                "sha256:d97de477ebd99aa56ccaac2dae469f323306902c38d27a8a0506acab6cfa7f6c"
             ],
             "index": "pypi",
-            "version": "==2.4.160"
+            "version": "==2.4.162"
         },
         "pyrsistent": {
             "hashes": [
