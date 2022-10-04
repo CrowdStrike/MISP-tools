@@ -43,7 +43,8 @@ from cs_misp_import import (
     ReportType,
     Adversary,
     display_banner,
-    VERSION
+    VERSION,
+    check_config
 )
 
 def parse_command_line():
@@ -165,7 +166,7 @@ def main():
         ch.setLevel(logging.DEBUG)
         #LOG_LEVEL = logging.DEBUG
     #logging.basicConfig(filename="misp-import.log", level=LOG_LEVEL)
-    ch.setFormatter(logging.Formatter("[%(asctime)s] (%(levelname)s) %(message)s"))
+    ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-12s %(message)s"))
     logger.addHandler(ch)
     logger.propagate = False
 
@@ -176,6 +177,8 @@ def main():
                    hide_cool_banners=args.no_banner
                    )
     # logger.info(MISP_BANNER)
+    if not check_config.validate_config(config_file=args.config_file, debugging=args.debug):
+        raise SystemExit("Invalid configuration specified, unable to continue.")
     
 
     # Interface to the CrowdStrike Falcon Intel API
