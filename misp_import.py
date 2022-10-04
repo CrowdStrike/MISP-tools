@@ -153,7 +153,9 @@ def main():
         # Not specified, default to enable warnings
         pass
 
-    logger = logging.getLogger("misp_import")
+    splash = logging.getLogger("misp_tools")
+    splash.setLevel(logging.INFO)
+    logger = logging.getLogger("data_import")
     logger.setLevel(logging.INFO)
     ch = logging.StreamHandler()
     
@@ -167,12 +169,14 @@ def main():
         #LOG_LEVEL = logging.DEBUG
     #logging.basicConfig(filename="misp-import.log", level=LOG_LEVEL)
     ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-12s %(message)s"))
+    splash.addHandler(ch)
     logger.addHandler(ch)
+    splash.propagate = False
     logger.propagate = False
 
     # Off we go!
     display_banner(banner=MISP_BANNER,
-                   logger=logger,
+                   logger=splash,
                    fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
                    hide_cool_banners=args.no_banner
                    )
@@ -256,7 +260,7 @@ def main():
             raise SystemExit(err) from err
 
     display_banner(banner=FINISHED_BANNER,
-                   logger=logger,
+                   logger=splash,
                    fallback="FINISHED",
                    hide_cool_banners=args.no_banner
                    )
