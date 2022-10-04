@@ -49,10 +49,12 @@ class IntelAPIClient:
                 filter=f'last_modified_date:>{start_time}',
                 limit=self.request_size_limit,
                 offset=offset
-                )["body"]
-            self.__check_metadata(resp_json)
+                )
+            if "body" in resp_json:
+                resp_json = resp_json["body"]
+            #self.__check_metadata(resp_json)
 
-            total = resp_json.get('meta', {}).get('pagination', {}).get('total')
+            total = resp_json.get('meta', {}).get('pagination', {}).get('total', 0)
             offset += resp_json.get('meta', {}).get('pagination', {}).get('limit', 5000)
             first_run = False
 
@@ -75,7 +77,9 @@ class IntelAPIClient:
                 filter=f"_marker:>='{start_time}'",
                 limit=self.request_size_limit,
                 include_deleted=include_deleted
-                )["body"]
+                )
+            if "body" in resp_json:
+                resp_json = resp_json["body"]
 
             first_run = False
 
@@ -113,11 +117,14 @@ class IntelAPIClient:
 #                filter=f'last_modified_date:>{start_time}',  # Always retrieve all actors
                 limit=self.request_size_limit,
                 offset=offset
-                )["body"]
+                )
+            if "body" in resp_json:
+                resp_json = resp_json["body"]
 
-            total = resp_json.get('meta', {}).get('pagination', {}).get('total')
+            total = resp_json.get('meta', {}).get('pagination', {}).get('total', 0)
             offset += resp_json.get('meta', {}).get('pagination', {}).get('limit', 5000)
             first_run = False
+
 
             actors.extend(resp_json.get('resources', []))
 
