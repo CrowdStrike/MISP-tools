@@ -164,6 +164,7 @@ def generate_primer():
     primer = {
         "client_id": "CRITICAL",
         "client_secret": "CRITICAL",
+        "misp_auth_key": "CRITICAL",
         "crowdstrike_url": "WARNING",
         "api_request_max": "ERROR",
         "api_enable_ssl": "ERROR",
@@ -213,13 +214,17 @@ def validate_config(config_file: str = None, debugging: bool = False):
             if key == "client_id":  # 32 chars
                 test_creds[key] = val
                 keys[key] = fail(
-                    "Client ID does not appear to be in the correct format"
+                    "CrowdStrike client ID does not appear to be in the correct format"
                     ) if len(val) != 32 else True
             if key == "client_secret":  # 40 chars
                 test_creds[key] = val
                 keys[key] = fail(
-                    "Client Secret does not appear to be in the correct format"
+                    "CrowdStrike client secret does not appear to be in the correct format"
                     ) if len(val) != 40 else True
+            if key == "misp_auth_key":  # x chars
+                keys[key] = fail(
+                    "MISP authorization key does not appear to be in the correct format"
+                ) if len(val) != 40 else True
             if key == "crowdstrike_url":
                 test_creds[key] = val
                 keys[key] = alert(
