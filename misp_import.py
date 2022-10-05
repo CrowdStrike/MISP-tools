@@ -40,6 +40,7 @@ from cs_misp_import import (
     CrowdstrikeToMISPImporter,
     MISP_BANNER,
     FINISHED_BANNER,
+    CONFIG_BANNER,
     ReportType,
     Adversary,
     display_banner,
@@ -94,6 +95,14 @@ def parse_command_line():
     return parser.parse_args()
 
 
+def do_finished(logg: logging.Logger, arg_parser: argparse.ArgumentParser):
+    display_banner(banner=FINISHED_BANNER,
+                   logger=logg,
+                   fallback="FINISHED",
+                   hide_cool_banners=arg_parser.no_banner
+                   )
+
+
 def perform_local_cleanup(args: argparse.Namespace,
                           importer: CrowdstrikeToMISPImporter,
                           settings: ConfigParser
@@ -138,6 +147,32 @@ def main():
     if not args.config_file:
         args.config_file = "misp_import.ini"
 
+    splash = logging.getLogger("misp_tools")
+    splash.setLevel(logging.INFO)
+    logger = logging.getLogger("data_import")
+    logger.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+        ch.setLevel(logging.DEBUG)
+
+    ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
+    splash.addHandler(ch)
+    logger.addHandler(ch)
+    splash.propagate = False
+    logger.propagate = False
+
+    # Off we go!
+    display_banner(banner=MISP_BANNER,
+                   logger=splash,
+                   fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
+                   hide_cool_banners=args.no_banner
+                   )
+
+    if not check_config.validate_config(args.config_file, args.debug, args.no_banner):
+        do_finished(splash, args)
+        raise SystemExit("Invalid configuration specified, unable to continue.")
 
     settings = ConfigParser(interpolation=ExtendedInterpolation())
     settings.read(args.config_file)
@@ -153,37 +188,6 @@ def main():
         # Not specified, default to enable warnings
         pass
 
-    splash = logging.getLogger("misp_tools")
-    splash.setLevel(logging.INFO)
-    logger = logging.getLogger("data_import")
-    logger.setLevel(logging.INFO)
-    ch = logging.StreamHandler()
-    
-    
-    #LOG_LEVEL = logging.INFO
-    ch.setLevel(logging.INFO)
-    
-    if args.debug:
-        logger.setLevel(logging.DEBUG)
-        ch.setLevel(logging.DEBUG)
-        #LOG_LEVEL = logging.DEBUG
-    #logging.basicConfig(filename="misp-import.log", level=LOG_LEVEL)
-    ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-12s %(message)s"))
-    splash.addHandler(ch)
-    logger.addHandler(ch)
-    splash.propagate = False
-    logger.propagate = False
-
-    # Off we go!
-    display_banner(banner=MISP_BANNER,
-                   logger=splash,
-                   fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
-                   hide_cool_banners=args.no_banner
-                   )
-    # logger.info(MISP_BANNER)
-    if not check_config.validate_config(config_file=args.config_file, debugging=args.debug):
-        raise SystemExit("Invalid configuration specified, unable to continue.")
-    
 
     # Interface to the CrowdStrike Falcon Intel API
     intel_api_client = IntelAPIClient(settings["CrowdStrike"]["client_id"],
@@ -258,13 +262,8 @@ def main():
         except Exception as err:
             logger.exception(err)
             raise SystemExit(err) from err
+    do_finished(splash, args)
 
-    display_banner(banner=FINISHED_BANNER,
-                   logger=splash,
-                   fallback="FINISHED",
-                   hide_cool_banners=args.no_banner
-                   )
-    #logger.info(FINISHED_BANNER)
 
 if __name__ == '__main__':
     main()
