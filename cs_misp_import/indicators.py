@@ -191,7 +191,7 @@ class IndicatorsImporter:
 
         if events_already_imported is None:
             events_already_imported = self.already_imported
-        with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
+        with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count, thread_name_prefix="thread") as executor:
             executor.map(threaded_indicator_push, indicators)
 
         last_updated = next(i.get('last_updated') for i in reversed(indicators) if i.get('last_updated') is not None)

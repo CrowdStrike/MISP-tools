@@ -101,12 +101,17 @@ class CrowdstrikeToMISPImporter:
             }
             if not self.import_settings["force"]:
                 params["minimal"] = True
-            with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
+            with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
                 #executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
                 #executor.map(self.misp_client.delete_event, self.misp_client.search(tag=qry, minimal=True))  # seems to bog down
                 executor.map(self.misp_client.delete_event, self.misp_client.search_index(**params))
 
-        self.log.info(DELETE_BANNER)
+        display_banner(banner=DELETE_BANNER,
+                       logger=self.log,
+                       fallback="BEGIN DELETE",
+                       hide_cool_banners=self.import_settings["no_banners"]
+                       )
+        #self.log.info(DELETE_BANNER)
 
         if clean_reports:
             for report_type in [r for r in dir(ReportType) if "__" not in r]:
@@ -135,7 +140,7 @@ class CrowdstrikeToMISPImporter:
         # self.log.info(DELETE_BANNER)
         removed = 0
         self.log.info("Retrieving list of tags to remove from MISP instance")
-        with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
+        with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
             futures = {
                 executor.submit(self.misp_client.clear_tag, tg) for tg in self.misp_client.get_cs_tags()
             }
@@ -160,7 +165,7 @@ class CrowdstrikeToMISPImporter:
                                                    ],
                                              timestamp=[0, timestamp_max]
                                              )
-            with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count) as executor:
+            with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
                 executor.map(self.misp_client.delete_event, events)
             self.log.info("Finished cleaning up CrowdStrike related events from MISP.")
 

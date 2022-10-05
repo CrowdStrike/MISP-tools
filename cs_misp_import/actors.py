@@ -57,6 +57,7 @@ class ActorsImporter:
         actor_name = act.get('name')
         act_detail = Adversary[actor_name.split(" ")[1].upper()].value
         info_str = f"ADV-{act.get('id')} {actor_name} ({act_detail})"
+        returned = False
         if actor_name is not None:
             if already.get(info_str) is None:
                 event: MISPEvent = self.create_event_from_actor(act, act_det)
@@ -90,13 +91,13 @@ class ActorsImporter:
                         if nowstamp:
                             with open(self.actors_timestamp_filename, 'w', encoding="utf-8") as ts_file:
                                 ts_file.write(str(int(nowstamp)+1))
-
+                    returned = True
                 else:
                     self.log.warning("Failed to create a MISP event for actor %s.", act)
             else:
                 self.log.debug("Actor %s already exists, skipping", actor_name)
 
-        return True
+        return returned
 
 
     def process_actors(self, actors_days_before, events_already_imported):
@@ -120,7 +121,7 @@ class ActorsImporter:
                 line = ts_file.readline()
                 if line:
                     start_get_events = int(line)
-        self.log.info("Started getting adversaries from Crowdstrike Intel API and pushing them as events in MISP.")
+        self.log.info(f"Start importing CrowdStrike Adversaries as events into MISP (past {actors_days_before} days).")
         time_send_request = datetime.datetime.now()
         actors = self.intel_api_client.get_actors(start_get_events)
         self.log.info("Got %i adversaries from the Crowdstrike Intel API.", len(actors))
@@ -131,7 +132,7 @@ class ActorsImporter:
         else:
             actor_details = self.intel_api_client.falcon.get_actor_entities(ids=[x.get("id") for x in actors], fields="__full__")["body"]["resources"]
             reported = 0
-            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
+            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count, thread_name_prefix="thread") as executor:
                 futures = {
                     executor.submit(self.batch_import_actors, ac, actor_details, events_already_imported) for ac in actors
                 }
@@ -140,7 +141,7 @@ class ActorsImporter:
                         reported += 1
             self.log.info("Completed import of %i CrowdStrike adversaries into MISP.", reported)
 
-        self.log.info("Finished getting adversaries from Crowdstrike Intel API and pushing them as events in MISP.")
+        self.log.info("Finished importing CrowdStrike Adversaries as events into MISP.")
 
     @staticmethod
     def create_internal_reference() -> MISPObject:
@@ -373,6 +374,12 @@ class ActorsImporter:
 
             else:
                 self.log.warning("Adversary %s missing field last_activity_date.", actor.get('id'))
+
+            if actor_att.get("last_seen", 0) < actor_att.get("first_seen", 0):
+                # Seems counter-intuitive
+                actor_att["first_seen"] = actor.get("last_activity_date")
+                actor_att["last_seen"] = actor.get("first_activity_date")
+
             ta = event.add_attribute(**actor_att)
             actor_split = actor_name.split(" ")
             actor_branch = actor_split[1] if len(actor_split) > 1 else actor_split[0]
