@@ -105,22 +105,23 @@ def do_finished(logg: logging.Logger, arg_parser: argparse.ArgumentParser):
 
 def perform_local_cleanup(args: argparse.Namespace,
                           importer: CrowdstrikeToMISPImporter,
-                          settings: ConfigParser
+                          settings: ConfigParser,
+                          log_device: logging.Logger
                           ):
     """Remove local offset cache files to reset the marker for data pulls from the CrowdStrike API."""
     try:
         importer.clean_crowdstrike_events(args.clean_reports, args.clean_indicators, args.clean_actors)
         if args.clean_reports and os.path.isfile(settings["CrowdStrike"]["reports_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["reports_timestamp_filename"])
-            logging.info("Finished resetting CrowdStrike Report offset.")
+            log_device.info("Finished resetting CrowdStrike Report offset.")
         if args.clean_indicators and os.path.isfile(settings["CrowdStrike"]["indicators_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["indicators_timestamp_filename"])
-            logging.info("Finished resetting CrowdStrike Indicator offset.")
+            log_device.info("Finished resetting CrowdStrike Indicator offset.")
         if args.clean_actors and os.path.isfile(settings["CrowdStrike"]["actors_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["actors_timestamp_filename"])
-            logging.info("Finished resetting CrowdStrike Adversary offset.")
+            log_device.info("Finished resetting CrowdStrike Adversary offset.")
     except Exception as err:
-        logging.exception(err)
+        log_device.exception(err)
         raise SystemExit(err) from err
 
 
@@ -139,6 +140,33 @@ def retrieve_tags(tag_type: str, settings):
 
     return tags
 
+# import inspect
+# import sys
+# def exception_override(*args, **kwargs):
+#     kwargs["extra"] = {"key": ""}
+#     return logging.Logger.exception(*args, **kwargs)
+# def error_override(*args, **kwargs):
+#     kwargs["extra"] = {"key": ""}
+#     return logging.Logger.error(*args, **kwargs)
+# def warning_override(*args, **kwargs):
+#     kwargs["extra"] = {"key": ""}
+#     return logging.Logger.warning(*args, **kwargs)
+# def info_override(*args, **kwargs):
+#     kwargs["extra"] = {"key": ""}
+#     return logging.Logger.info(*args, **kwargs)
+# def debug_override(*args, **kwargs):
+#     kwargs["extra"] = {"key": ""}
+#     return logging.Logger.debug(*args, **kwargs)
+
+#warning_override = lambda args: logging.Logger.warning(extra={"key": ""}, *[args])
+#exception_override = logging.Logger.exception(extra={"key": ""}, *[args])
+#error_override = lambda args: logging.Logger.error(extra={"key": ""}, *[args])
+#info_override = lambda args: logging.Logger.info(extra={"key": ""}, *[args])
+#debug_override = lambda args: logging.Logger.debug(extra={"key": ""}, *[args])
+
+from threading import main_thread
+thread = main_thread()
+thread.name = "main"
 
 def main():
     """Implement Main routine."""
@@ -149,19 +177,29 @@ def main():
 
     splash = logging.getLogger("misp_tools")
     splash.setLevel(logging.INFO)
-    logger = logging.getLogger("data_import")
-    logger.setLevel(logging.INFO)
+    main_log = logging.getLogger("processor")
+    main_log.setLevel(logging.INFO)
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
+    ch2 = logging.StreamHandler()
+    ch2.setLevel(logging.INFO)
     if args.debug:
-        logger.setLevel(logging.DEBUG)
+        main_log.setLevel(logging.DEBUG)
         ch.setLevel(logging.DEBUG)
+        ch2.setLevel(logging.DEBUG)
 
     ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
+    ch2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
     splash.addHandler(ch)
-    logger.addHandler(ch)
+    main_log.addHandler(ch2)
     splash.propagate = False
-    logger.propagate = False
+    main_log.propagate = False
+
+    # main_log.warning = warning_override
+    # main_log.exception = exception_override
+    # main_log.error = error_override
+    # main_log.info = info_override
+    # main_log.debug = debug_override
 
     # Off we go!
     display_banner(banner=MISP_BANNER,
@@ -195,7 +233,7 @@ def main():
                                       settings["CrowdStrike"]["crowdstrike_url"],
                                       int(settings["CrowdStrike"]["api_request_max"]),
                                       False if "F" in settings["CrowdStrike"]["api_enable_ssl"].upper() else True,
-                                      logger
+                                      main_log
                                       )
     # Dictionary of settings provided by settings.py
     import_settings = {
@@ -227,40 +265,40 @@ def main():
         "delete_outdated_indicators": args.delete_outdated_indicators,
         "actors": args.actors
     }
-    importer = CrowdstrikeToMISPImporter(intel_api_client, import_settings, provided_arguments, settings, logger=logger)
+    importer = CrowdstrikeToMISPImporter(intel_api_client, import_settings, provided_arguments, settings, logger=main_log)
 
     if args.clean_reports or args.clean_indicators or args.clean_actors:
-        perform_local_cleanup(args, importer, settings)
+        perform_local_cleanup(args, importer, settings, main_log)
 
     if args.clean_tags:
         importer.remove_crowdstrike_tags()
 
     if args.reports or args.actors or args.indicators:
-        try:
-            if not args.no_dupe_check:
-                tags = []
-                # Retrieve all tags for selected options
-                if args.actors:
-                    tags.extend(retrieve_tags("actors", settings))
-                    importer.import_from_misp(tags, do_reports=False)
-                if args.reports:
-                    # Reports dupe identification is a little customized
-                    tags.extend(retrieve_tags("reports", settings))
-                    importer.import_from_misp(tags, do_reports=True)
-            # Import new events from CrowdStrike into MISP
-            importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
-                                             int(settings["CrowdStrike"]["init_indicators_minutes_before"]),
-                                             int(settings["CrowdStrike"]["init_actors_days_before"])
-                                             )
-        except Exception as err:
-            logger.exception(err)
-            raise SystemExit(err) from err
+        #try:
+        if not args.no_dupe_check:
+            tags = []
+            # Retrieve all tags for selected options
+            if args.actors:
+                tags.extend(retrieve_tags("actors", settings))
+                importer.import_from_misp(tags, do_reports=False)
+            if args.reports:
+                # Reports dupe identification is a little customized
+                tags.extend(retrieve_tags("reports", settings))
+                importer.import_from_misp(tags, do_reports=True)
+        # Import new events from CrowdStrike into MISP
+        importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
+                                            int(settings["CrowdStrike"]["init_indicators_minutes_before"]),
+                                            int(settings["CrowdStrike"]["init_actors_days_before"])
+                                            )
+        #except Exception as err:
+        #    main_log.exception(err)
+        #    raise SystemExit(err) from err
 
     if args.max_age is not None:
         try:
             importer.clean_old_crowdstrike_events(args.max_age)
         except Exception as err:
-            logger.exception(err)
+            main_log.exception(err)
             raise SystemExit(err) from err
     do_finished(splash, args)
 

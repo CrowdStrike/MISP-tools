@@ -190,11 +190,11 @@ class ReportsImporter:
                     if line:
                         start_get_events = int(line)
 
-        log_msg = f"Start getting reports from Crowdstrike Intel API and pushing them as events in MISP (past {reports_days_before} days)."
+        log_msg = f"Start importing CrowdString Threat Intelligence reports as events into MISP (past {reports_days_before} days)."
         self.log.info(log_msg)
         time_send_request = datetime.datetime.now()
         reports = self.intel_api_client.get_reports(start_get_events)
-        log_msg = f"Got {str(len(reports))} reports from the Crowdstrike Intel API."
+        log_msg = f"Got {str(len(reports))} new reports from the Crowdstrike Intel API."
         self.log.info(log_msg)
 
         if len(reports) == 0:
@@ -207,7 +207,7 @@ class ReportsImporter:
             rep_batches = [report_ids[i:i+500] for i in range(0, len(report_ids), 500)]
             # Batched retrieval of extended report details
             details = []
-            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
+            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count, thread_name_prefix="thread") as executor:
                 futures = {
                     executor.submit(self.batch_report_detail, rep) for rep in rep_batches
                 }
@@ -219,7 +219,7 @@ class ReportsImporter:
             # Batched retrieval of related indicator details
             indicator_list = []
             batches = [report_ids[i:i+200] for i in range(0, len(report_ids), 200)]
-            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
+            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count, thread_name_prefix="thread") as executor:
                 futures = {
                     executor.submit(self.batch_related_indicators, bat) for bat in batches
                 }
@@ -231,7 +231,7 @@ class ReportsImporter:
 
             # Threaded insert of report events into MISP instance
             reported = []
-            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count) as executor:
+            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count, thread_name_prefix="thread") as executor:
                 futures = {
                     executor.submit(self.batch_import_reports, rp, details, indicator_list) for rp in reports
                 }
@@ -242,7 +242,7 @@ class ReportsImporter:
                     ts_file.write(str(int(self.last_pos)))
 
 
-        self.log.info("Finished importing %i (%i skipped) Crowdstrike Intel reports as events in MISP.", len(reports), self.skipped)
+        self.log.info("Finished importing %i (%i skipped) Crowdstrike Threat Intelligence reports.", len(reports), self.skipped)
 
     def add_actor_detail(self, report: dict, event: MISPEvent) -> MISPEvent:
         associated_actors = report.get('actors', [])
@@ -270,6 +270,10 @@ class ReportsImporter:
                     actor_att["first_seen"] = first
                 if last:
                     actor_att["last_seen"] = last
+                if actor_att.get("last_seen", 0) < actor_att.get("first_seen", 0):
+                    actor_att["first_seen"] = actor.get("last_activity_date")
+                    actor_att["last_seen"] = actor.get("first_activity_date")
+
                 att = event.add_attribute(**actor_att)
                 for stem in actor_name:
                     for adversary in Adversary:
@@ -309,6 +313,10 @@ class ReportsImporter:
                         ind_seen["first_seen"] = ind.get("published_date")
                     if ind.get("last_updated"):
                         ind_seen["last_seen"] = ind.get("last_updated")
+                    if ind_seen.get("last_seen", 0) < ind_seen.get("first_seen", 0):
+                        ind_seen["first_seen"] = ind.get("last_updated")
+                        ind_seen["last_seen"] = ind.get("published_date")
+
                     added = event.add_attribute(indicator_object.type, indicator_object.value, category=indicator_object.category, **ind_seen)
                     event.add_attribute_tag(f"CrowdStrike:indicator:type: {indicator_object.type.upper()}", added.uuid)
                     # Event level only
@@ -428,6 +436,10 @@ class ReportsImporter:
             if details.get("created_date"):
                 seen["first_seen"] = details.get("created_date")
             if details.get("last_modified_date"):
+                seen["last_seen"] = details.get("last_modified_date")
+
+            if seen.get("last_seen", 0) < seen.get("first_seen", 0):
+                seen["first_seen"] = details.get("created_date")
                 seen["last_seen"] = details.get("last_modified_date")
 
             # Actors - Attribution attributes

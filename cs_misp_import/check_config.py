@@ -73,7 +73,7 @@ def config_logging(do_debug: bool = False):
     """Configure log formatting and return a Logger instance."""
     log_format = '[%(asctime)s] %(levelname)-8s %(name)s  %(key)-42s  %(message)s'
     basicConfig(format=log_format)
-    logger = getLogger("config_check")
+    logger = getLogger("config")
     if do_debug:
         logger.setLevel(DEBUG)
     else:
@@ -94,7 +94,7 @@ def not_found():
     """Display the invalid INI file message and raise an error condition."""
     #raise SystemExit(
     print(
-        f"[{cur_time()}] CRITICAL config_check  Unable to read or parse configuration file"
+        f"[{cur_time()}] CRITICAL config  Unable to read or parse configuration file"
         )
     return []
 
@@ -102,7 +102,7 @@ def not_found():
 def is_valid_config(result: ConfigurationCheckResult):
     """Check for validity and display the result."""
     valid_config = False
-    sev_detail = "INFO     config_check"
+    sev_detail = "INFO     config"
     if result.valid:
         print(
             f"[{cur_time()}] {sev_detail}  No configuration errors found {result.total_warnings()}"
@@ -339,9 +339,9 @@ def validate_config(config_file: str = None, debugging: bool = False, no_banner:
     out = ConfigurationCheckResult(config_logging(debugging))
     if not no_banner:
         for line in CONFIG_BANNER.split("\n"):
-            print(f"[{cur_time()}] INFO     config_check  {line}")
+            print(f"[{cur_time()}] INFO     config  {line}")
     else:
-        print(f"[{cur_time()}] INFO     config_check  CHECK CONFIG")
+        print(f"[{cur_time()}] INFO     config  CHECK CONFIG")
     config = read_config_file(config_file)
     keys = generate_primer()
     auth_info = {"creds": {"client_id": "Not set", "client_secret": "Not set"}, "base_url": "auto"}
