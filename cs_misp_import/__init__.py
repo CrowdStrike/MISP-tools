@@ -12,6 +12,7 @@ from .helper import (
     IMPORT_BANNER,
     DELETE_BANNER,
     FINISHED_BANNER,
+    CONFIG_BANNER,
     display_banner
 )
 from .adversary import Adversary
@@ -23,5 +24,6 @@ __all__ = [
     "ReportsImporter", "MISP", "CrowdstrikeToMISPImporter",
     "ADVERSARIES_BANNER", "REPORTS_BANNER", "INDICATORS_BANNER",
     "MISP_BANNER", "Adversary", "ReportType","IMPORT_BANNER",
-    "DELETE_BANNER", "FINISHED_BANNER", "VERSION", "display_banner"
+    "DELETE_BANNER", "FINISHED_BANNER", "VERSION", "display_banner",
+    "CONFIG_BANNER"
     ]
