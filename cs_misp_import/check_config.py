@@ -15,7 +15,7 @@ BOOL_KEYS = [
 REDACTED = ['client_id', 'client_secret', 'misp_auth_key']
 
 class ConfigurationCheckResult:
-    """This is an interesting way to do this..."""
+    """Class to handle configuration check results."""
 
     def __init__(self, logger: Logger, extra: dict = None, _type: str = "info"):
         """Constructor for the ConfigurationCheckResult class."""
