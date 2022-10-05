@@ -5,7 +5,7 @@ import os
 
 try:
     import pymisp
-    pymisp.api.everything_broken = ""
+    pymisp.api.everything_broken = {"key": ""}
     from pymisp import ExpandedPyMISP, PyMISPError
 
 except ImportError as no_pymisp:
@@ -71,15 +71,15 @@ class MISP(ExpandedPyMISP):
 
                 if i + 1 < self.MAX_RETRIES:
                     timeout = 0.3 * 2 ** i
-                    self.log.warning('Caught an error from MISP server: %s. Re-trying the request %f seconds', response['errors'], timeout)
+                    self.log.warning('Caught an error from the MISP server: %s. Re-trying the request in %.2f seconds', response['errors'], timeout)
                     time.sleep(timeout)
                 else:
                     raise PyMISPError("MISP Error: {}".format(response['errors']))
             except Exception as e:
                 if i + 1 < self.MAX_RETRIES:
                     timeout = 0.3 * 2 ** i
-                    self.log.warning('Caught an error from MISP server. Re-trying the request %f seconds', timeout)
+                    self.log.warning('Caught an error from the MISP server. Re-trying the request in %.2f seconds', timeout)
                     time.sleep(timeout)
                 else:
-                    self.log.exception('Caught an error from MISP server. Exceeded number of retries')
+                    self.log.exception('Caught an error from the MISP server. Exceeded number of retries.')
                     raise e
