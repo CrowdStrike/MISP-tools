@@ -6,7 +6,7 @@ name = "pypi"
 [packages]
 urllib3 = "*"
 requests = "*"
-pymisp = "*"
+pymisp = "==2.4.162.1"
 crowdstrike-falconpy = "==1.2.0"
 
 [dev-packages]
