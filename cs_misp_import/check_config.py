@@ -257,12 +257,15 @@ def validate_ssl(c_key: str, c_val: str, keyz: dict, logg: ConfigurationCheckRes
 
 def validate_start_times(c_key: str, c_val: str, keyz: dict, logg: ConfigurationCheckResult):
     """Validate the default start times."""
-    if c_key == "init_reports_days_before":
-        keyz[c_key] = invalid(logg, c_val) if (0 > int(c_val) or int(c_val) > 365) else True
-    if c_key == "init_indicators_minutes_before":
-        keyz[c_key] = invalid(logg, c_val) if (0 > int(c_val) or int(c_val) > 20220) else True
-    if c_key == "init_actors_days_before":
-        keyz[c_key] = invalid(logg, c_val) if (0 > int(c_val) or int(c_val) > 730) else True
+    try:
+        if c_key == "init_reports_days_before":
+            keyz[c_key] = invalid(logg, c_val) if (0 > int(c_val) or int(c_val) > 365) else True
+        if c_key == "init_indicators_minutes_before":
+            keyz[c_key] = invalid(logg, c_val) if (0 > int(c_val) or int(c_val) > 20220) else True
+        if c_key == "init_actors_days_before":
+            keyz[c_key] = invalid(logg, c_val) if (0 > int(c_val) or int(c_val) > 730) else True
+    except ValueError:
+        keyz[c_key] = invalid(logg, c_val)
 
 
 def validate_booleans(c_key: str, c_val: str, keyz: dict, logg: ConfigurationCheckResult):
@@ -288,21 +291,27 @@ def validate_galaxies_mapping(c_key: str, c_val: str, keyz: dict, logg: Configur
 def validate_api_limits(c_key: str, c_val: str, keyz: dict, logg: ConfigurationCheckResult):
     """Validate parameters relating to API limits."""
     if c_key == "api_request_max":
-        keyz[c_key] = invalid(logg, c_val) if (5000 < int(c_val) or int(c_val) < 0) else True
+        try:
+            keyz[c_key] = invalid(logg, c_val) if (5000 < int(c_val) or int(c_val) < 0) else True
+        except ValueError:
+            keyz[c_key] = invalid(logg, c_val)
 
 
 def validate_max_threads(c_key: str, c_val: str, keyz: dict, logg: ConfigurationCheckResult):
     """Validate the max_threads parameter."""
     if c_key == "max_threads":
-        hit = False
-        if not c_val:
-            c_val = 0
-        if int(c_val) < 0:
-            hit = invalid(logg, c_val)
-        if int(c_val) > 64:
-            hit = warning(logg, "WARNING: Potentially dangerous thread count specified")
-        if hit:
-            keyz[c_key] = hit
+        try:
+            hit = False
+            if not c_val:
+                c_val = 0
+            if int(c_val) < 0:
+                hit = invalid(logg, c_val)
+            if int(c_val) > 64:
+                hit = warning(logg, "WARNING: Potentially dangerous thread count specified")
+            if hit:
+                keyz[c_key] = hit
+        except ValueError:
+            keyz[c_key] = invalid(logg, c_val)
 
 
 def validate_login(auth: dict, logg: ConfigurationCheckResult):
@@ -328,7 +337,6 @@ def invalid(log_device: ConfigurationCheckResult, c_value: str):
 def validate_config(config_file: str = None, debugging: bool = False, no_banner: bool = False):
     """Review the configuration contents for errors and report the results."""
     out = ConfigurationCheckResult(config_logging(debugging))
-    out.extra = {"key": ''}
     if not no_banner:
         for line in CONFIG_BANNER.split("\n"):
             print(f"[{cur_time()}] INFO     config_check  {line}")
@@ -339,7 +347,7 @@ def validate_config(config_file: str = None, debugging: bool = False, no_banner:
     auth_info = {"creds": {"client_id": "Not set", "client_secret": "Not set"}, "base_url": "auto"}
     for sect in config.sections() if config.sections() else not_found():
         for key in config[sect]:
-            out.extra = {"key": key, "section": sect}
+            out.extra = {"key": key}
             val = config[sect].get(key)
             vals = [key, val, keys, out]
             show_debug_detail(*vals)
