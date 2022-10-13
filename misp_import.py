@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-r"""CrowdStrike Falcon Intel API to MISP Import utility.
+r"""CrowdStrike Falcon Threat Intelligence to MISP Import utility.
 
  ___ ___ ___ _______ _______
 |   Y   |   |   _   |   _   |     _______                             __
@@ -30,8 +30,9 @@ SOFTWARE.
 
 © Copyright CrowdStrike 2019-2022
 """
-import argparse
+from argparse import ArgumentParser, Namespace, RawTextHelpFormatter
 from configparser import ConfigParser, ExtendedInterpolation
+from threading import main_thread
 import logging
 import os
 import urllib3
@@ -48,10 +49,9 @@ from cs_misp_import import (
     check_config
 )
 
-def parse_command_line():
+def parse_command_line() -> Namespace:
     """Parse the running command line provided by the user."""
-    parser = argparse.ArgumentParser(description="Tool used to import reports and indicators from Crowdstrike Intel"
-                                                 "API into a MISP instance.")
+    parser = ArgumentParser(description=__doc__, formatter_class=RawTextHelpFormatter)
     parser.add_argument("-cr", "--clean_reports", action="store_true", dest="clean_reports", help="Set this to run a cleaning round on reports.")
     parser.add_argument("-ci", "--clean_indicators", action="store_true", dest="clean_indicators", help="Set this to run a cleaning round on indicators.")
     parser.add_argument("-ca", "--clean_actors", "--clean_adversaries", dest="clean_actors", action="store_true", help="Set this to run a cleaning round on adversaries.")
@@ -67,7 +67,7 @@ def parse_command_line():
     parser.add_argument("-i", "--indicators", action="store_true", help="Set this to import all indicators.")
     parser.add_argument("-f", "--force", action="store_true", help="Force operation.")
     parser.add_argument("-do", "--delete_outdated_indicators", action='store_true',
-                        help="Set this to check if the indicators you are imported have been marked as deleted and"
+                        help="Set this to check if the indicators you are importing have been marked as deleted and"
                              " if they have been already inserted, delete them."
                         )
     parser.add_argument("-r", "--reports", action="store_true", help="Set this to import reports.")
@@ -95,7 +95,7 @@ def parse_command_line():
     return parser.parse_args()
 
 
-def do_finished(logg: logging.Logger, arg_parser: argparse.ArgumentParser):
+def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
     display_banner(banner=FINISHED_BANNER,
                    logger=logg,
                    fallback="FINISHED",
@@ -103,7 +103,7 @@ def do_finished(logg: logging.Logger, arg_parser: argparse.ArgumentParser):
                    )
 
 
-def perform_local_cleanup(args: argparse.Namespace,
+def perform_local_cleanup(args: Namespace,
                           importer: CrowdstrikeToMISPImporter,
                           settings: ConfigParser,
                           log_device: logging.Logger
@@ -140,33 +140,6 @@ def retrieve_tags(tag_type: str, settings):
 
     return tags
 
-# import inspect
-# import sys
-# def exception_override(*args, **kwargs):
-#     kwargs["extra"] = {"key": ""}
-#     return logging.Logger.exception(*args, **kwargs)
-# def error_override(*args, **kwargs):
-#     kwargs["extra"] = {"key": ""}
-#     return logging.Logger.error(*args, **kwargs)
-# def warning_override(*args, **kwargs):
-#     kwargs["extra"] = {"key": ""}
-#     return logging.Logger.warning(*args, **kwargs)
-# def info_override(*args, **kwargs):
-#     kwargs["extra"] = {"key": ""}
-#     return logging.Logger.info(*args, **kwargs)
-# def debug_override(*args, **kwargs):
-#     kwargs["extra"] = {"key": ""}
-#     return logging.Logger.debug(*args, **kwargs)
-
-#warning_override = lambda args: logging.Logger.warning(extra={"key": ""}, *[args])
-#exception_override = logging.Logger.exception(extra={"key": ""}, *[args])
-#error_override = lambda args: logging.Logger.error(extra={"key": ""}, *[args])
-#info_override = lambda args: logging.Logger.info(extra={"key": ""}, *[args])
-#debug_override = lambda args: logging.Logger.debug(extra={"key": ""}, *[args])
-
-from threading import main_thread
-thread = main_thread()
-thread.name = "main"
 
 def main():
     """Implement Main routine."""
@@ -194,12 +167,6 @@ def main():
     main_log.addHandler(ch2)
     splash.propagate = False
     main_log.propagate = False
-
-    # main_log.warning = warning_override
-    # main_log.exception = exception_override
-    # main_log.error = error_override
-    # main_log.info = info_override
-    # main_log.debug = debug_override
 
     # Off we go!
     display_banner(banner=MISP_BANNER,
@@ -304,4 +271,7 @@ def main():
 
 
 if __name__ == '__main__':
+
+    thread = main_thread()
+    thread.name = "main"
     main()
