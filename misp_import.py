@@ -52,11 +52,11 @@ def parse_command_line():
     """Parse the running command line provided by the user."""
     parser = argparse.ArgumentParser(description="Tool used to import reports and indicators from Crowdstrike Intel"
                                                  "API into a MISP instance.")
-    parser.add_argument("--clean_reports", action="store_true", help="Set this to run a cleaning round on reports.")
-    parser.add_argument("--clean_indicators", action="store_true", help="Set this to run a cleaning round on indicators.")
-    parser.add_argument("--clean_actors", "--clean_adversaries", dest="clean_actors", action="store_true", help="Set this to run a cleaning round on adversaries.")
-    parser.add_argument("--debug", action="store_true", help="Set this to activate debug logs.")
-    parser.add_argument("--max_age", type=int,
+    parser.add_argument("-cr", "--clean_reports", action="store_true", dest="clean_reports", help="Set this to run a cleaning round on reports.")
+    parser.add_argument("-ci", "--clean_indicators", action="store_true", dest="clean_indicators", help="Set this to run a cleaning round on indicators.")
+    parser.add_argument("-ca", "--clean_actors", "--clean_adversaries", dest="clean_actors", action="store_true", help="Set this to run a cleaning round on adversaries.")
+    parser.add_argument("-d", "--debug", action="store_true", dest="debug", help="Set this to activate debug logs.")
+    parser.add_argument("-m", "--max_age", type=int, dest="max_age",
                         help="Maximum age of the objects to be stored in MISP in days."
                              " Objects older than that will be deleted."
                         )
@@ -64,29 +64,29 @@ def parse_command_line():
     # group.add_argument("--related_indicators", action="store_true",
     #                    help="Set this to only import indicators related to reports."
     #                    )
-    parser.add_argument("--indicators", action="store_true", help="Set this to import all indicators.")
-    parser.add_argument("--force", action="store_true", help="Force operation.")
-    parser.add_argument("--delete_outdated_indicators", action='store_true',
+    parser.add_argument("-i", "--indicators", action="store_true", help="Set this to import all indicators.")
+    parser.add_argument("-f", "--force", action="store_true", help="Force operation.")
+    parser.add_argument("-do", "--delete_outdated_indicators", action='store_true',
                         help="Set this to check if the indicators you are imported have been marked as deleted and"
                              " if they have been already inserted, delete them."
                         )
-    parser.add_argument("--reports", action="store_true", help="Set this to import reports.")
-    parser.add_argument("--actors", "--adversaries", dest="actors", action="store_true", help="Set this to import adversaries.")
-    parser.add_argument("--config", dest="config_file", help="Path to local configuration file", required=False)
-    parser.add_argument("--no_dupe_check",
+    parser.add_argument("-r", "--reports", action="store_true", help="Set this to import reports.")
+    parser.add_argument("-a", "--actors", "--adversaries", dest="actors", action="store_true", help="Set this to import adversaries.")
+    parser.add_argument("-c", "--config", dest="config_file", help="Path to local configuration file", required=False)
+    parser.add_argument("-nd", "--no_dupe_check",
                         dest="no_dupe_check",
                         help="Enable or disable duplicate checking on import, defaults to False.",
                         required=False,
                         action="store_true"
                         )
-    parser.add_argument("--no_banner",
+    parser.add_argument("-nb", "--no_banner",
                         dest="no_banner",
                         help="Enable or disable ASCII banners in logfile output, "
                         "defaults to False (enable banners).",
                         required=False,
                         action="store_true"
                         )
-    parser.add_argument("--clean_tags",
+    parser.add_argument("-ct", "--clean_tags",
                         dest="clean_tags",
                         help="Remove all CrowdStrike tags from the MISP instance",
                         required=False,
