@@ -3,7 +3,9 @@
 [![Twitter URL](https://img.shields.io/twitter/url?label=Follow%20%40CrowdStrike&style=social&url=https%3A%2F%2Ftwitter.com%2FCrowdStrike)](https://twitter.com/CrowdStrike)
 
 # MISP Tools
-This repository is focused on solutions for integrating CrowdStrike with the [MISP project](https://github.com/MISP/MISP).
+<img align="right" width="400" src="docs/misp-import.gif">
+
+This repository is focused on a solution for importing CrowdStrike Threat Intelligence data into an instance of [MISP](https://github.com/MISP/MISP).
 
 - [Manual Import](#manual-import) - Manually import Adversaries (Actors), Indicators or Reports from CrowdStrike Falcon X into your MISP instance.
 - [MISP Modules](#modules) - MISP modules that leverage CrowdStrike.
@@ -12,7 +14,6 @@ This repository is focused on solutions for integrating CrowdStrike with the [MI
 ## Manual import
 This solution will import adversaries, indicators or reports from CrowdStrike Falcon X into your MISP instance from a specified number of days backwards in time.
 
-![MISP Import](docs/misp-import.gif)
 
 This solution supports standalone execution as well as container deployment.
 
@@ -33,9 +34,9 @@ The following Python packages must be installed in order for this application to
 #### CrowdStrike API credential Scope
 Your API credentials will need **READ** access to:
 
-- Adversaries (Falcon X)
-- Indicators (Falcon X)
-- Reports (Falcon X)
+- Adversaries (Falcon Threat Intelligence)
+- Indicators (Falcon Threat Intelligence)
+- Reports (Falcon Threat Intelligence)
 
 #### MISP server requirements
 You will need to generate an authorization key (and potentially a user) to use for access to the MISP instance. You will also need to create an organization called "CrowdStrike", and provide the UUID for this organization in the configuration file as detailed below.
@@ -66,6 +67,9 @@ The CrowdStrike section contains configuration detail for communicating with you
 | `indicators_tags` | Tags to apply to imported indicators. |
 | `actors_tags` | Tags to apply to imported adversaries. |
 | `unknown_mapping` | Name to use for tag used to flag unknown malware families. |
+| `unattributed_title` | Title used for unattributed indicator events. |
+| `indicator_type_title` | Title used for indicator type events. |
+| `malware_family_title` | Title used for indicator malware family events. |
 
 ##### MISP
 The MISP section contains detail for communicating with your MISP instance.
@@ -79,6 +83,9 @@ The MISP section contains detail for communicating with your MISP instance.
 | `max_threads` | Number of processor threads to use for processing. |
 | `miss_track_file` | The name of the file used to track malware families without a galaxy mapping.
 | `galaxies_map_file` | The name of the galaxy mapping file (default: `galaxy.ini`) |
+| `log_duplicates_as_sightings` | Boolean flag indicating if duplicate indicators should be marked as a new sighting or skipped. |
+| `ind_attribute_batch_size` | Maximum number of indicators to process before updating MISP event records. Performance impacts. |
+| `event_save_memory_refresh_interval` | Amount of time (in seconds) an event save must take before the event is subsequently refreshed in memory. |
 
 #### galaxy.ini
 The galaxy mapping file, `galaxy.ini` contains one section, `Galaxy`. This section contains galaxy mappings for indicator malware families.
@@ -100,20 +107,23 @@ This solution accepts the following command line arguments.
 | Argument | Purpose |
 | :--- | :--- |
 | `-h` or `--help` | Show command line help and exit. |
-| `--clean_reports` | Remove all CrowdStrike tagged reports from the MISP instance. |
-| `--clean_indicators` | Remove all CrowdStrike tagged indicators from the MISP instance. |
-| `--clean_adversaries` | Remove all CrowdStrike tagged adversaries from the MISP instance. |
-| `--clean_tags` | Remove all CrowdStrike local tags. (WARNING: Run after removing reports, indicators and adversaries.) |
-| `--debug` | Enable debug output. |
-| `--max_age` | Maximum age (in days) of adversaries, indicators or reports to import. |
-| `--indicators` | Import all indicators. |
-| `--force` | Ignore the timestamp file and import indicators from the "minutes before" configuration setting. |
-| `--delete_outdated_indicators` | Checks as indicators are imported to see if they are flagged for deletion, if so they are removed instead of imported. |
-| `--reports` | Import reports. |
-| `--adversaries` | Import adversaries. |
-| `--config` | Path to the local configuration file, defaults to `misp_import.ini`. |
-| `--no_dupe_check` | Disable duplicate checking on indicator import. |
-
+| `-cr`, `--clean_reports` | Remove all CrowdStrike tagged reports from the MISP instance. |
+| `-ci`, `--clean_indicators` | Remove all CrowdStrike tagged indicators from the MISP instance. |
+| `-ca`, `--clean_adversaries` | Remove all CrowdStrike tagged adversaries from the MISP instance. |
+| `-ct`, `--clean_tags` | Remove all CrowdStrike local tags. (WARNING: Run after removing reports, indicators and adversaries.) |
+| `-d`, `--debug` | Enable debug output. |
+| `-m`, `--max_age` | Maximum age (in days) of adversaries, indicators or reports to import. |
+| `-i, `--indicators` | Import all indicators. |
+| `-f`, `--force` | Ignore the timestamp file and import indicators from the "minutes before" configuration setting. |
+| `-do`, `--delete_outdated_indicators` | Checks as indicators are imported to see if they are flagged for deletion, if so they are removed instead of imported. |
+| `-r`, `--reports` | Import reports. |
+| `-a`, `--adversaries` | Import adversaries. |
+| `-c`, `--config` | Path to the local configuration file, defaults to `misp_import.ini`. |
+| `-nd`, `--no_dupe_check` | Disable duplicate checking on indicator import. |
+| `-nb`, `--no_banner` | Disable banners in terminal outputs. |
+| `-l`, `--logfile` | Logging file. __*Not currently implemented*__ |
+| `--all`, `--fullmonty` | Import Adversaries, Reports and Indicators in one cycle. |
+| `--obliterate` | Remove __all__ CrowdStrike data from the MISP instance. |
 
 ### Running the solution as a container
 This solution can also be run as a container using the provided Docker file.
@@ -145,7 +155,6 @@ docker run -it --rm \
 ```
 
 
-
 ### Running the solution manually
 This solution can be run manually as long as all Python requirements have been met and the configuration files have been updated to reflect your environment.
 
@@ -155,7 +164,7 @@ The following examples demonstrate different variations of executing the solutio
 
 **Import all data (adversaries, indicators and reports)**
 ```python
-python3 misp_import.py --adversaries --indicators --reports
+python3 misp_import.py --all
 ```
 
 **Delete just indicators**
@@ -166,6 +175,11 @@ python3 misp_import.py --clean_indicators
 **Only import reports and related indicators**
 ```python
 python3 misp_import.py --reports
+```
+
+**Remove all CrowdStrike data**
+```python
+python3 misp_import.py --obliterate
 ```
 
 
