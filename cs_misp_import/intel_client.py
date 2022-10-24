@@ -1,5 +1,6 @@
 import logging
 from functools import reduce
+from .helper import thousands
 try:
     from falconpy import Intel, __version__ as FALCONPY_VERSION
 except ImportError as no_falconpy:
@@ -74,7 +75,7 @@ class IntelAPIClient:
         while len(indicators_in_request) == self.request_size_limit or first_run:
             resp_json = self.falcon.query_indicator_entities(
                 sort="_marker.asc",
-                filter=f"_marker:>='{start_time}'",
+                filter=f"_marker:>='{start_time}'+deleted:false",
                 limit=self.request_size_limit,
                 include_deleted=include_deleted
                 )
@@ -89,8 +90,11 @@ class IntelAPIClient:
                                      "meta.pagination.total".split("."),
                                      resp_json
                                      )
-                log_msg = f"Retrieved {len(indicators_in_request)} of {total_found} remaining indicators."
-                self.log.info(log_msg)
+                #log_msg = f"Retrieved {thousands(len(indicators_in_request))} of {thousands(total_found)} remaining indicators."
+                self.log.info("Retrieved %s of %s remaining indicators.",
+                              thousands(len(indicators_in_request)),
+                              thousands(total_found)
+                              )
             else:
                 break
 
