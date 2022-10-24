@@ -64,8 +64,8 @@ class ActorsImporter:
                 self.log.debug("Created adversary event for %s", act.get('name'))
                 if event:
                     try:
-                        #for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
-                        #    event.add_tag(tag)
+                        for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
+                            event.add_tag(tag)
                         # Create an actor specific tag
                         actor_tag = actor_name.split(" ")[1]
                         event.add_tag(f"CrowdStrike:adversary:branch: {actor_tag}")
@@ -195,14 +195,17 @@ class ActorsImporter:
                     adversary_detail = True
                 act_type_object = MISPObject("internal-reference")
                 act_type_object.add_attribute("type", "Adversary detail", disable_correlation=True)
-                at_id = act_type_object.add_attribute("identifier", "Actor type", disable_correlation=True)
-                sum_id = act_type_object.add_attribute('comment', act_type.title())
+                #at_id = act_type_object.add_attribute("identifier", "Actor type", disable_correlation=True)
+                act_type_object.add_attribute("identifier", "Actor type", disable_correlation=True)
+                #sum_id = act_type_object.add_attribute('comment', act_type.title())
+                act_type_object.add_attribute('comment', act_type.title())
                 event.add_tag(f"CrowdStrike:adversary:type: {act_type.upper()}")
                 to_reference.append(event.add_object(act_type_object))
-                event.add_attribute_tag(f"CrowdStrike:adversary:actor-type: {act_type.upper()}", sum_id.uuid)
-                event.add_attribute_tag(f"CrowdStrike:adversary:actor-type: {actor_name}", at_id.uuid)
-                event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: ACTOR TYPE", sum_id.uuid)
-                event.add_attribute_tag(f"CrowdStrike:adversary:{slug}:actor-type: {act_type.upper()}", at_id.uuid)
+                #event.add_attribute_tag(f"CrowdStrike:adversary:actor-type: {act_type.upper()}", sum_id.uuid)
+                #event.add_attribute_tag(f"CrowdStrike:adversary:actor-type: {actor_name}", at_id.uuid)
+                #event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: ACTOR TYPE", sum_id.uuid)
+                #event.add_attribute_tag(f"CrowdStrike:adversary:{slug}:actor-type: {act_type.upper()}", at_id.uuid)
+                #event.add_tag(f"CrowdStrike:adversary:{slug}:actor-type: {act_type.upper()}")
                 internal.add_reference(act_type_object.uuid, "Adversary detail")
 
             motives = details.get("motivations", None)
@@ -213,14 +216,18 @@ class ActorsImporter:
                     adversary_detail = True
                 motive_object = MISPObject("internal-reference")
                 motive_object.add_attribute("type", "Adversary detail", disable_correlation=True)
-                mot_id = motive_object.add_attribute("identifier", "Motivation", disable_correlation=True)
-                sum_id = motive_object.add_attribute('comment', motive)
+                #mot_id = motive_object.add_attribute("identifier", "Motivation", disable_correlation=True)
+                motive_object.add_attribute("identifier", "Motivation", disable_correlation=True)
+                #sum_id = motive_object.add_attribute('comment', motive)
+                motive_object.add_attribute('comment', motive)
                 to_reference.append(event.add_object(motive_object))
-                event.add_attribute_tag(f"CrowdStrike:adversary:motivation: {actor_name}", mot_id.uuid)
-                event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: MOTIVATION", sum_id.uuid)
+                #event.add_attribute_tag(f"CrowdStrike:adversary:motivation: {actor_name}", mot_id.uuid)
+                #event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: MOTIVATION", sum_id.uuid)
                 for m in motives:
                     if m.get('value'):
-                        event.add_attribute_tag(f"CrowdStrike:adversary:{slug}:motivation: {m.get('value').upper()}", sum_id.uuid)
+                        #event.add_attribute_tag(f"CrowdStrike:adversary:{slug}:motivation: {m.get('value').upper()}", sum_id.uuid)
+                        #event.add_tag(f"CrowdStrike:adversary:{slug}:motivation: {m.get('value').upper()}")
+                        event.add_tag(f"CrowdStrike:adversary:motivation: {m.get('value').upper()}")
                 internal.add_reference(motive_object.uuid, "Adversary detail")
 
             cap = details.get("capability", None)
@@ -232,14 +239,17 @@ class ActorsImporter:
                         adversary_detail = True
                     cap_object = MISPObject("internal-reference")
                     cap_object.add_attribute("type", "Adversary detail", disable_correlation=True)
-                    cp_id = cap_object.add_attribute("identifier", "Capability", disable_correlation=True)
-                    sum_id = cap_object.add_attribute('comment', cap_val)
+                    #cp_id = cap_object.add_attribute("identifier", "Capability", disable_correlation=True)
+                    cap_object.add_attribute("identifier", "Capability", disable_correlation=True)
+                    #sum_id = cap_object.add_attribute('comment', cap_val)
+                    cap_object.add_attribute('comment', cap_val)
                     event.add_tag(f"CrowdStrike:adversary:capability: {cap_val.upper()}")
                     to_reference.append(event.add_object(cap_object))
-                    event.add_attribute_tag(f"CrowdStrike:adversary:{slug}:capability: {cap_val.upper()}", sum_id.uuid)
-                    event.add_attribute_tag(f"CrowdStrike:adversary:capability: {actor_name}", cp_id.uuid)
-                    event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: CAPABILITY", sum_id.uuid)
-                    event.add_attribute_tag(f"CrowdStrike:adversary:capability: {cap_val.upper()}", cp_id.uuid)
+                    #event.add_attribute_tag(f"CrowdStrike:adversary:{slug}:capability: {cap_val.upper()}", sum_id.uuid)
+                    #event.add_tag(f"CrowdStrike:adversary:{slug}:capability: {cap_val.upper()}")
+                    #event.add_attribute_tag(f"CrowdStrike:adversary:capability: {actor_name}", cp_id.uuid)
+                    #event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: CAPABILITY", sum_id.uuid)
+                    #event.add_attribute_tag(f"CrowdStrike:adversary:capability: {cap_val.upper()}", cp_id.uuid)
                     internal.add_reference(cap_object.uuid, "Adversary detail")
                     # Set adversary event threat level based upon adversary capability
                     if "BELOW" in cap_val.upper() or "LOW" in cap_val.upper():
@@ -408,30 +418,32 @@ class ActorsImporter:
 
 
             victim = None
-            region_list = [c.get('value') for c in actor.get('target_countries', [])]
-            for region in region_list:
-            #for country in actor.get('target_countries', []):
-                
-                #region = country.get('value')
-                #if region:
-                if not victim:
-                    victim = MISPObject("victim")
-                vic = victim.add_attribute('regions', region)
-                vic.add_tag(f"CrowdStrike:target:location: {region.upper()}")
-                vic.add_tag(f"CrowdStrike:adversary:{slug}:target:location: {region.upper()}")
-                #vic.add_tag(f"CrowdStrike:adversary:{slug}:target: LOCATION")
+            if actor.get("target_countries"):
+                region_list = [c.get('value') for c in actor.get('target_countries', [])]
+                for region in region_list:
+                #for country in actor.get('target_countries', []):
+                    
+                    #region = country.get('value')
+                    #if region:
+                    if not victim:
+                        victim = MISPObject("victim")
+                    vic = victim.add_attribute('regions', region)
+                    vic.add_tag(f"CrowdStrike:target:location: {region.upper()}")
+                    vic.add_tag(f"CrowdStrike:adversary:{slug}:target:location: {region.upper()}")
+                    #vic.add_tag(f"CrowdStrike:adversary:{slug}:target: LOCATION")
 
-            sector_list = [s.get('value') for s in actor.get('target_industries', [])]
-            for sector in sector_list:
-                #sector = industry.get('value', None)
-                #if sector:
-                if not victim:
-                    victim = MISPObject("victim")
-                vic = victim.add_attribute('sectors', sector)
-                vic.add_tag(f"CrowdStrike:adversary:{slug}:target:sector: {sector.upper()}")
-                #vic.add_tag(f"CrowdStrike:adversary:{slug}:target: SECTOR")
-                vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
-                event.add_object(victim)
+            if actor.get("target_industries"):
+                sector_list = [s.get('value') for s in actor.get('target_industries', [])]
+                for sector in sector_list:
+                    #sector = industry.get('value', None)
+                    #if sector:
+                    if not victim:
+                        victim = MISPObject("victim")
+                    vic = victim.add_attribute('sectors', sector)
+                    vic.add_tag(f"CrowdStrike:adversary:{slug}:target:sector: {sector.upper()}")
+                    #vic.add_tag(f"CrowdStrike:adversary:{slug}:target: SECTOR")
+                    vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
+                    event.add_object(victim)
             # TYPE Taxonomic tag, all events
             if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TYPE", False)):
                 event.add_tag('type:CYBINT')
