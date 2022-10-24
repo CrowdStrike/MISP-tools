@@ -33,6 +33,7 @@ SOFTWARE.
 from argparse import ArgumentParser, Namespace, RawTextHelpFormatter
 from configparser import ConfigParser, ExtendedInterpolation
 from threading import main_thread
+import time
 import logging
 import os
 import urllib3
@@ -41,7 +42,8 @@ from cs_misp_import import (
     CrowdstrikeToMISPImporter,
     MISP_BANNER,
     FINISHED_BANNER,
-    CONFIG_BANNER,
+    WARNING_BANNER,
+    MUSHROOM,
     ReportType,
     Adversary,
     display_banner,
@@ -92,7 +94,68 @@ def parse_command_line() -> Namespace:
                         required=False,
                         action="store_true"
                         )
-    return parser.parse_args()
+    parser.add_argument("-l", "--logfile",
+                        help="Log file for logging output",
+                        required=False,
+                        default="misp_import.log"
+                        )
+    #exclus = parser.add_mutually_exclusive_group("exclusive arguments")
+    parser.add_argument("--all", "--fullmonty",
+                        help="Import Adversaries, Reports and Indicators",
+                        required=False,
+                        default=False,
+                        dest="fullmonty",
+                        action="store_true"
+                        )
+    parser.add_argument("--obliterate",
+                        help="Remove all CrowdStrike data",
+                        required=False,
+                        default=False,
+                        dest="obliterate",
+                        action="store_true"
+                        )
+    parsed = parser.parse_args()
+
+    if parsed.obliterate and parsed.fullmonty:
+        parser.error("You cannot run Obliterate and the Full Monty at the same time.")
+
+    if parsed.obliterate:
+        bold = "\033[1m"
+        undie = "\033[4m"
+        endmark = "\033[0m"
+        yellow = "\033[33m"
+        red = "\033[31m"
+        lightred = "\033[91m"
+        magenta = "\033[35m"
+        cyan = "\033[36m"
+        print(f"{red}\n")
+        new_warning_banner = WARNING_BANNER.replace("@", f"{red}@{endmark}")
+        new_warning_banner = new_warning_banner.replace("!", f"{lightred}!{endmark}")
+        new_warning_banner = new_warning_banner.replace(":", f"{yellow}:{endmark}")
+        print(f"{'😱 ' * 25}\n")
+        print(new_warning_banner)
+        print(endmark)
+        confirmed = input(
+            f"{'😱 ' * 25}\n\nObliterate is a destructive operation that will remove "
+            f"{bold}{undie}all CrowdStrike data{endmark}\nfrom your MISP instance. There is "
+            "no going back once this process completes.\n\n"
+            "Are you sure you want to do this?\n\n[Enter 'yes' to continue] ==> ")
+        if confirmed.upper() not in [
+            "YES", "FOR SURE", "ABSOLUTELY", "UH... OK", "DESTRUCT SEQUENCE ONE, CODE ONE, ONE-A"
+            ]:
+            raise SystemExit("Data obliteration has been cancelled. Phew! 😌")
+        if confirmed.upper() != "YES":
+            print("\nThat's not 'yes', but I'll accept it anyway...\n")
+
+        print(MUSHROOM.format(
+            yellow, endmark, red, endmark, yellow, endmark, lightred, endmark, yellow, endmark,
+            bold, endmark, cyan, endmark, bold, endmark, cyan, endmark, bold, endmark, cyan,
+            endmark, bold, endmark, magenta, endmark, bold, endmark
+            ))
+        time.sleep(1)
+    
+    return parsed
+
 
 
 def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
@@ -147,24 +210,42 @@ def main():
     args = parse_command_line()
     if not args.config_file:
         args.config_file = "misp_import.ini"
-
+    if args.fullmonty:
+        args.actors = True
+        args.reports = True
+        args.indicators = True
+    if args.obliterate:
+        args.clean_actors = True
+        args.clean_reports = True
+        args.clean_indicators = True
+        args.clean_tags = True
     splash = logging.getLogger("misp_tools")
     splash.setLevel(logging.INFO)
     main_log = logging.getLogger("processor")
     main_log.setLevel(logging.INFO)
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
+    #rfh = RotatingFileHandler(args.logfile, maxBytes=20971520, backupCount=5)
+    #rfh.setLevel(logging.INFO)
+    #rfh2 = RotatingFileHandler(args.logfile, maxBytes=20971520, backupCount=5)
+    #rfh2.setLevel(logging.INFO)
     ch2 = logging.StreamHandler()
     ch2.setLevel(logging.INFO)
     if args.debug:
         main_log.setLevel(logging.DEBUG)
         ch.setLevel(logging.DEBUG)
         ch2.setLevel(logging.DEBUG)
+        #rfh.setLevel(logging.DEBUG)
+        #rfh2.setLevel(logging.DEBUG)
 
     ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
+    #rfh.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
     ch2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
+    #rfh2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
     splash.addHandler(ch)
+    #splash.addHandler(rfh)
     main_log.addHandler(ch2)
+    #main_log.addHandler(rfh2)
     splash.propagate = False
     main_log.propagate = False
 
@@ -219,7 +300,8 @@ def main():
         "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True,
         "galaxy_map": galaxy_maps["Galaxy"],
         "force": args.force,
-        "no_banners": args.no_banner
+        "no_banners": args.no_banner,
+        "no_dupe_check": args.no_dupe_check
     }
     
     if not import_settings["unknown_mapping"]:
@@ -243,15 +325,22 @@ def main():
     if args.reports or args.actors or args.indicators:
         #try:
         if not args.no_dupe_check:
-            tags = []
+            
             # Retrieve all tags for selected options
             if args.actors:
-                tags.extend(retrieve_tags("actors", settings))
-                importer.import_from_misp(tags, do_reports=False)
+                tags = retrieve_tags("actors", settings)
+                importer.import_from_misp(tags, style="actors")
             if args.reports:
+
                 # Reports dupe identification is a little customized
-                tags.extend(retrieve_tags("reports", settings))
-                importer.import_from_misp(tags, do_reports=True)
+                tags = retrieve_tags("reports", settings)
+                importer.import_from_misp(tags, style="reports")
+            #if args.indicators:
+                # Load report IDs for indicator attribution
+                #tags = retrieve_tags("reports", settings)
+                #importer.import_from_misp(tags, style="reports")
+                # Indicators looks up pre-existing indicators in it's own module
+
         # Import new events from CrowdStrike into MISP
         importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
                                             int(settings["CrowdStrike"]["init_indicators_minutes_before"]),
