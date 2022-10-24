@@ -64,6 +64,7 @@ class CrowdstrikeToMISPImporter:
         self.report_ids = {}
         self.actor_ids = {}
         self.indicator_ids = {}
+        self.org_id = settings["MISP"]["crowdstrike_org_uuid"]
 
         if self.config["actors"]:
             self.actors_importer = ActorsImporter(self.misp_client,
@@ -113,7 +114,8 @@ class CrowdstrikeToMISPImporter:
             #qry = self.misp_client.build_complex_query(or_parameters=tag_to_hunt)
             params = {
                 #"tags": [tag_to_hunt].extend(skip_tags)
-                "tags": [tag_to_hunt]
+                "tags": [tag_to_hunt],
+                "org": self.org_id
             }
             if not self.import_settings["force"] and not do_min:
                 params["minimal"] = True
@@ -209,7 +211,8 @@ class CrowdstrikeToMISPImporter:
                                                    "CrowdStrike:indicator%",
                                                    "CrowdStrike:adversary%"
                                                    ],
-                                             timestamp=[0, timestamp_max]
+                                             timestamp=[0, timestamp_max],
+                                             org=self.org_id
                                              )
             with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
                 executor.map(self.misp_client.delete_event, events)
