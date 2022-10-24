@@ -4,12 +4,13 @@ from logging import basicConfig, getLogger, INFO, Logger, DEBUG
 from configparser import ConfigParser
 from datetime import datetime
 from falconpy import BaseURL, Intel
-from .helper import CONFIG_BANNER
+from .helper import CONFIG_BANNER, CHECKS_FAILED, CHECKS_PASSED
 
 BOOL_KEYS = [
     "api_enable_ssl", "misp_enable_ssl", "tag_unknown_galaxy_maps", "taxonomic_kill-chain",
     "taxonomic_information-security-data-source", "taxonomic_type", "taxonomic_iep",
-    "taxonomic_iep2", "taxonomic_iep2_version", "taxonomic_tlp", "taxonomic_workflow"
+    "taxonomic_iep2", "taxonomic_iep2_version", "taxonomic_tlp", "taxonomic_workflow",
+    "log_duplicates_as_sightings"
 ]
 
 REDACTED = ['client_id', 'client_secret', 'misp_auth_key']
@@ -107,12 +108,15 @@ def is_valid_config(result: ConfigurationCheckResult):
         print(
             f"[{cur_time()}] {sev_detail}  No configuration errors found {result.total_warnings()}"
             )
+        for line in CHECKS_PASSED.split("\n"):
+            print(f"[{cur_time()}] INFO     config  {line}")
         valid_config = True
     else:
-
         print(
             f"[{cur_time()}] {sev_detail}  {result.total_errors()} {result.total_warnings()}"
             )
+        for line in CHECKS_FAILED.split("\n"):
+            print(f"[{cur_time()}] ERROR    config  {line}")
 
     return valid_config
 
@@ -184,7 +188,11 @@ def generate_primer():
         "init_actors_days_before": "ERROR",
         "galaxies_map_file": "WARNING",
         "crowdstrike_org_uuid": "ERROR",
-        "max_threads": "WARNING"
+        "max_threads": "WARNING",
+        "ind_attribute_batch_size": "WARNING",
+        "unattributed_title": "WARNING",
+        "malware_family_title": "WARNING",
+        "event_save_memory_refresh_interval": "WARNING"
     }
     bool_keys = {
         key_item: "WARNING" for key_item in BOOL_KEYS
@@ -194,16 +202,17 @@ def generate_primer():
     return primer
 
 
-def check_for_missing(rslt: ConfigurationCheckResult, keyz: dict):
+def check_for_missing(rslt: ConfigurationCheckResult, keyz: dict, found: list):
     """Check for any missing keys and handle the error based upon key criticality."""
     for check, check_val in keyz.items():
-        rslt.extra = {"key": check, "section": None}
-        if check_val == "WARNING":
-            warning(rslt, "WARNING: Missing configuration parameter, using default")
-        if check_val == "CRITICAL":
-            failure(rslt, "CRITICAL: Missing configuration parameter")
-        if check_val == "ERROR":
-            failure(rslt, "ERROR: Missing configuration parameter")
+        if check not in found:
+            rslt.extra = {"key": check, "section": None}
+            if check_val == "WARNING":
+                warning(rslt, "WARNING: Missing configuration parameter, using default")
+            if check_val == "CRITICAL":
+                failure(rslt, "CRITICAL: Missing configuration parameter")
+            if check_val == "ERROR":
+                failure(rslt, "ERROR: Missing configuration parameter")
 
 
 def cur_time():
@@ -295,6 +304,11 @@ def validate_api_limits(c_key: str, c_val: str, keyz: dict, logg: ConfigurationC
             keyz[c_key] = invalid(logg, c_val) if (5000 < int(c_val) or int(c_val) < 0) else True
         except ValueError:
             keyz[c_key] = invalid(logg, c_val)
+    if c_key == "ind_attribute_batch_size":
+        try:
+            keyz[c_key] = invalid(logg, c_val) if (5000 < int(c_val) or int(c_val) < 50) else True
+        except ValueError:
+            keyz[c_key] = invalid(logg, c_val)
 
 
 def validate_max_threads(c_key: str, c_val: str, keyz: dict, logg: ConfigurationCheckResult):
@@ -308,6 +322,22 @@ def validate_max_threads(c_key: str, c_val: str, keyz: dict, logg: Configuration
                 hit = invalid(logg, c_val)
             if int(c_val) > 64:
                 hit = warning(logg, "WARNING: Potentially dangerous thread count specified")
+            if hit:
+                keyz[c_key] = hit
+        except ValueError:
+            keyz[c_key] = invalid(logg, c_val)
+
+
+def validate_refresh_tolerance(c_key: str, c_val: str, keyz: dict, logg: ConfigurationCheckResult):
+    if c_key == "event_save_memory_refresh_interval":
+        try:
+            hit = False
+            if not c_val:
+                c_val = 0
+            if int(c_val) < 30:
+                hit = warning(logg, "WARNING: Invalid refresh interval set, defaulting to 30 seconds.")
+            if int(c_val) > 300:
+                hit = warning(logg, "WARNING: Invalid refresh interval set, defaulting to 60 seconds.")
             if hit:
                 keyz[c_key] = hit
         except ValueError:
@@ -337,6 +367,7 @@ def invalid(log_device: ConfigurationCheckResult, c_value: str):
 def validate_config(config_file: str = None, debugging: bool = False, no_banner: bool = False):
     """Review the configuration contents for errors and report the results."""
     out = ConfigurationCheckResult(config_logging(debugging))
+    found_keys = []
     if not no_banner:
         for line in CONFIG_BANNER.split("\n"):
             print(f"[{cur_time()}] INFO     config  {line}")
@@ -356,12 +387,14 @@ def validate_config(config_file: str = None, debugging: bool = False, no_banner:
             validate_ssl(*vals)
             validate_api_limits(*vals)
             validate_start_times(*vals)
+            validate_refresh_tolerance(*vals)
             validate_booleans(*vals)
             validate_galaxies_mapping(*vals)
             validate_org_id(*vals)
             validate_max_threads(*vals)
+            found_keys.append(key)
 
     validate_login(auth_info, out)
-    check_for_missing(out, keys)
+    check_for_missing(out, keys, found_keys)
 
     return is_valid_config(out)
