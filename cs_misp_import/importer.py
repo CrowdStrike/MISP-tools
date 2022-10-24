@@ -1,13 +1,23 @@
 import datetime
 import logging
 import concurrent.futures
+from requests.exceptions import ConnectionError, SSLError
 from .adversary import Adversary
 from .report_type import ReportType
+from .indicator_type import IndicatorType
 from .actors import ActorsImporter
 from .indicators import IndicatorsImporter
 from .reports import ReportsImporter
 from .threaded_misp import MISP
-from .helper import IMPORT_BANNER, DELETE_BANNER, INDICATOR_TYPES, display_banner
+from .helper import (
+    IMPORT_BANNER,
+    DELETE_BANNER,
+    INDICATOR_TYPES,
+    display_banner,
+    format_seconds,
+    thousands
+)
+
 
 class CrowdstrikeToMISPImporter:
     """Tool used to import indicators and reports from the Crowdstrike Intel API.
@@ -51,6 +61,9 @@ class CrowdstrikeToMISPImporter:
         self.import_settings = import_settings
         self.log = logger
         self.event_ids = {}
+        self.report_ids = {}
+        self.actor_ids = {}
+        self.indicator_ids = {}
 
         if self.config["actors"]:
             self.actors_importer = ActorsImporter(self.misp_client,
@@ -93,40 +106,73 @@ class CrowdstrikeToMISPImporter:
         #
         # Passing in a list of tags to the search_index solution is pulling too many matches
         # back in environments with large numbers of events.
-        def perform_threaded_delete(tag_to_hunt: str, tag_type: str):
-            self.log.info("Start clean up CrowdStrike %s events from MISP.", tag_type)
+        def perform_threaded_delete(tag_to_hunt: str, tag_type: str, skip_tags: list = None, do_min: bool = False):
+            if skip_tags == None:
+                skip_tags = []
+            self.log.info("Start clean up of CrowdStrike %s events from MISP.", tag_type)
             #qry = self.misp_client.build_complex_query(or_parameters=tag_to_hunt)
             params = {
+                #"tags": [tag_to_hunt].extend(skip_tags)
                 "tags": [tag_to_hunt]
             }
-            if not self.import_settings["force"]:
+            if not self.import_settings["force"] and not do_min:
                 params["minimal"] = True
             with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
                 #executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
                 #executor.map(self.misp_client.delete_event, self.misp_client.search(tag=qry, minimal=True))  # seems to bog down
                 executor.map(self.misp_client.delete_event, self.misp_client.search_index(**params))
 
+        def perform_threaded_family_delete():
+            self.log.info("Start clean up of CrowdStrike malware family indicator events from MISP.")
+            with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
+                executor.map(self.misp_client.delete_event, self.misp_client.search(eventinfo="Malware Family:%"))
+            
+
         display_banner(banner=DELETE_BANNER,
                        logger=self.log,
                        fallback="BEGIN DELETE",
                        hide_cool_banners=self.import_settings["no_banners"]
                        )
-        #self.log.info(DELETE_BANNER)
+        if clean_actors:
+            for adv_type in [a for a in dir(Adversary) if "__" not in a]:
+                adv_time = datetime.datetime.now().timestamp()
+                perform_threaded_delete(tag_to_hunt=f"CrowdStrike:adversary:branch: {adv_type}",
+                                        tag_type=f"Adversary ({adv_type})",
+                                        #skip_tags=get_feed_tags(do_not=True),
+                                        do_min=True
+                                        )
+                adv_run_time = float(datetime.datetime.now().timestamp() - adv_time)
+                self.log.info("Completed deletion of CrowdStrike %s adversaries within MISP in %s seconds",
+                              adv_type,
+                              format_seconds(adv_run_time)
+                              )
 
         if clean_reports:
             for report_type in [r for r in dir(ReportType) if "__" not in r]:
-                perform_threaded_delete(tag_to_hunt=f"CrowdStrike:report:type: {report_type}", tag_type=f"{report_type} report")
+                rep_time = datetime.datetime.now().timestamp()
+                perform_threaded_delete(tag_to_hunt=f"CrowdStrike:report:type: {report_type}", tag_type=f"{report_type} report", do_min=True)
+                rep_run_time = datetime.datetime.now().timestamp() - rep_time
+                self.log.info("Completed deletion of CrowdStrike %s reports within MISP in %s seconds",
+                              report_type,
+                              format_seconds(rep_run_time)
+                              )
 
         if clean_indicators:
-                for ind_type in INDICATOR_TYPES:
-                    perform_threaded_delete(
-                        tag_to_hunt=f"CrowdStrike:indicator:type: {ind_type.upper()}",
-                        tag_type=f"{ind_type.upper()} indicator"
-                        )
-
-        if clean_actors:
-            for adv_type in [a for a in dir(Adversary) if "__" not in a]:
-                perform_threaded_delete(tag_to_hunt=f"CrowdStrike:adversary:branch: {adv_type}", tag_type=f"Adversary ({adv_type})")
+            ind_time = datetime.datetime.now().timestamp()
+            for ind_type in INDICATOR_TYPES:
+                perform_threaded_delete(
+                    tag_to_hunt=f"CrowdStrike:indicator:type: {ind_type.upper()}",
+                    tag_type=f"{ind_type.upper()} indicator"
+                    )
+            for indy in [i for i in dir(IndicatorType) if "__" not in i]:
+                perform_threaded_delete(
+                    tag_to_hunt=f"CrowdStrike:indicator:feed:type: {indy}",
+                    tag_type=f"{IndicatorType[indy].value} indicator type",
+                    do_min=True
+                )
+            perform_threaded_family_delete()
+            ind_run_time = datetime.datetime.now().timestamp() - ind_time
+            self.log.info("Completed deletion of CrowdStrike indicators within MISP in %s seconds", format_seconds(ind_run_time))
 
         self.log.info("Finished cleaning up CrowdStrike related events from MISP, %i events deleted.", self.misp_client.deleted_event_count)
             
@@ -185,24 +231,80 @@ class CrowdstrikeToMISPImporter:
                        fallback=None,
                        hide_cool_banners=self.import_settings["no_banners"]
                        )
-        #self.log.info(IMPORT_BANNER)
+        run_start_time = datetime.datetime.now().timestamp()
         if self.config["actors"]:
+            import_start_time = datetime.datetime.now().timestamp()
             self.actors_importer.process_actors(actors_days_before, self.event_ids)
+            actors_time = f"{datetime.datetime.now().timestamp() - import_start_time:.2f}"
+            self.log.info("Completed import of adversaries into MISP in %s seconds", format_seconds(actors_time))
         if self.config["reports"]:
+            import_start_time = datetime.datetime.now().timestamp()
             self.reports_importer.process_reports(reports_days_before, self.event_ids)
+            reports_time = datetime.datetime.now().timestamp() - import_start_time
+            self.log.info("Completed import of reports into MISP in %s seconds", format_seconds(reports_time))
         if self.config["indicators"]:
-            self.indicators_importer.process_indicators(indicators_minutes_before, self.event_ids)
+            #self.indicators_importer.process_indicators(indicators_minutes_before, self.event_ids, self.report_ids)
+            import_start_time = datetime.datetime.now().timestamp()
+            self.indicators_importer.process_indicators(indicators_minutes_before)
+            indicators_time = datetime.datetime.now().timestamp() - import_start_time
+            self.log.info("Completed import of indicators into MISP in %s seconds", format_seconds(indicators_time))
+
+        total_run_time = datetime.datetime.now().timestamp() - run_start_time
+        self.log.info("Import process completed in %s seconds", format_seconds(total_run_time))
 
 
-    def import_from_misp(self, tags, do_reports: bool = False):
+    def attribute_search(self, att_name, att_type):
+        """Search for indicators of a specific type and return a clean dictionary of the indicator and UUID."""
+        clean_result = None
+        try:
+            result = self.misp_client.search(controller="attributes", type_attribute=att_type, include_event_uuid=True)
+            clean_result = {
+                res.get("value"): {
+                    "event_uuid": res.get("event_uuid"),
+                    "uuid": res.get("uuid")
+                }
+                for res in result.get("Attribute")
+            }
+            self.log.info("Retrieved %s %s indicators from MISP.", thousands(len(clean_result)), att_name)
+        except (SSLError, ConnectionError):
+            self.log.warning("Unable to retrieve %s attributes for duplicate checking.", att_type)
+
+        return clean_result
+
+
+    def threaded_report_search(self, evts, lock):
+        returned = 0
+        if evts.get("info"):
+            with lock:
+                self.event_ids[evts.get("info").split(" ")[0]] = evts["uuid"]
+                self.report_ids[evts.get("info").split(" ")[0]] = {
+                    "uuid": evts["uuid"],
+                    "attributes": evts.get("attributes")
+                }
+            returned = len(self.report_ids[evts.get("info").split(" ")[0]].get("attributes", 0))
+
+        return returned
+
+
+    def import_from_misp(self, tags, style: str, do_reports: bool = False):
         """Retrieve existing MISP events."""
         events = self.misp_client.search_index(tags=tags)
         for event in events:
             if event.get('info'):
-                if not do_reports:
-                    self.event_ids[event.get('info')] = True
-                else:
-                    self.event_ids[event.get("info").split(" ")[0].split("-")[1]] = True
+                if style == "actors":
+                    self.actor_ids[event.get('info')] = event["uuid"]
+                    self.event_ids[event.get('info')] = event["uuid"]
+                elif style == "reports":
+                    with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
+                        executor.map(self.threaded_report_search, )
+                    self.event_ids[event.get("info").split(" ")[0]] = event["uuid"]
+                    self.report_ids[event.get("info").split(" ")[0]] = {
+                        "uuid": event["uuid"],
+                #        "attributes": self.misp_client.search(controller="attributes", uuid=event["uuid"])
+                    }
 
+                elif style == "indicators":
+                    self.event_ids[event.get('info')] = event["uuid"]
+                    self.indicator_ids[event.get('info')] = event["uuid"]
             else:
                 self.log.warning("Event %s missing info field.", event)
