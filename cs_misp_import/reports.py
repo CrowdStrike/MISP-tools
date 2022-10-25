@@ -162,7 +162,12 @@ class ReportsImporter:
                         self.log.error("MISP Error: Cannot create %s report.", report_name)
                     else:
                         self.log.debug("%s report created.", report_name)
-                    returned[rpt_id] = event.uuid
+                    try:
+                        returned[rpt_id] = event.uuid
+                    except AttributeError as wrong_format:
+                        # Not coming back as a PyMISP object
+                        returned[rpt_id] = event.get("uuid", None)
+
 
                 else:
                     self.log.warning("Failed to create a MISP event for report %s.", report)
