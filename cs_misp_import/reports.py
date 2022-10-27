@@ -508,7 +508,8 @@ class ReportsImporter:
             if "Q" in report_id.upper():
                 report_type = "Quarterly Report"
             event.add_tag(f"CrowdStrike:report:type: {report_type_id}")
-            event.add_tag(f"CrowdStrike:report: {report_type.upper()}")
+            if report_type:
+                event.add_tag(f"CrowdStrike:report: {report_type.upper()}")
             # First / Last seen timestamps
             seen = {}
             if details.get("created_date"):
