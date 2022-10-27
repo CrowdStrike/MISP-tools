@@ -14,3 +14,4 @@ class ReportType(Enum):
     CSMR = "Monthly Report"
     CSTA = "Threat Assessment"
     CSWR = "Weekly Report"
+    TEST = "Test Report"
