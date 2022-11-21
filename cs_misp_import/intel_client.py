@@ -59,7 +59,9 @@ class IntelAPIClient:
             offset += resp_json.get('meta', {}).get('pagination', {}).get('limit', 5000)
             first_run = False
 
-            reports.extend(resp_json.get('resources', []))
+            resources = resp_json.get('resources', [])
+            if resources is not None and len(resources) > 0:
+                reports.extend(resp_json.get('resources', []))
 
         return reports
 
