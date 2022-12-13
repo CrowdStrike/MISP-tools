@@ -106,6 +106,8 @@ class IndicatorsImporter:
         clean_result = None
         try:
             result = self.misp.search(controller="attributes", type_attribute=att_type, include_event_uuid=True)
+            if not result:
+                return {}
             clean_result = {
                 res.get("value"): {
                     "uuid": res.get("uuid"),
@@ -129,9 +131,12 @@ class IndicatorsImporter:
                 for at, atn in INDICATOR_TYPES.items() if atn
 
             }
+            if not futures:
+                return
             for fut in futures:
-                retrieved_indicators.update(fut.result())
-        
+                        if fut and retrieved_indicators:
+                            retrieved_indicators.update(fut.result())
+
         non_report_ids = [fe.uuid for fe in self.feeds]
         for ret_ind, ind_detail in retrieved_indicators.items():
             if ind_detail.get("event_uuid") not in non_report_ids:
@@ -164,7 +169,7 @@ class IndicatorsImporter:
                     line = ts_file.readline()
                     start_get_events = int(line)
 
-        # Calculate this moment in case there are no indicators returned. Set 
+        # Calculate this moment in case there are no indicators returned. Set
         # this timestamp here in case indicators show up while we are searching.
         time_send_request = datetime.now()
 
@@ -267,9 +272,9 @@ class IndicatorsImporter:
                                 break
                             else:
                                 pos += 1
-                        
+
                         refreshed = MISPEvent()
-                        self.log.debug("Refreshing memory logged event: %s", evt.info)                            
+                        self.log.debug("Refreshing memory logged event: %s", evt.info)
                         confirm = 0
                         for newer in self.misp.search(uuid=evt.uuid):  # Should only ever return one
                             refreshed.from_dict(**newer)
@@ -309,6 +314,8 @@ class IndicatorsImporter:
                 executor.submit(self.indicator_thread, cur_ind, thread_lock)
                 for cur_ind in batch_to_process
             }
+            if not futures:
+                return
             for fut in futures:
                 total_this_round += 1
                 if fut.result().get("feed"):
@@ -343,6 +350,10 @@ class IndicatorsImporter:
                 executor.submit(self.event_thread, feed_data["object"], feed_data["count"], thread_lock)
                 for feed_data in dirty.values()
             }
+
+            if not futures:
+                return
+
             for fut in futures:
                 saved.append(fut.result())
 
@@ -370,7 +381,7 @@ class IndicatorsImporter:
             # and remove the successful saves from our laundry basket
             for cleaned in self.clean_laundry(len(batch), all_successes, f_failures, m_failures):
                 self.dirty_feeds.pop(cleaned)
-            
+
             self.log.debug("Processed %s%s indicators for import into MISP.",
                            "another " if pushed_so_far > 0 else "",
                            thousands(len(batch))
@@ -410,7 +421,7 @@ class IndicatorsImporter:
             tagging_list = tag_attribute_targets(ind, tagging_list)
 
             did_threat, tagging_list = tag_attribute_threats(ind, tagging_list)
-            
+
             with t_lock:
                 # Lock the thread since we're sharing the missing galaxy list
                 tagging_list, self.MISSING_GALAXIES = tag_attribute_family(
@@ -546,7 +557,7 @@ class IndicatorsImporter:
                 self.skipped += 1
         else:
             if indicator_value:
-                indicator_object = gen_indicator(indicator, [])
+                indicator_object = gen_indicator(indicator, self.settings["CrowdStrike"]["indicators_tags"].split(","))
                 if indicator_object:
                     if isinstance(indicator_object, MISPObject):
                         self.add_indicator_obj(indicator_object, event, mal_event)
@@ -613,6 +624,6 @@ class IndicatorsImporter:
         if self.MISSING_GALAXIES:
             for _galaxy in self.MISSING_GALAXIES:
                 self.log.warning("No galaxy mapping found for %s malware family.", _galaxy)
-        
+
             with open(self.galaxy_miss_file, "w", encoding="utf-8") as miss_file:
                 miss_file.write("\n".join(self.MISSING_GALAXIES))
