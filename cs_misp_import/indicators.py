@@ -134,8 +134,8 @@ class IndicatorsImporter:
             if not futures:
                 return
             for fut in futures:
-                        if fut and retrieved_indicators:
-                            retrieved_indicators.update(fut.result())
+                if fut and retrieved_indicators:
+                    retrieved_indicators.update(fut.result())
 
         non_report_ids = [fe.uuid for fe in self.feeds]
         for ret_ind, ind_detail in retrieved_indicators.items():
