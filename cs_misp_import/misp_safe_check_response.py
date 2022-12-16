@@ -45,7 +45,7 @@ logger.propagate = False
 
 def safe_check_response(self, response: requests.Response, lenient_response_type: bool = False, expect_json: bool = False) -> Union[Dict, str]:
     """Check if the response from the server is not an unexpected error"""
-    if len(response.text) == 0:
+    if not len(response.text):
         return {}
     if response.status_code >= 500:
         # headers_without_auth = {i: response.request.headers[i] for i in response.request.headers if i != 'Authorization'}
