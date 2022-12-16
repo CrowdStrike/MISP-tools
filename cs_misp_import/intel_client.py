@@ -60,7 +60,7 @@ class IntelAPIClient:
             first_run = False
 
             resources = resp_json.get('resources', [])
-            if resources is not None and len(resources) > 0:
+            if resources:
                 reports.extend(resp_json.get('resources', []))
 
         return reports
