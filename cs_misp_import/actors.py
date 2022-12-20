@@ -178,14 +178,14 @@ class ActorsImporter:
             event.add_tag(f"CrowdStrike:adversary: {actor_name}")
 
             if details.get('url'):
-                event.add_attribute('link', details.get('url'))
+                event.add_attribute('link', details.get('url'), disable_correlation=True)
 
             to_reference: list[MISPObject] = []
             adversary_detail = False
             if details.get('description'):
                 internal = self.create_internal_reference()
                 internal.add_attribute("identifier", "Description", disable_correlation=True)
-                desc_id = internal.add_attribute('comment', details.get('description'))
+                desc_id = internal.add_attribute('comment', details.get('description'), disable_correlation=True)
                 adversary_detail = True
 
             act_type = details.get("actor_type", None)
@@ -198,7 +198,7 @@ class ActorsImporter:
                 #at_id = act_type_object.add_attribute("identifier", "Actor type", disable_correlation=True)
                 act_type_object.add_attribute("identifier", "Actor type", disable_correlation=True)
                 #sum_id = act_type_object.add_attribute('comment', act_type.title())
-                act_type_object.add_attribute('comment', act_type.title())
+                act_type_object.add_attribute('comment', act_type.title(), disable_correlation=True)
                 event.add_tag(f"CrowdStrike:adversary:type: {act_type.upper()}")
                 to_reference.append(event.add_object(act_type_object))
                 #event.add_attribute_tag(f"CrowdStrike:adversary:actor-type: {act_type.upper()}", sum_id.uuid)
@@ -219,7 +219,7 @@ class ActorsImporter:
                 #mot_id = motive_object.add_attribute("identifier", "Motivation", disable_correlation=True)
                 motive_object.add_attribute("identifier", "Motivation", disable_correlation=True)
                 #sum_id = motive_object.add_attribute('comment', motive)
-                motive_object.add_attribute('comment', motive)
+                motive_object.add_attribute('comment', motive, disable_correlation=True)
                 to_reference.append(event.add_object(motive_object))
                 #event.add_attribute_tag(f"CrowdStrike:adversary:motivation: {actor_name}", mot_id.uuid)
                 #event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: MOTIVATION", sum_id.uuid)
@@ -242,7 +242,7 @@ class ActorsImporter:
                     #cp_id = cap_object.add_attribute("identifier", "Capability", disable_correlation=True)
                     cap_object.add_attribute("identifier", "Capability", disable_correlation=True)
                     #sum_id = cap_object.add_attribute('comment', cap_val)
-                    cap_object.add_attribute('comment', cap_val)
+                    cap_object.add_attribute('comment', cap_val, disable_correlation=True)
                     event.add_tag(f"CrowdStrike:adversary:capability: {cap_val.upper()}")
                     to_reference.append(event.add_object(cap_object))
                     #event.add_attribute_tag(f"CrowdStrike:adversary:{slug}:capability: {cap_val.upper()}", sum_id.uuid)
@@ -278,7 +278,7 @@ class ActorsImporter:
                     objective_object = MISPObject("internal-reference")
                     objective_object.add_attribute("type", "Adversary detail", disable_correlation=True)
                     objective_object.add_attribute("identifier", "Objectives", disable_correlation=True)
-                    sum_id = objective_object.add_attribute("comment", objectives.replace("\t", "").replace("&nbsp;", ""))
+                    sum_id = objective_object.add_attribute("comment", objectives.replace("\t", "").replace("&nbsp;", ""), disable_correlation=True)
                     to_reference.append(event.add_object(objective_object))
                     event.add_attribute_tag(f"CrowdStrike:adversary:objectives: {actor_name}", sum_id.uuid)
                     event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: OBJECTIVES", sum_id.uuid)
@@ -287,7 +287,7 @@ class ActorsImporter:
                     candc_object = MISPObject("internal-reference")
                     candc_object.add_attribute("type", "Adversary detail", disable_correlation=True)
                     candc_object.add_attribute("identifier", "Command and Control", disable_correlation=True)
-                    sum_id = candc_object.add_attribute("comment", candc.replace("\t", "").replace("&nbsp;", ""))
+                    sum_id = candc_object.add_attribute("comment", candc.replace("\t", "").replace("&nbsp;", ""), disable_correlation=True)
                     to_reference.append(event.add_object(candc_object))
                     event.add_attribute_tag(f"CrowdStrike:adversary:command-and-control: {actor_name}", sum_id.uuid)
                     event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: COMMAND AND CONTROL", sum_id.uuid)
@@ -296,7 +296,7 @@ class ActorsImporter:
                     delivery_object = MISPObject("internal-reference")
                     delivery_object.add_attribute("type", "Adversary detail", disable_correlation=True)
                     delivery_object.add_attribute("identifier", "Delivery", disable_correlation=True)
-                    sum_id = delivery_object.add_attribute("comment", delivery.replace("\t", "").replace("&nbsp;", ""))
+                    sum_id = delivery_object.add_attribute("comment", delivery.replace("\t", "").replace("&nbsp;", ""), disable_correlation=True)
                     to_reference.append(event.add_object(delivery_object))
                     event.add_attribute_tag(f"CrowdStrike:adversary:delivery: {actor_name}", sum_id.uuid)
                     event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: DELIVERY", sum_id.uuid)
@@ -307,7 +307,7 @@ class ActorsImporter:
                         exploitation_object.add_attribute("type", "Adversary detail", disable_correlation=True)
                         exploitation_object.add_attribute("identifier", "Exploitation", disable_correlation=True)
                         exploits = exploitation.replace("\t", "").replace("&nbsp;", "").split("\r\n")
-                        ex_id = exploitation_object.add_attribute("comment", exploitation.replace("\t", "").replace("&nbsp;", ""))
+                        ex_id = exploitation_object.add_attribute("comment", exploitation.replace("\t", "").replace("&nbsp;", ""), disable_correlation=True)
                         to_reference.append(event.add_object(exploitation_object))
                         event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: EXPLOITATION", ex_id.uuid)
                         event.add_attribute_tag(f"CrowdStrike:adversary:exploitation: {actor_name}", ex_id.uuid)
@@ -325,7 +325,7 @@ class ActorsImporter:
                     installation_object = MISPObject("internal-reference")
                     installation_object.add_attribute("type", "Adversary detail", disable_correlation=True)
                     installation_object.add_attribute("identifier", "Installation", disable_correlation=True)
-                    sum_id = installation_object.add_attribute("comment", installation.replace("\t", "").replace("&nbsp;", ""))
+                    sum_id = installation_object.add_attribute("comment", installation.replace("\t", "").replace("&nbsp;", ""), disable_correlation=True)
                     to_reference.append(event.add_object(installation_object))
                     event.add_attribute_tag(f"CrowdStrike:adversary:installation: {actor_name}", sum_id.uuid)
                     event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: INSTALLATION", sum_id.uuid)
@@ -334,7 +334,7 @@ class ActorsImporter:
                     reconnaissance_object = MISPObject("internal-reference")
                     reconnaissance_object.add_attribute("type", "Adversary detail", disable_correlation=True)
                     reconnaissance_object.add_attribute("identifier", "Reconnaissance", disable_correlation=True)
-                    sum_id = reconnaissance_object.add_attribute("comment", reconnaissance.replace("\t", "").replace("&nbsp;", ""))
+                    sum_id = reconnaissance_object.add_attribute("comment", reconnaissance.replace("\t", "").replace("&nbsp;", ""), disable_correlation=True)
                     to_reference.append(event.add_object(reconnaissance_object))
                     event.add_attribute_tag(f"CrowdStrike:adversary:reconnaissance: {actor_name}", sum_id.uuid)
                     event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: RECONNAISSANCE", sum_id.uuid)
@@ -343,7 +343,7 @@ class ActorsImporter:
                     weaponization_object = MISPObject("internal-reference")
                     weaponization_object.add_attribute("type", "Adversary detail", disable_correlation=True)
                     weaponization_object.add_attribute("identifier", "Weaponization", disable_correlation=True)
-                    sum_id = weaponization_object.add_attribute("comment", weaponization.replace("\t", "").replace("&nbsp;", ""))
+                    sum_id = weaponization_object.add_attribute("comment", weaponization.replace("\t", "").replace("&nbsp;", ""), disable_correlation=True)
                     to_reference.append(event.add_object(weaponization_object))
                     event.add_attribute_tag(f"CrowdStrike:adversary:weaponization: {actor_name}", sum_id.uuid)
                     event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: WEAPONIZATION", sum_id.uuid)
@@ -390,7 +390,7 @@ class ActorsImporter:
                 actor_att["first_seen"] = actor.get("last_activity_date")
                 actor_att["last_seen"] = actor.get("first_activity_date")
 
-            ta = event.add_attribute(**actor_att)
+            ta = event.add_attribute(**actor_att, disable_correlation=True)
             actor_split = actor_name.split(" ")
             actor_branch = actor_split[1] if len(actor_split) > 1 else actor_split[0]
             event.add_attribute_tag(f"CrowdStrike:adversary:branch: {actor_branch}", ta.uuid)
@@ -402,7 +402,7 @@ class ActorsImporter:
                     known_as_object = MISPObject('organization')
                     aliased = [a.strip() for a in actor.get("known_as").split(",")]
                     for alias in aliased:
-                        kao = known_as_object.add_attribute('alias', alias)
+                        kao = known_as_object.add_attribute('alias', alias, disable_correlation=True)
                         kao.add_tag(f"CrowdStrike:adversary:branch: {actor_branch}")
                         kao.add_tag(f"CrowdStrike:adversary:{slug}:alias: {alias.upper()}")
                         # Tag the aliases to the threat-actor attribution
@@ -411,7 +411,7 @@ class ActorsImporter:
                 for orig in actor.get("origins", []):
                     locale = orig.get("value")
                     if locale:
-                        kar = event.add_attribute("country-of-residence", locale)
+                        kar = event.add_attribute("country-of-residence", locale, disable_correlation=True)
                         event.add_attribute_tag(f"CrowdStrike:adversary:{slug}:origin: {locale.upper()}", kar.uuid)
                         event.add_attribute_tag(f"CrowdStrike:adversary:origin: {locale.upper()}", kar.uuid)
                         event.add_tag(f"CrowdStrike:adversary:origin: {locale.upper()}")
@@ -427,7 +427,7 @@ class ActorsImporter:
                     #if region:
                     if not victim:
                         victim = MISPObject("victim")
-                    vic = victim.add_attribute('regions', region)
+                    vic = victim.add_attribute('regions', region, disable_correlation=True)
                     vic.add_tag(f"CrowdStrike:target:location: {region.upper()}")
                     vic.add_tag(f"CrowdStrike:adversary:{slug}:target:location: {region.upper()}")
                     #vic.add_tag(f"CrowdStrike:adversary:{slug}:target: LOCATION")
@@ -439,7 +439,7 @@ class ActorsImporter:
                     #if sector:
                     if not victim:
                         victim = MISPObject("victim")
-                    vic = victim.add_attribute('sectors', sector)
+                    vic = victim.add_attribute('sectors', sector, disable_correlation=True)
                     vic.add_tag(f"CrowdStrike:adversary:{slug}:target:sector: {sector.upper()}")
                     #vic.add_tag(f"CrowdStrike:adversary:{slug}:target: SECTOR")
                     vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
