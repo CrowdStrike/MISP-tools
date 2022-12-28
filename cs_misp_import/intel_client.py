@@ -1,6 +1,8 @@
 import logging
 from functools import reduce
 from .helper import thousands
+from .report_type import ReportType
+from .adversary import Adversary
 try:
     from falconpy import Intel, __version__ as FALCONPY_VERSION
 except ImportError as no_falconpy:
@@ -30,11 +32,11 @@ class IntelAPIClient:
         
         ua = f"crowdstrike-misp-import/{MISPImportVersion}"
         self.falcon = Intel(client_id=client_id, client_secret=client_secret, base_url=crowdstrike_url, ssl_verify=use_ssl, user_agent=ua)
-        self.valid_report_types = ["csa", "csir", "csit", "csgt", "csdr", "csia", "csmr", "csta", "cswr"]
+        self.valid_report_types = [x.name.lower() for x in ReportType]
         self.request_size_limit = api_request_max
         self.log = logger
 
-    def get_reports(self, start_time):
+    def get_reports(self, start_time, report_filter: str = None):
         """Get all the reports that were updated after a certain moment in time (UNIX).
 
         :param start_time: unix time of the oldest report you want to pull
@@ -44,10 +46,23 @@ class IntelAPIClient:
         total = 0
         first_run = True
 
+        filter_string = f'last_modified_date:>{start_time}'
+        if report_filter:
+            rcnt = 0
+            for rpt_type in report_filter.split(","):
+                if rpt_type.lower() in self.valid_report_types:
+                    self.log.info("Retrieving CrowdStrike %s reports", rpt_type.upper())
+                    filter_string = f"{filter_string}{'+(' if not rcnt else ','}name:*'{rpt_type.upper()}-*'"
+                rcnt += 1
+            filter_string = f"{filter_string})"
+        else:
+            self.log.info("Retrieving all available reports")
+
         while offset < total or first_run:
             resp_json = self.falcon.query_report_entities(
                 sort="last_modified_date.asc",
-                filter=f'last_modified_date:>{start_time}',
+                filter=filter_string,
+                fields="__full__",
                 limit=self.request_size_limit,
                 offset=offset
                 )
@@ -107,7 +122,7 @@ class IntelAPIClient:
                 break
             start_time = last_marker
 
-    def get_actors(self, start_time):
+    def get_actors(self, actor_filter: str = None):
         """Get all the actors that were updated after a certain moment in time (UNIX).
 
         :param start_time: unix time of the oldest actor you want to pull
@@ -116,11 +131,19 @@ class IntelAPIClient:
         offset = 0
         total = 0
         first_run = True
-
+        filter_string = None
+        if actor_filter:
+            filter_string = ""
+            for act_type in actor_filter.split(","):
+                if act_type.upper() in [x.name for x in Adversary]:
+                    self.log.info("Retrieving %s branch adversaries", act_type.title())
+                    filter_string = f"{filter_string if filter_string else ''}{',' if filter_string else ''}name:*'*{act_type.upper()}'"
+        else:
+            self.log.info("Retrieving all adversaries")
         while offset < total or first_run:
             resp_json = self.falcon.query_actor_entities(
                 sort="last_modified_date.asc",
-#                filter=f'last_modified_date:>{start_time}',  # Always retrieve all actors
+                filter=filter_string,
                 limit=self.request_size_limit,
                 offset=offset
                 )
@@ -130,7 +153,6 @@ class IntelAPIClient:
             total = resp_json.get('meta', {}).get('pagination', {}).get('total', 0)
             offset += resp_json.get('meta', {}).get('pagination', {}).get('limit', 5000)
             first_run = False
-
 
             actors.extend(resp_json.get('resources', []))
 
