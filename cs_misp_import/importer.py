@@ -1,6 +1,8 @@
 import datetime
 import logging
 import concurrent.futures
+from copy import deepcopy
+from threading import Lock
 from requests.exceptions import ConnectionError, SSLError
 from .adversary import Adversary
 from .report_type import ReportType
@@ -49,7 +51,8 @@ class CrowdstrikeToMISPImporter:
                                 import_settings["misp_enable_ssl"],
                                 False,
                                 max_threads=import_settings["max_threads"],
-                                logger=logger
+                                logger=logger,
+                                cs_org_id=import_settings["crowdstrike_org_uuid"]
                                 )
         self.config = provided_arguments
         self.settings = settings
@@ -64,7 +67,7 @@ class CrowdstrikeToMISPImporter:
         self.report_ids = {}
         self.actor_ids = {}
         self.indicator_ids = {}
-        self.org_id = settings["MISP"]["crowdstrike_org_uuid"]
+        self.org_id = import_settings["crowdstrike_org_uuid"]
 
         if self.config["actors"]:
             self.actors_importer = ActorsImporter(self.misp_client,
@@ -104,25 +107,35 @@ class CrowdstrikeToMISPImporter:
         #   Adversaries: "CrowdStrike:adversary:branch: {ADVERSARY TYPE}"
         #   Indicators: "CrowdStrike:indicator:type: {INDICATOR TYPE}"
         #   Reports: "CrowdStrike:reports:type: {REPORT TYPE}"
-        #
-        # Passing in a list of tags to the search_index solution is pulling too many matches
-        # back in environments with large numbers of events.
+
         def perform_threaded_delete(tag_to_hunt: str, tag_type: str, skip_tags: list = None, do_min: bool = False):
             if skip_tags == None:
                 skip_tags = []
             self.log.info("Start clean up of CrowdStrike %s events from MISP.", tag_type)
-            #qry = self.misp_client.build_complex_query(or_parameters=tag_to_hunt)
             params = {
-                #"tags": [tag_to_hunt].extend(skip_tags)
+                "page": 0,
+                "limit": 500,  # Move this magic number to the INI
                 "tags": [tag_to_hunt],
-                "org": self.org_id
+                "org": self.org_id   # Limit to CS events only
             }
             if not self.import_settings["force"] and not do_min:
                 params["minimal"] = True
-            with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
-                #executor.map(self.misp_client.delete_event, self.misp_client.search_index(tags=tags, minimal=True))
-                #executor.map(self.misp_client.delete_event, self.misp_client.search(tag=qry, minimal=True))  # seems to bog down
-                executor.map(self.misp_client.delete_event, self.misp_client.search_index(**params))
+            running = True
+            lock = Lock()
+            removed = 0
+            while running:
+                delete_batch = self.misp_client.search_index(**params)
+                if delete_batch:
+                    with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
+                        futures = {
+                            executor.submit(self.misp_client.delete_event, event, lock=lock)
+                            for event in delete_batch
+                        }
+                        for fut in futures:
+                            if fut.result():
+                                removed += 1
+                else:
+                    running = False
 
         def perform_threaded_family_delete():
             self.log.info("Start clean up of CrowdStrike malware family indicator events from MISP.")
@@ -150,7 +163,14 @@ class CrowdstrikeToMISPImporter:
                               )
 
         if clean_reports:
-            for report_type in [r for r in dir(ReportType) if "__" not in r]:
+            report_list = [r.name for r in ReportType]
+            if self.import_settings["type"]:
+                reports = deepcopy(report_list)
+                report_list = []
+                for rpt_type in str(self.import_settings["type"]).split(","):
+                    if rpt_type.upper() in reports:
+                        report_list.append(rpt_type.upper())
+            for report_type in report_list:
                 rep_time = datetime.datetime.now().timestamp()
                 perform_threaded_delete(tag_to_hunt=f"CrowdStrike:report:type: {report_type}", tag_type=f"{report_type} report", do_min=True)
                 rep_run_time = datetime.datetime.now().timestamp() - rep_time
@@ -198,25 +218,39 @@ class CrowdstrikeToMISPImporter:
 
     def clean_old_crowdstrike_events(self, max_age):
         """Remove events from MISP that are dated greater than the specified max_age value."""
-        # TODO: Revisions required, this logic will no longer work as it is written.
         display_banner(banner=DELETE_BANNER,
                        logger=self.log,
                        fallback="BEGIN DELETE",
                        hide_cool_banners=self.import_settings["no_banners"]
                        )
-        #self.log.info(DELETE_BANNER)
         if max_age is not None:
-            timestamp_max = int((datetime.date.today() - datetime.timedelta(max_age)).strftime("%s"))
-            events = self.misp_client.search(tags=["CrowdStrike:report%",
-                                                   "CrowdStrike:indicator%",
-                                                   "CrowdStrike:adversary%"
-                                                   ],
-                                             timestamp=[0, timestamp_max],
-                                             org=self.org_id
-                                             )
-            with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
-                executor.map(self.misp_client.delete_event, events)
-            self.log.info("Finished cleaning up CrowdStrike related events from MISP.")
+            date_to = (datetime.datetime.now() - datetime.timedelta(days=max_age+1)).strftime("%Y-%m-%d")
+            params = {
+                "page": 0,
+                "limit": 500,   # Move magic number to INI file
+                "tags": ["CrowdStrike:report%",
+                         "CrowdStrike:indicator%",
+                         "CrowdStrike:adversary%"
+                         ],
+                "date_to": date_to
+            }
+            running = True
+            lock = Lock()
+            removed = 0
+            while running:
+                delete_batch = self.misp_client.search(**params)
+                if delete_batch:
+                    with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
+                        futures = {
+                            executor.submit(self.misp_client.delete_event, event, lock=lock)
+                            for event in delete_batch
+                        }
+                        for _ in futures:
+                            removed += 1
+                else:
+                    running = False
+
+            self.log.info("Finished cleaning up %s CrowdStrike related events from MISP.", removed)
 
     def import_from_crowdstrike(self,
                                 reports_days_before: int = 1,
