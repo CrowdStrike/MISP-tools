@@ -51,12 +51,12 @@ class IntelAPIClient:
             rcnt = 0
             for rpt_type in report_filter.split(","):
                 if rpt_type.lower() in self.valid_report_types:
-                    self.log.info("Retrieving CrowdStrike %s reports", rpt_type.upper())
+                    self.log.info("Retrieving CrowdStrike %s reports.", rpt_type.upper())
                     filter_string = f"{filter_string}{'+(' if not rcnt else ','}name:*'{rpt_type.upper()}-*'"
                 rcnt += 1
             filter_string = f"{filter_string})"
         else:
-            self.log.info("Retrieving all available reports")
+            self.log.info("Retrieving all available reports.")
 
         while offset < total or first_run:
             resp_json = self.falcon.query_report_entities(
@@ -136,10 +136,10 @@ class IntelAPIClient:
             filter_string = ""
             for act_type in actor_filter.split(","):
                 if act_type.upper() in [x.name for x in Adversary]:
-                    self.log.info("Retrieving %s branch adversaries", act_type.title())
+                    self.log.info("Retrieving %s branch adversaries.", act_type.title())
                     filter_string = f"{filter_string if filter_string else ''}{',' if filter_string else ''}name:*'*{act_type.upper()}'"
         else:
-            self.log.info("Retrieving all adversaries")
+            self.log.info("Retrieving all adversaries.")
         while offset < total or first_run:
             resp_json = self.falcon.query_actor_entities(
                 sort="last_modified_date.asc",
