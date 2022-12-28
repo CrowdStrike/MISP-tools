@@ -149,7 +149,14 @@ class CrowdstrikeToMISPImporter:
                        hide_cool_banners=self.import_settings["no_banners"]
                        )
         if clean_actors:
-            for adv_type in [a for a in dir(Adversary) if "__" not in a]:
+            adv_list = [a.name for a in Adversary]
+            if self.import_settings["type"]:
+                advs = deepcopy(adv_list)
+                adv_list = []
+                for adv_type in str(self.import_settings["type"]).split(","):
+                    if adv_type.upper() in advs:
+                        adv_list.append(adv_type.upper())
+            for adv_type in adv_list:
                 adv_time = datetime.datetime.now().timestamp()
                 perform_threaded_delete(tag_to_hunt=f"CrowdStrike:adversary:branch: {adv_type}",
                                         tag_type=f"Adversary ({adv_type})",
