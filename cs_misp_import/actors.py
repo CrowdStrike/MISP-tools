@@ -123,7 +123,7 @@ class ActorsImporter:
                     start_get_events = int(line)
         self.log.info(f"Start importing CrowdStrike Adversaries as events into MISP (past {actors_days_before} days).")
         time_send_request = datetime.datetime.now()
-        actors = self.intel_api_client.get_actors(start_get_events)
+        actors = self.intel_api_client.get_actors(self.import_settings["type"])
         self.log.info("Got %i adversaries from the Crowdstrike Intel API.", len(actors))
 
         if len(actors) == 0:
