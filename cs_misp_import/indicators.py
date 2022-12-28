@@ -505,7 +505,7 @@ class IndicatorsImporter:
         returned = 0
         try:
             self.process_attribute_tags(  # May be faster to pass the tags in as a list and then add_attribute
-                ind, evt.add_attribute(ind_obj.type, ind_obj.value, **when).uuid, [], tlock, evt
+                ind, evt.add_attribute(ind_obj.type, ind_obj.value, disable_correlation=True, **when).uuid, [], tlock, evt
                 )
             returned = 1
             self.log.debug("Added %s indicators to event %s", ind_obj.value, evt.info)
