@@ -7,6 +7,16 @@ from .indicator_type import IndicatorType
 from .adversary import Adversary
 from .helper import confirm_boolean_param
 from .confidence import MaliciousConfidence
+import concurrent.futures
+from threading import Lock
+
+def convert_event(fam: dict, logg: Logger):
+    ev = MISPEvent()
+    ev.from_dict(**fam)
+    if ev.info:
+        logg.info(f"Processed {ev.info}")
+    return ev
+
 
 def retrieve_family_events(misp_client: ExpandedPyMISP,
                            feed_list: list,
@@ -20,10 +30,17 @@ def retrieve_family_events(misp_client: ExpandedPyMISP,
 
     log_util.info("Retrieved %i CrowdStrike indicator malware family events from MISP.", len(families))
 
-    for family in families:
-        ev = MISPEvent()
-        ev.from_dict(**family)
-        feed_list.append(ev)
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {
+            executor.submit(convert_event, family, log_util) for family in families
+        }
+        for fut in futures:
+            feed_list.append(fut.result())
+
+    # for family in families:
+    #     ev = MISPEvent()
+    #     ev.from_dict(**family)
+    #     feed_list.append(ev)
     return feed_list
 
 
