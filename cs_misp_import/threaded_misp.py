@@ -3,13 +3,14 @@ import requests
 import time
 import os
 
+# from threading import List, Union, Dict
 from .misp_safe_check_response import safe_check_response
 try:
     import pymisp
     pymisp.api.everything_broken = {"key": ""}
     pymisp.api.PyMISP._check_response = safe_check_response
 
-    from pymisp import ExpandedPyMISP, PyMISPError
+    from pymisp import ExpandedPyMISP, PyMISPError, MISPTag
 
 except ImportError as no_pymisp:
     raise SystemExit(
@@ -23,8 +24,10 @@ class MISP(ExpandedPyMISP):
     def __init__(self, *args, **kwargs):
         self.thread_count = int(kwargs.get("max_threads") or min(32, (os.cpu_count() or 1) * 4))
         self.log: logging.Logger = kwargs.get("logger", None)
+        self.cs_org_id = kwargs.get("cs_org_id", None)
         kwargs.pop("logger")
         kwargs.pop("max_threads")
+        kwargs.pop("cs_org_id")
         super().__init__(*args, **kwargs)
         self._PyMISP__session.mount('https://', requests.adapters.HTTPAdapter(pool_connections=int(self.thread_count), pool_maxsize=int(self.thread_count)*2))
         self.deleted_attribute_count = 0        
@@ -35,11 +38,22 @@ class MISP(ExpandedPyMISP):
 
 
     def delete_event(self, *args, **kwargs):
-        if self.deleted_event_count % 50 == 0 and self.deleted_event_count:
-            self.log.info("%i events deleted", self.deleted_event_count, extra={"key": ""})
-        result = self._retry(super().delete_event, *args, **kwargs)
-        if "errors" not in result:
-            self.deleted_event_count += 1
+        thread_lock = kwargs.get("lock", None)
+        if thread_lock:
+            kwargs.pop("lock")
+        if thread_lock:
+            with thread_lock:
+                if self.deleted_event_count % 50 == 0 and self.deleted_event_count:
+                    self.log.info("%i events deleted", self.deleted_event_count, extra={"key": ""})
+                result = self._retry(super().delete_event, *args, **kwargs)
+                if "errors" not in result:
+                    self.deleted_event_count += 1
+        else:
+            if self.deleted_event_count % 50 == 0 and self.deleted_event_count:
+                self.log.info("%i events deleted", self.deleted_event_count, extra={"key": ""})
+            result = self._retry(super().delete_event, *args, **kwargs)
+            if "errors" not in result:
+                self.deleted_event_count += 1
     
 
     def add_sighting(self, *args, **kwargs):
@@ -82,7 +96,9 @@ class MISP(ExpandedPyMISP):
                 self.deleted_attribute_count += 1
 
     def get_cs_tags(self):
-        return self.search_tags("CrowdStrike:%")
+        # Doesn't work as the org_id filter is not respected
+        # return self.search_tags_by_org_id("CrowdStrike:%", strict_tagname=True, org_id=self.cs_org_id)
+        return self.search_tags("CrowdStrike:%", strict_tagname=True)
         
     def clear_tag(self, *args, **kwargs):
 #        tags = self.search_tags("CrowdStrike:%")
@@ -140,4 +156,21 @@ class MISP(ExpandedPyMISP):
                     self.log.error("Exceeded number of retries. (╯°□°）╯︵ ┻━┻", extra={"key": ""})
                     #raise e
 
+    def search_tags_by_org_id(self, tagname: str, strict_tagname: bool = False, org_id: str = None, pythonify: bool = False) -> list:
+        """Search for tags by name: https://www.misp-project.org/openapi/#tag/Tags/operation/searchTag
 
+        :param tag_name: Name to search, use % for substrings matches.
+        :param strict_tagname: only return tags matching exactly the tag name (so skipping synonyms and cluster's value)
+        :param org_id: organization ID to limit the tag search by
+        """
+        query = {'tagname': tagname, 'strict_tagname': strict_tagname, 'org_id': org_id}
+        response = self._prepare_request('POST', 'tags/search', data=query)
+        normalized_response = self._check_json_response(response)
+        if not pythonify or 'errors' in normalized_response:
+            return normalized_response
+        to_return = []
+        for tag in normalized_response:
+            t = MISPTag()
+            t.from_dict(**tag)
+            to_return.append(t)
+        return to_return
