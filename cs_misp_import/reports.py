@@ -260,13 +260,13 @@ class ReportsImporter:
             reports_days_before
         )
         time_send_request = datetime.datetime.now()
-        reports = self.intel_api_client.get_reports(start_get_events)
+        reports = self.intel_api_client.get_reports(start_get_events, report_filter=self.import_settings["type"])
         self.log.info("Retrieved %i total reports from the Crowdstrike Intel API.", len(reports))
         self.log.info(
             "Found %i pre-existing CrowdStrike reports within the MISP instance.",
             len(events_already_imported)
             )
-        outstanding = len(reports) - len(events_already_imported)
+        # outstanding = len(reports) - len(events_already_imported)
 
         if len(reports) == 0:
             with open(self.reports_timestamp_filename, 'w', encoding="utf-8") as ts_file:
@@ -287,7 +287,7 @@ class ReportsImporter:
                     if fut.result():
                         details.extend(fut.result())
 
-            self.log.info(f"Retrieved extended report details for {len(details)} of {outstanding} reports.")
+            self.log.info(f"Retrieved extended report details for {len(details)} reports.")
 
             # Batched retrieval of related indicator details
             indicator_list = []
@@ -351,7 +351,7 @@ class ReportsImporter:
                     actor_att["first_seen"] = actor.get("last_activity_date")
                     actor_att["last_seen"] = actor.get("first_activity_date")
 
-                att = event.add_attribute(**actor_att)
+                att = event.add_attribute(**actor_att, disable_correlation=True)
                 for stem in actor_name:
                     for adversary in Adversary:
                         if adversary.name == stem.upper():
@@ -395,7 +395,7 @@ class ReportsImporter:
                         ind_seen["first_seen"] = ind.get("last_updated")
                         ind_seen["last_seen"] = ind.get("published_date")
 
-                    added = event.add_attribute(indicator_object.type, indicator_object.value, category=indicator_object.category, **ind_seen)
+                    added = event.add_attribute(indicator_object.type, indicator_object.value, category=indicator_object.category, disable_correlation=True, **ind_seen)
                     event.add_attribute_tag(f"CrowdStrike:indicator:type: {indicator_object.type.upper()}", added.uuid)
                     # Event level only
                     #for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
@@ -419,7 +419,7 @@ class ReportsImporter:
             for country in region_list:
                 if not victim:
                     victim = MISPObject("victim")
-                vic = victim.add_attribute('regions', country)
+                vic = victim.add_attribute('regions', country, disable_correlation=True)
                 vic.add_tag(f"CrowdStrike:target:location: {country.upper()}")
                 # Also create a target-location attribute for this value  (Too noisy?)
                 # reg = event.add_attribute('target-location', country)
@@ -432,7 +432,7 @@ class ReportsImporter:
                 if sector:
                     if not victim:
                         victim = MISPObject("victim")
-                    vic = victim.add_attribute('sectors', sector)
+                    vic = victim.add_attribute('sectors', sector, disable_correlation=True)
                     vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
             if victim:
                 event.add_object(victim)
@@ -452,22 +452,22 @@ class ReportsImporter:
         if short_desc:
             rpt = MISPObject("report")
             if report_id:
-                attributes.append(rpt.add_attribute("case-number", report_id, category=rpt_cat, **seen))
-            attributes.append(rpt.add_attribute("type", "Report", category=rpt_cat, **seen))
-            attributes.append(rpt.add_attribute("summary", short_desc, category=rpt_cat, **seen))
-            attributes.append(rpt.add_attribute("link", report.get("url"), **seen))
+                attributes.append(rpt.add_attribute("case-number", report_id, category=rpt_cat, disable_correlation=True, **seen))
+            attributes.append(rpt.add_attribute("type", "Report", category=rpt_cat, disable_correlation=True, **seen))
+            attributes.append(rpt.add_attribute("summary", short_desc, category=rpt_cat, disable_correlation=True, **seen))
+            attributes.append(rpt.add_attribute("link", report.get("url"), disable_correlation=True, **seen))
             if details.get("attachments"):
                 for attachment in details.get("attachments"):
-                    attributes.append(rpt.add_attribute("report-file", attachment.get("url"), **seen))
+                    attributes.append(rpt.add_attribute("report-file", attachment.get("url"), disable_correlation=True, **seen))
             event.add_object(rpt)
 
         # Report Annotation and full text
         if details.get('description'):
             annot = MISPObject("annotation")
-            attributes.append(annot.add_attribute("text", details.get("description"), category=rpt_cat, **seen))
-            attributes.append(annot.add_attribute("format", "text", category=rpt_cat, **seen))
-            attributes.append(annot.add_attribute("type", "Full Report", category=rpt_cat, **seen))
-            attributes.append(annot.add_attribute("ref", report.get("url"), **seen))
+            attributes.append(annot.add_attribute("text", details.get("description"), category=rpt_cat, disable_correlation=True, **seen))
+            attributes.append(annot.add_attribute("format", "text", category=rpt_cat, disable_correlation=True, **seen))
+            attributes.append(annot.add_attribute("type", "Full Report", category=rpt_cat, disable_correlation=True, **seen))
+            attributes.append(annot.add_attribute("ref", report.get("url"), disable_correlation=True, **seen))
             event.add_object(annot)
 
             event.add_event_report(report.get("name"), details.get("description"))
@@ -497,6 +497,8 @@ class ReportsImporter:
             report_name = report.get('name')
             # Report / Event name
             event.info = report_name
+            # Report date
+            event.date = report.get("created_date", datetime.datetime.now().timestamp())
             # Report ID
             report_id = report_name.split(" ")[0]
             # Report type tag
