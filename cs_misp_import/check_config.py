@@ -268,7 +268,7 @@ def validate_start_times(c_key: str, c_val: str, keyz: dict, logg: Configuration
     """Validate the default start times."""
     try:
         if c_key == "init_reports_days_before":
-            keyz[c_key] = invalid(logg, c_val) if (0 > int(c_val) or int(c_val) > 365) else True
+            keyz[c_key] = invalid(logg, c_val) if (0 > int(c_val) or int(c_val) > 7300) else True
         if c_key == "init_indicators_minutes_before":
             keyz[c_key] = invalid(logg, c_val) if (0 > int(c_val) or int(c_val) > 20220) else True
         if c_key == "init_actors_days_before":
