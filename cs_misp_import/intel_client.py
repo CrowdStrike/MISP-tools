@@ -1,5 +1,6 @@
 import logging
 from functools import reduce
+import datetime
 from .helper import thousands
 from .report_type import ReportType
 from .adversary import Adversary
@@ -45,8 +46,8 @@ class IntelAPIClient:
         offset = 0
         total = 0
         first_run = True
-
-        filter_string = f'last_modified_date:>{start_time}'
+        format_string = "%Y-%m-%dT%H:%M:%SZ"
+        filter_string = f"created_date:>'{datetime.datetime.utcfromtimestamp(start_time).strftime(format_string)}'"
         if report_filter:
             rcnt = 0
             for rpt_type in report_filter.split(","):
@@ -56,7 +57,7 @@ class IntelAPIClient:
                 rcnt += 1
             filter_string = f"{filter_string})"
         else:
-            self.log.info("Retrieving all available reports.")
+            self.log.info("Retrieving all available report types.")
 
         while offset < total or first_run:
             resp_json = self.falcon.query_report_entities(
