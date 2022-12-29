@@ -74,6 +74,7 @@ def parse_command_line() -> Namespace:
                         )
     parser.add_argument("-r", "--reports", action="store_true", help="Set this to import reports.")
     parser.add_argument("-a", "--actors", "--adversaries", dest="actors", action="store_true", help="Set this to import adversaries.")
+    parser.add_argument("-t", "--type", "--report_type", "--indicator_type", "--adversary_type", dest="type", help="Import only this type.", required=False, default=False)
     parser.add_argument("-c", "--config", dest="config_file", help="Path to local configuration file", required=False)
     parser.add_argument("-nd", "--no_dupe_check",
                         dest="no_dupe_check",
@@ -301,7 +302,8 @@ def main():
         "galaxy_map": galaxy_maps["Galaxy"],
         "force": args.force,
         "no_banners": args.no_banner,
-        "no_dupe_check": args.no_dupe_check
+        "no_dupe_check": args.no_dupe_check,
+        "type": args.type
     }
     
     if not import_settings["unknown_mapping"]:
