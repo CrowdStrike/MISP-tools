@@ -217,14 +217,15 @@ class CrowdstrikeToMISPImporter:
         self.log.info("Retrieving list of tags to remove from MISP instance")
         with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
             futures = {
-                executor.submit(self.misp_client.clear_tag, tg) for tg in self.misp_client.get_cs_tags()
+                executor.submit(self.misp_client.clear_tag, tg)
+                for tg in self.misp_client.search_tags("CrowdStrike:%", strict_tagname=True)
             }
-            for fut in concurrent.futures.as_completed(futures):
-                removed = fut.result()
+            for _ in concurrent.futures.as_completed(futures):
+                removed += 1
         self.log.info("Finished cleaning up CrowdStrike related tags from MISP, %i tags deleted.", removed)
 
     def clean_old_crowdstrike_events(self, max_age):
-        """Remove events from MISP that are dated greater than the specified max_age value."""
+        """Remove events from MISP that are dated greater than the specified max_age value (in days)."""
         display_banner(banner=DELETE_BANNER,
                        logger=self.log,
                        fallback="BEGIN DELETE",
