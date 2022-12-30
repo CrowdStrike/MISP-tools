@@ -212,12 +212,12 @@ class CrowdstrikeToMISPImporter:
                        fallback="BEGIN DELETE",
                        hide_cool_banners=self.import_settings["no_banners"]
                        )
-        # self.log.info(DELETE_BANNER)
         removed = 0
-        self.log.info("Retrieving list of tags to remove from MISP instance")
+        self.log.info("Retrieving list of tags to remove from MISP instance (may take several minutes).")
+        lock = Lock()
         with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
             futures = {
-                executor.submit(self.misp_client.clear_tag, tg)
+                executor.submit(self.misp_client.clear_tag, tg, lock)
                 for tg in self.misp_client.search_tags("CrowdStrike:%", strict_tagname=True)
             }
             for _ in concurrent.futures.as_completed(futures):
