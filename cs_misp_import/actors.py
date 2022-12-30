@@ -113,7 +113,7 @@ class ActorsImporter:
                        )
         #self.log.info(ADVERSARIES_BANNER)
         start_get_events = int((
-            datetime.datetime.today() + datetime.timedelta(days=-int(min(actors_days_before, 730)))
+            datetime.datetime.today() + datetime.timedelta(days=-int(min(actors_days_before, 7300)))
         ).timestamp())
 
         if os.path.isfile(self.actors_timestamp_filename):
@@ -123,7 +123,7 @@ class ActorsImporter:
                     start_get_events = int(line)
         self.log.info(f"Start importing CrowdStrike Adversaries as events into MISP (past {actors_days_before} days).")
         time_send_request = datetime.datetime.now()
-        actors = self.intel_api_client.get_actors(self.import_settings["type"])
+        actors = self.intel_api_client.get_actors(start_get_events, self.import_settings["type"])
         self.log.info("Got %i adversaries from the Crowdstrike Intel API.", len(actors))
 
         if len(actors) == 0:
@@ -156,6 +156,12 @@ class ActorsImporter:
         event = MISPEvent()
         event.analysis = 2
         event.orgc = self.crowdstrike_org
+        if self.import_settings["publish"]:
+            event.published = True
+        if actor.get('first_activity_date'):
+            event.date = actor.get("first_activity_date")
+        elif actor.get('last_activity_date'):
+            event.date = actor.get("last_activity_date")
         details = {}
         for det in act_details:
             if det.get("id") == actor.get("id"):
