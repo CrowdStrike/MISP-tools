@@ -123,7 +123,7 @@ class IntelAPIClient:
                 break
             start_time = last_marker
 
-    def get_actors(self, actor_filter: str = None):
+    def get_actors(self, start_time, actor_filter: str = None):
         """Get all the actors that were updated after a certain moment in time (UNIX).
 
         :param start_time: unix time of the oldest actor you want to pull
@@ -138,9 +138,15 @@ class IntelAPIClient:
             for act_type in actor_filter.split(","):
                 if act_type.upper() in [x.name for x in Adversary]:
                     self.log.info("Retrieving %s branch adversaries.", act_type.title())
-                    filter_string = f"{filter_string if filter_string else ''}{',' if filter_string else ''}name:*'*{act_type.upper()}'"
+                    filter_string = f"{filter_string if filter_string else '('}{',' if filter_string else ''}name:*'*{act_type.upper()}'"
         else:
             self.log.info("Retrieving all adversaries.")
+        format_string = "%Y-%m-%dT%H:%M:%SZ"
+        # This is pretty ugly
+        filter_string = f"{filter_string if filter_string else ''}{')' if filter_string else ''}"
+        filter_string = f"{filter_string}{'+' if filter_string else ''}(first_activity_date:>='{datetime.datetime.utcfromtimestamp(start_time).strftime(format_string)}'"
+        filter_string = f"{filter_string},created_date:>='{datetime.datetime.utcfromtimestamp(start_time).strftime(format_string)}')"
+
         while offset < total or first_run:
             resp_json = self.falcon.query_actor_entities(
                 sort="last_modified_date.asc",
