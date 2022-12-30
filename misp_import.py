@@ -77,6 +77,7 @@ def parse_command_line() -> Namespace:
     parser.add_argument("-p", "--publish", dest="publish", help="Publish events upon creation.", action="store_true", required=False, default=False)
     parser.add_argument("-t", "--type", "--report_type", "--indicator_type", "--adversary_type", dest="type", help="Import only this type.", required=False, default=False)
     parser.add_argument("-c", "--config", dest="config_file", help="Path to local configuration file", required=False)
+    parser.add_argument("-v", "--verbose_tagging", dest="verbose", action="store_false", help="Disable verbose tagging.", required=False, default=True)
     parser.add_argument("-nd", "--no_dupe_check",
                         dest="no_dupe_check",
                         help="Enable or disable duplicate checking on import, defaults to False.",
@@ -305,7 +306,8 @@ def main():
         "no_banners": args.no_banner,
         "no_dupe_check": args.no_dupe_check,
         "type": args.type,
-        "publish": args.publish
+        "publish": args.publish,
+        "verbose_tags": args.verbose
     }
     
     if not import_settings["unknown_mapping"]:
