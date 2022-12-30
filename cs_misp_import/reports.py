@@ -351,7 +351,7 @@ class ReportsImporter:
                 att = event.add_attribute(**actor_att, disable_correlation=True)
                 for stem in actor_name:
                     for adversary in Adversary:
-                        if adversary.name == stem.upper():
+                        if adversary.name == stem.upper() and self.import_settings["verbose_tags"]:
                             # Can't cross-tag with this as we're using it for delete
                             event.add_attribute_tag(f"CrowdStrike:report:adversary:branch: {stem.upper()}", att.uuid)
                 event.add_tag(f"CrowdStrike:report:adversary: {actor.get('name')}")
@@ -392,7 +392,8 @@ class ReportsImporter:
                         ind_seen["last_seen"] = ind.get("published_date")
 
                     added = event.add_attribute(indicator_object.type, indicator_object.value, category=indicator_object.category, disable_correlation=True, **ind_seen)
-                    event.add_attribute_tag(f"CrowdStrike:report:indicator:type: {indicator_object.type.upper()}", added.uuid)
+                    if self.import_settings["verbose_tags"]:
+                        event.add_attribute_tag(f"CrowdStrike:report:indicator:type: {indicator_object.type.upper()}", added.uuid)
                     # Event level only
                     #for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
                     #    event.add_attribute_tag(tag, added.uuid)
@@ -416,7 +417,8 @@ class ReportsImporter:
                 if not victim:
                     victim = MISPObject("victim")
                 vic = victim.add_attribute('regions', country, disable_correlation=True)
-                vic.add_tag(f"CrowdStrike:target:location: {country.upper()}")
+                if self.import_settings["verbose_tags"]:
+                    vic.add_tag(f"CrowdStrike:target:location: {country.upper()}")
                 # Also create a target-location attribute for this value  (Too noisy?)
                 # reg = event.add_attribute('target-location', country)
                 # event.add_attribute_tag(f"CrowdStrike:target: {country.upper()}", reg.uuid)
@@ -429,7 +431,8 @@ class ReportsImporter:
                     if not victim:
                         victim = MISPObject("victim")
                     vic = victim.add_attribute('sectors', sector, disable_correlation=True)
-                    vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
+                    if self.import_settings["verbose_tags"]:
+                        vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
             if victim:
                 event.add_object(victim)
 
@@ -472,7 +475,7 @@ class ReportsImporter:
             # Event level only
             #for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
             #    event.add_attribute_tag(tag, att.uuid)
-            if att.value not in ["text", "Full Report", "Report", report_id]:
+            if att.value not in ["text", "Full Report", "Report", report_id] and self.import_settings["verbose_tags"]:
                 event.add_attribute_tag(f"CrowdStrike:report:{report_id.lower().replace('-',': ')}", att.uuid)
             #if report_tag:
             #    event.add_attribute_tag(f"CrowdStrike:report: {report_tag.upper()}", att.uuid)
