@@ -243,9 +243,9 @@ class ReportsImporter:
                        hide_cool_banners=self.import_settings["no_banners"]
                        )
         # self.log.info(REPORTS_BANNER)
-        start_get_events = int((
-            datetime.datetime.today() + datetime.timedelta(days=-int(min(reports_days_before, 366)))
-        ).timestamp())
+        start_get_events = (
+            datetime.datetime.today() - datetime.timedelta(days=int(min(reports_days_before, 7300)))  # magic number
+        ).timestamp()
         if not self.import_settings["force"]:
             if os.path.isfile(self.reports_timestamp_filename):
                 with open(self.reports_timestamp_filename, 'r', encoding="utf-8") as ts_file:
@@ -253,8 +253,6 @@ class ReportsImporter:
                     if line:
                         start_get_events = int(line)
 
-        # log_msg = f"Start importing CrowdStrike Threat Intelligence reports as events into MISP (past {reports_days_before} days)."
-        # self.log.info(log_msg)
         self.log.info(
             "Starting import of CrowdStrike Threat Intelligence reports as events (past %i days).",
             reports_days_before
@@ -266,7 +264,6 @@ class ReportsImporter:
             "Found %i pre-existing CrowdStrike reports within the MISP instance.",
             len(events_already_imported)
             )
-        # outstanding = len(reports) - len(events_already_imported)
 
         if len(reports) == 0:
             with open(self.reports_timestamp_filename, 'w', encoding="utf-8") as ts_file:
@@ -356,8 +353,7 @@ class ReportsImporter:
                     for adversary in Adversary:
                         if adversary.name == stem.upper():
                             # Can't cross-tag with this as we're using it for delete
-                            #event.add_tag(f"CrowdStrike:adversary:branch: {stem.upper()}")
-                            event.add_attribute_tag(f"CrowdStrike:adversary:branch: {stem.upper()}", att.uuid)
+                            event.add_attribute_tag(f"CrowdStrike:report:adversary:branch: {stem.upper()}", att.uuid)
                 event.add_tag(f"CrowdStrike:report:adversary: {actor.get('name')}")
                  # Event level only
 #                for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
@@ -380,7 +376,7 @@ class ReportsImporter:
                         galaxies.append(galaxy)
                     else:
                         galaxy_tags.append(malware_family)
-                    event.add_tag(f'CrowdStrike:indicator:malware:family="{malware_family}"')
+                    event.add_tag(f'CrowdStrike:malware:family="{malware_family}"')
                 indicator_object = gen_indicator(ind, self.settings["CrowdStrike"]["indicators_tags"].split(","))
                 if isinstance(indicator_object, MISPObject):
                     event.add_object(indicator_object)
@@ -396,13 +392,13 @@ class ReportsImporter:
                         ind_seen["last_seen"] = ind.get("published_date")
 
                     added = event.add_attribute(indicator_object.type, indicator_object.value, category=indicator_object.category, disable_correlation=True, **ind_seen)
-                    event.add_attribute_tag(f"CrowdStrike:indicator:type: {indicator_object.type.upper()}", added.uuid)
+                    event.add_attribute_tag(f"CrowdStrike:report:indicator:type: {indicator_object.type.upper()}", added.uuid)
                     # Event level only
                     #for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
                     #    event.add_attribute_tag(tag, added.uuid)
                 if confirm_boolean_param(self.settings["TAGGING"].get("tag_unknown_galaxy_maps", False)):
                     for gal in list(set(galaxy_tags)):
-                        event.add_tag(f'CrowdStrike:indicator:galaxy:unmapped="{gal}"')
+                        event.add_tag(f'CrowdStrike:malware:galaxy:unmapped="{gal}"')
                 if galaxy_tags:
                     if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_WORKFLOW", False)):
                         event.add_tag('workflow:todo="add-missing-misp-galaxy-cluster-values"')
@@ -489,6 +485,8 @@ class ReportsImporter:
             event = MISPEvent()
             event.analysis = 2
             event.orgc = self.crowdstrike_org
+            if self.import_settings["publish"]:
+                event.published = True
             # Extended report details lookup
             details = {}
             for det in report_details:
