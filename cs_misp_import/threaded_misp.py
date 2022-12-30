@@ -101,15 +101,33 @@ class MISP(ExpandedPyMISP):
         return self.search_tags("CrowdStrike:%", strict_tagname=True)
         
     def clear_tag(self, *args, **kwargs):
-#        tags = self.search_tags("CrowdStrike:%")
-        #for tag in kwargstags:
-        tag = args[0]
-        if tag:
+        def perform_tag_clear():
             if not self.deleted_tag_count % 50 and self.deleted_tag_count:
                 self.log.info("%i tags deleted", self.deleted_tag_count, extra={"key": ""})
             result = self._retry(self.delete_tag, tag, **kwargs)
             if "errors" not in result:
                 self.deleted_tag_count += 1
+
+        thread_lock = kwargs.get("lock", None)
+        if thread_lock:
+            kwargs.pop("lock")
+        tag = args[0]
+        if tag:
+            if thread_lock:
+                with thread_lock:
+                    perform_tag_clear()
+                    # if not self.deleted_tag_count % 50 and self.deleted_tag_count:
+                    #     self.log.info("%i tags deleted", self.deleted_tag_count, extra={"key": ""})
+                    # result = self._retry(self.delete_tag, tag, **kwargs)
+                    # if "errors" not in result:
+                    #     self.deleted_tag_count += 1
+            else:
+                perform_tag_clear()
+                # if not self.deleted_tag_count % 50 and self.deleted_tag_count:
+                #     self.log.info("%i tags deleted", self.deleted_tag_count, extra={"key": ""})
+                # result = self._retry(self.delete_tag, tag, **kwargs)
+                # if "errors" not in result:
+                #     self.deleted_tag_count += 1
 
         return self.deleted_tag_count
         #self.log.info("%i tags deleted", self.deleted_tag_count)
