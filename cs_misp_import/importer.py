@@ -224,29 +224,42 @@ class CrowdstrikeToMISPImporter:
                 removed += 1
         self.log.info("Finished cleaning up CrowdStrike related tags from MISP, %i tags deleted.", removed)
 
-    def clean_old_crowdstrike_events(self, max_age):
+    def clean_old_crowdstrike_events(self, max_age, event_type = False):
         """Remove events from MISP that are dated greater than the specified max_age value (in days)."""
         display_banner(banner=DELETE_BANNER,
                        logger=self.log,
                        fallback="BEGIN DELETE",
                        hide_cool_banners=self.import_settings["no_banners"]
                        )
+        valid_event_types = ["indicators", "reports", "actors", "adversaries", "adversary", "actor", "report", "indicator"]
         if max_age is not None:
+            tag_list = []
+            for evt_type in str(event_type).split(","):
+                if evt_type.lower() in valid_event_types:
+                    if evt_type.lower() == "indicator" or evt_type.lower() == "indicators":
+                        tag_list.append("CrowdStrike:indicator%")
+                    if evt_type.lower() == "report" or evt_type.lower() == "reports":
+                        tag_list.append("CrowdStrike:report%")
+                    if evt_type.lower() == "actor" or evt_type.lower() == "actors":
+                        tag_list.append("CrowdStrike:adversary%")
+                    if evt_type.lower() == "adversary" or evt_type.lower() == "adversaries":
+                        tag_list.append("CrowdStrike:adversary%")
+            if not tag_list:
+                tag_list = ["CrowdStrike:report%", "CrowdStrike:indicator%", "CrowdStrike:adversary%"]
             date_to = (datetime.datetime.now() - datetime.timedelta(days=max_age+1)).strftime("%Y-%m-%d")
             params = {
+                "controller": "events",
                 "page": 0,
                 "limit": 500,   # Move magic number to INI file
-                "tags": ["CrowdStrike:report%",
-                         "CrowdStrike:indicator%",
-                         "CrowdStrike:adversary%"
-                         ],
-                "date_to": date_to
+                "tags": tag_list,
+                "date_to": date_to,
+                "metadata": True
             }
             running = True
             lock = Lock()
             removed = 0
             while running:
-                delete_batch = self.misp_client.search(**params)
+                delete_batch = self.misp_client.search(**params,)
                 if delete_batch:
                     with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
                         futures = {
