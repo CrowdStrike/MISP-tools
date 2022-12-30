@@ -74,6 +74,7 @@ def parse_command_line() -> Namespace:
                         )
     parser.add_argument("-r", "--reports", action="store_true", help="Set this to import reports.")
     parser.add_argument("-a", "--actors", "--adversaries", dest="actors", action="store_true", help="Set this to import adversaries.")
+    parser.add_argument("-p", "--publish", dest="publish", help="Publish events upon creation.", action="store_true", required=False, default=False)
     parser.add_argument("-t", "--type", "--report_type", "--indicator_type", "--adversary_type", dest="type", help="Import only this type.", required=False, default=False)
     parser.add_argument("-c", "--config", dest="config_file", help="Path to local configuration file", required=False)
     parser.add_argument("-nd", "--no_dupe_check",
@@ -303,7 +304,8 @@ def main():
         "force": args.force,
         "no_banners": args.no_banner,
         "no_dupe_check": args.no_dupe_check,
-        "type": args.type
+        "type": args.type,
+        "publish": args.publish
     }
     
     if not import_settings["unknown_mapping"]:
@@ -354,7 +356,7 @@ def main():
 
     if args.max_age is not None:
         try:
-            importer.clean_old_crowdstrike_events(args.max_age)
+            importer.clean_old_crowdstrike_events(args.max_age, args.type)
         except Exception as err:
             main_log.exception(err)
             raise SystemExit(err) from err
