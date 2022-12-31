@@ -7,7 +7,7 @@ name = "pypi"
 urllib3 = "==1.26.13"
 requests = "*"
 pymisp = "==2.4.167"
-crowdstrike-falconpy = "==1.2.6"
+crowdstrike-falconpy = "==1.2.8"
 certifi = "==2022.12.07"
 
 [dev-packages]
