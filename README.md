@@ -7,12 +7,13 @@
 
 This repository is focused on a solution for importing CrowdStrike Threat Intelligence data into an instance of [MISP](https://github.com/MISP/MISP).
 
-- [Manual Import](#manual-import) - Manually import Adversaries (Actors), Indicators or Reports from CrowdStrike Falcon X into your MISP instance.
+- [Manual Import](#manual-import) - Manually import Adversaries (Actors), Indicators or Reports from CrowdStrike Falcon Threat Intelligence into your MISP instance.
 - [MISP Modules](#modules) - MISP modules that leverage CrowdStrike.
 
-
 ## Manual import
-This solution will import adversaries, indicators or reports from CrowdStrike Falcon X into your MISP instance from a specified number of days backwards in time.
+![CrowdStrike Adversary Lineup](https://raw.githubusercontent.com/CrowdStrike/falconpy/main/docs/asset/adversary-lineup-1.png)<BR/>
+
+This solution will import adversaries, indicators or reports from CrowdStrike Falcon Threat Intelligence into your MISP instance from a specified number of days backwards in time.
 
 
 This solution supports standalone execution as well as container deployment.
@@ -115,10 +116,13 @@ This solution accepts the following command line arguments.
 | `-m`, `--max_age` | Maximum age (in days) of adversaries, indicators or reports to import. |
 | `-i, `--indicators` | Import all indicators. |
 | `-f`, `--force` | Ignore the timestamp file and import indicators from the "minutes before" configuration setting. |
-| `-do`, `--delete_outdated_indicators` | Checks as indicators are imported to see if they are flagged for deletion, if so they are removed instead of imported. |
+| `-do`,<BR/> `--delete_outdated_indicators` | Checks as indicators are imported to see if they are flagged for deletion, if so they are removed instead of imported. |
 | `-r`, `--reports` | Import reports. |
-| `-a`, `--adversaries` | Import adversaries. |
+| `-a`, `--adversaries`, `--actors` | Import adversaries. |
+| `-p`, `--publish` | Publish events upon creation. |
+| `-t`, `--type`<BR/>`--indicator_type`,<BR/>`--report_type`,<BR/>`--adversary_type` | Import or delete events of a specific type.<BR/>Example:<BR/>`python3 misp_import.py -a -r -t csit,csa,spider,panda,bear` |
 | `-c`, `--config` | Path to the local configuration file, defaults to `misp_import.ini`. |
+| `-v`, `--verbose_tagging` | Disable verbose tagging. |
 | `-nd`, `--no_dupe_check` | Disable duplicate checking on indicator import. |
 | `-nb`, `--no_banner` | Disable banners in terminal outputs. |
 | `-l`, `--logfile` | Logging file. __*Not currently implemented*__ |
@@ -167,6 +171,16 @@ The following examples demonstrate different variations of executing the solutio
 python3 misp_import.py --all
 ```
 
+**Import just `bear` branch adversaries and CrowdStrike intelligence tips**
+```python
+python3 misp_import.py -a -r -t bear,csit
+```
+
+**Disable verbose tagging**
+```python
+python3 misp_import.py -a -r -v
+```
+
 **Delete just indicators**
 ```python
 python3 misp_import.py --clean_indicators
@@ -183,9 +197,14 @@ python3 misp_import.py --obliterate
 ```
 
 
-## Modules
+## MISP Modules
 The MISP project supports autonomous modules that can be used to extend overall functionality. These modules are broken out into three categories; _expansion_, _import_ and _export_.
 
 The following MISP modules currently leverage CrowdStrike:
 
 - [CrowdStrike Falcon expansion module](https://github.com/MISP/misp-modules/blob/main/misp_modules/modules/expansion/crowdstrike_falcon.py)
+
+---
+
+<p align="center"><img src="https://raw.githubusercontent.com/CrowdStrike/falconpy/main/docs/asset/cs-logo-footer.png"><BR/><img width="250px" src="https://raw.githubusercontent.com/CrowdStrike/falconpy/main/docs/asset/adversary-red-eyes.png"></P>
+<h3><P align="center">WE STOP BREACHES</P></h3>
