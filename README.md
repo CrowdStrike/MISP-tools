@@ -8,7 +8,7 @@
 This repository is focused on a solution for importing CrowdStrike Threat Intelligence data into an instance of [MISP](https://github.com/MISP/MISP).
 
 - [Manual Import](#manual-import) - Manually import Adversaries (Actors), Indicators or Reports from CrowdStrike Falcon Threat Intelligence into your MISP instance.
-- [MISP Modules](#modules) - MISP modules that leverage CrowdStrike.
+- [MISP Modules](#misp-modules) - MISP modules that leverage CrowdStrike.
 
 ## Manual import
 ![CrowdStrike Adversary Lineup](https://raw.githubusercontent.com/CrowdStrike/falconpy/main/docs/asset/adversary-lineup-1.png)<BR/>
