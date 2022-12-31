@@ -116,9 +116,8 @@ This solution accepts the following command line arguments.
 | `-m`, `--max_age` | Maximum age (in days) of adversaries, indicators or reports to import. |
 | `-i, `--indicators` | Import all indicators. |
 | `-f`, `--force` | Ignore the timestamp file and import indicators from the "minutes before" configuration setting. |
-| `-do`,<BR/> `--delete_outdated_indicators` | Checks as indicators are imported to see if they are flagged for deletion, if so they are removed instead of imported. |
 | `-r`, `--reports` | Import reports. |
-| `-a`, `--adversaries`, `--actors` | Import adversaries. |
+| `-a`,<BR/> `--adversaries`,<BR/> `--actors` | Import adversaries. |
 | `-p`, `--publish` | Publish events upon creation. |
 | `-t`, `--type`<BR/>`--indicator_type`,<BR/>`--report_type`,<BR/>`--adversary_type` | Import or delete events of a specific type. |
 | `-c`, `--config` | Path to the local configuration file, defaults to `misp_import.ini`. |
@@ -128,6 +127,7 @@ This solution accepts the following command line arguments.
 | `-l`, `--logfile` | Logging file. __*Not currently implemented*__ |
 | `--all`, `--fullmonty` | Import Adversaries, Reports and Indicators in one cycle. |
 | `--obliterate` | Remove __all__ CrowdStrike data from the MISP instance. |
+<!--| `-do`,<BR/> `--delete_outdated_indicators` | Checks as indicators are imported to see if they are flagged for deletion, if so they are removed instead of imported. | -->
 
 ### Running the solution as a container
 This solution can also be run as a container using the provided Docker file.
@@ -184,6 +184,11 @@ python3 misp_import.py -a -r -v
 **Delete just indicators**
 ```python
 python3 misp_import.py --clean_indicators
+```
+
+**Delete just `panda` branch adversaries**
+```python
+python3 misp_import.py -ca -t panda
 ```
 
 **Only import reports and related indicators**
