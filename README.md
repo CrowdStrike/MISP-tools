@@ -109,8 +109,8 @@ This solution accepts the following command line arguments.
 | :--- | :--- |
 | `-h` or `--help` | Show command line help and exit. |
 | `-cr`, `--clean_reports` | Remove all CrowdStrike tagged reports from the MISP instance. |
-| `-ci`, `--clean_indicators` | Remove all CrowdStrike tagged indicators from the MISP instance. |
-| `-ca`, `--clean_adversaries` | Remove all CrowdStrike tagged adversaries from the MISP instance. |
+| `-ci`,<BR/> `--clean_indicators` | Remove all CrowdStrike tagged indicators from the MISP instance. |
+| `-ca`,<BR/> `--clean_adversaries` | Remove all CrowdStrike tagged adversaries from the MISP instance. |
 | `-ct`, `--clean_tags` | Remove all CrowdStrike local tags. (WARNING: Run after removing reports, indicators and adversaries.) |
 | `-d`, `--debug` | Enable debug output. |
 | `-m`, `--max_age` | Maximum age (in days) of adversaries, indicators or reports to import. |
