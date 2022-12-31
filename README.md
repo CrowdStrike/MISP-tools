@@ -120,7 +120,7 @@ This solution accepts the following command line arguments.
 | `-r`, `--reports` | Import reports. |
 | `-a`, `--adversaries`, `--actors` | Import adversaries. |
 | `-p`, `--publish` | Publish events upon creation. |
-| `-t`, `--type`<BR/>`--indicator_type`,<BR/>`--report_type`,<BR/>`--adversary_type` | Import or delete events of a specific type.<BR/>Example:<BR/>`python3 misp_import.py -a -r -t csit,csa,spider,panda,bear` |
+| `-t`, `--type`<BR/>`--indicator_type`,<BR/>`--report_type`,<BR/>`--adversary_type` | Import or delete events of a specific type. |
 | `-c`, `--config` | Path to the local configuration file, defaults to `misp_import.ini`. |
 | `-v`, `--verbose_tagging` | Disable verbose tagging. |
 | `-nd`, `--no_dupe_check` | Disable duplicate checking on indicator import. |
