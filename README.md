@@ -108,21 +108,21 @@ This solution accepts the following command line arguments.
 | Argument | Purpose |
 | :--- | :--- |
 | `-h` or `--help` | Show command line help and exit. |
-| `-cr`, `--clean_reports` | Remove all CrowdStrike tagged reports from the MISP instance. |
+| `-cr`,<BR/> `--clean_reports` | Remove all CrowdStrike tagged reports from the MISP instance. |
 | `-ci`,<BR/> `--clean_indicators` | Remove all CrowdStrike tagged indicators from the MISP instance. |
 | `-ca`,<BR/> `--clean_adversaries` | Remove all CrowdStrike tagged adversaries from the MISP instance. |
 | `-ct`, `--clean_tags` | Remove all CrowdStrike local tags. (WARNING: Run after removing reports, indicators and adversaries.) |
 | `-d`, `--debug` | Enable debug output. |
 | `-m`, `--max_age` | Maximum age (in days) of adversaries, indicators or reports to import. |
-| `-i, `--indicators` | Import all indicators. |
+| `-i`, `--indicators` | Import all indicators. |
 | `-f`, `--force` | Ignore the timestamp file and import indicators from the "minutes before" configuration setting. |
 | `-r`, `--reports` | Import reports. |
 | `-a`,<BR/> `--adversaries`,<BR/> `--actors` | Import adversaries. |
 | `-p`, `--publish` | Publish events upon creation. |
 | `-t`, `--type`<BR/>`--indicator_type`,<BR/>`--report_type`,<BR/>`--adversary_type` | Import or delete events of a specific type. |
 | `-c`, `--config` | Path to the local configuration file, defaults to `misp_import.ini`. |
-| `-v`, `--verbose_tagging` | Disable verbose tagging. |
-| `-nd`, `--no_dupe_check` | Disable duplicate checking on indicator import. |
+| `-v`,<BR/> `--verbose_tagging` | Disable verbose tagging. |
+| `-nd`,<BR/> `--no_dupe_check` | Disable duplicate checking on indicator import. |
 | `-nb`, `--no_banner` | Disable banners in terminal outputs. |
 | `-l`, `--logfile` | Logging file. __*Not currently implemented*__ |
 | `--all`, `--fullmonty` | Import Adversaries, Reports and Indicators in one cycle. |
