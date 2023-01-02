@@ -113,7 +113,7 @@ This solution accepts the following command line arguments.
 | `-ca`,<BR/> `--clean_adversaries` | Remove all CrowdStrike tagged adversaries from the MISP instance. |
 | `-ct`, `--clean_tags` | Remove all CrowdStrike local tags. (WARNING: Run after removing reports, indicators and adversaries.) |
 | `-d`, `--debug` | Enable debug output. |
-| `-m`, `--max_age` | Maximum age (in days) of adversaries, indicators or reports to import. |
+| `-m`, `--max_age` | Remove all events that exceed the maximum age specified (in days). |
 | `-i`, `--indicators` | Import all indicators. |
 | `-f`, `--force` | Ignore the timestamp file and import indicators from the "minutes before" configuration setting. |
 | `-r`, `--reports` | Import reports. |
