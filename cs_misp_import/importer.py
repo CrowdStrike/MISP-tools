@@ -217,7 +217,7 @@ class CrowdstrikeToMISPImporter:
         lock = Lock()
         with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
             futures = {
-                executor.submit(self.misp_client.clear_tag, tg, lock)
+                executor.submit(self.misp_client.clear_tag, tg, lock=lock)
                 for tg in self.misp_client.search_tags("CrowdStrike:%", strict_tagname=True)
             }
             for _ in concurrent.futures.as_completed(futures):
