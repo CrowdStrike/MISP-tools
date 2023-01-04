@@ -22,6 +22,7 @@
 import datetime
 import logging
 import os
+import time
 import concurrent.futures
 try:
     from pymisp import MISPObject, MISPEvent, ExpandedPyMISP
@@ -53,6 +54,9 @@ class ActorsImporter:
 
 
     def batch_import_actors(self, act, act_det, already):
+        def do_update(evt):
+            return self.misp.add_event(evt, True)
+
         actor_name = act.get('name')
         act_detail = Adversary[actor_name.split(" ")[1].upper()].value
         info_str = f"ADV-{act.get('id')} {actor_name} ({act_detail})"
@@ -62,18 +66,28 @@ class ActorsImporter:
                 event: MISPEvent = self.create_event_from_actor(act, act_det)
                 self.log.debug("Created adversary event for %s", act.get('name'))
                 if event:
-                    try:
-                        for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
-                            event.add_tag(tag)
-                        # Create an actor specific tag
-                        actor_tag = actor_name.split(" ")[1]
-                        event.add_tag(f"CrowdStrike:adversary:branch: {actor_tag}")
-                        #event.add_tag(f"CrowdStrike:actor: {actor_tag}")
-                        if actor_name is not None:
-                            already[actor_name] = True
-                        event = self.misp.add_event(event, True)
-                    except Exception as err:
-                        self.log.warning("Could not add or tag event %s.\n%s", event.info, str(err))
+                    #try:
+                    for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
+                        event.add_tag(tag)
+                    # Create an actor specific tag
+                    actor_tag = actor_name.split(" ")[1]
+                    event.add_tag(f"CrowdStrike:adversary:branch: {actor_tag}")
+                    #event.add_tag(f"CrowdStrike:actor: {actor_tag}")
+                    if actor_name is not None:
+                        already[actor_name] = True
+#                   event = self.misp.add_event(event, True)
+                    success = False
+                    max_tries = 3
+                    for cur_try in range(max_tries):
+                        try:
+                            event = do_update(event)
+                            success = True
+                        except Exception as err:
+                            timeout = 0.3 * 2 ** cur_try
+                            self.log.warning("Could not add or tag event %s. Will retry in %s seconds.\n%s", event.info, timeout, str(err))
+                            time.sleep(timeout)
+                    if not success:
+                        self.log.warning("Unable to add event %s.", event.info)
 
                     if act.get('last_modified_date'):
                         ts_check = 0
