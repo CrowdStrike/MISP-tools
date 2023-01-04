@@ -22,7 +22,7 @@ except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
         ) from no_pymisp
-
+from markdownify import markdownify
 from .adversary import Adversary
 from .report_type import ReportType
 from .helper import confirm_boolean_param, gen_indicator, REPORTS_BANNER, display_banner
@@ -391,7 +391,7 @@ class ReportsImporter:
                         ind_seen["first_seen"] = ind.get("last_updated")
                         ind_seen["last_seen"] = ind.get("published_date")
 
-                    added = event.add_attribute(indicator_object.type, indicator_object.value, category=indicator_object.category, disable_correlation=True, **ind_seen)
+                    added = event.add_attribute(indicator_object.type, indicator_object.value, category=indicator_object.category, **ind_seen)
                     if self.import_settings["verbose_tags"]:
                         event.add_attribute_tag(f"CrowdStrike:report:indicator:type: {indicator_object.type.upper()}", added.uuid)
                     # Event level only
@@ -461,15 +461,25 @@ class ReportsImporter:
             event.add_object(rpt)
 
         # Report Annotation and full text
-        if details.get('description'):
-            annot = MISPObject("annotation")
-            attributes.append(annot.add_attribute("text", details.get("description"), category=rpt_cat, disable_correlation=True, **seen))
-            attributes.append(annot.add_attribute("format", "text", category=rpt_cat, disable_correlation=True, **seen))
-            attributes.append(annot.add_attribute("type", "Full Report", category=rpt_cat, disable_correlation=True, **seen))
-            attributes.append(annot.add_attribute("ref", report.get("url"), disable_correlation=True, **seen))
-            event.add_object(annot)
+        rich_desc = details.get("rich_text_description", None)
+        long_desc = details.get("long_description", None)
+        reg_desc = details.get("description", None)
+        if long_desc or rich_desc:
+            # Moving over to just using the event report for the MD formatted content
+            md_version = markdownify(rich_desc)
+            if not md_version:
+                md_version = long_desc
+            if not md_version:
+                md_version = reg_desc
+            # annot = MISPObject("annotation")
+            # attributes.append(annot.add_attribute("text", md_version, category=rpt_cat, disable_correlation=True, **seen))
+            # attributes.append(annot.add_attribute("format", "markdown", category=rpt_cat, disable_correlation=True, **seen))
+            # attributes.append(annot.add_attribute("type", "Full Report", category=rpt_cat, disable_correlation=True, **seen))
+            # attributes.append(annot.add_attribute("ref", report.get("url"), disable_correlation=True, **seen))
+            # event.add_object(annot)
 
-            event.add_event_report(report.get("name"), details.get("description"))
+            # event.add_event_report(report.get("name"), details.get("description"))
+            event.add_event_report(report.get("name"), md_version)
 
         for att in attributes:
             # Event level only
