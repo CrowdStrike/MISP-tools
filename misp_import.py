@@ -36,6 +36,7 @@ from threading import main_thread
 import time
 import logging
 import os
+from cs_misp_import.indicator_type import IndicatorType
 import urllib3
 from cs_misp_import import (
     IntelAPIClient,
@@ -76,6 +77,7 @@ def parse_command_line() -> Namespace:
     parser.add_argument("-a", "--actors", "--adversaries", dest="actors", action="store_true", help="Set this to import adversaries.")
     parser.add_argument("-p", "--publish", dest="publish", help="Publish events upon creation.", action="store_true", required=False, default=False)
     parser.add_argument("-t", "--type", "--report_type", "--indicator_type", "--adversary_type", dest="type", help="Import only this type.", required=False, default=False)
+    parser.add_argument("-nh", "--no_hashes", dest="nohash", help="Do not import SHA1, SHA256 or MD5 hash indicators.", action="store_true", required=False, default=False)
     parser.add_argument("-c", "--config", dest="config_file", help="Path to local configuration file", required=False)
     parser.add_argument("-v", "--verbose_tagging", dest="verbose", action="store_false", help="Disable verbose tagging.", required=False, default=True)
     parser.add_argument("-nd", "--no_dupe_check",
@@ -222,6 +224,9 @@ def main():
         args.clean_reports = True
         args.clean_indicators = True
         args.clean_tags = True
+    if args.nohash:
+        hash_exclude = ["HASH_MD5", "HASH_SHA1", "HASH_SHA256"]
+        args.type = ",".join([it.name for it in IndicatorType if it.name not in hash_exclude])
     splash = logging.getLogger("misp_tools")
     splash.setLevel(logging.INFO)
     main_log = logging.getLogger("processor")
