@@ -188,18 +188,26 @@ class CrowdstrikeToMISPImporter:
 
         if clean_indicators:
             ind_time = datetime.datetime.now().timestamp()
-            for ind_type in INDICATOR_TYPES:
+            ind_list = []
+            for indy_type in str(self.import_settings["type"]).split(","):
+                if indy_type.upper() in [it.name for it in IndicatorType]:
+                    ind_list.append(indy_type)
+            if not ind_list:
+                ind_list = INDICATOR_TYPES
+
+            for ind_type in ind_list:
                 perform_threaded_delete(
                     tag_to_hunt=f"CrowdStrike:indicator:type: {ind_type.upper()}",
                     tag_type=f"{ind_type.upper()} indicator"
                     )
-            for indy in [i for i in dir(IndicatorType) if "__" not in i]:
+            for indy in ind_list:
                 perform_threaded_delete(
-                    tag_to_hunt=f"CrowdStrike:indicator:feed:type: {indy}",
-                    tag_type=f"{IndicatorType[indy].value} indicator type",
+                    tag_to_hunt=f"CrowdStrike:indicator:feed:type: {indy.upper()}",
+                    tag_type=f"{IndicatorType[indy.upper()].value} indicator type",
                     do_min=True
                 )
-            perform_threaded_family_delete()
+            if not self.import_settings["type"]:
+                perform_threaded_family_delete()
             ind_run_time = datetime.datetime.now().timestamp() - ind_time
             self.log.info("Completed deletion of CrowdStrike indicators within MISP in %s seconds", format_seconds(ind_run_time))
 
