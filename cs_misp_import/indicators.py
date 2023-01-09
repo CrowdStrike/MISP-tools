@@ -187,7 +187,11 @@ class IndicatorsImporter:
         # MAIN INDICATORS PROCESSING
         self.log.info("Starting import of CrowdStrike indicators into MISP.")
         indicators_count = 0
-        for indicators_page in self.intel_api_client.get_indicators(start_get_events, self.delete_outdated):
+
+        for indicators_page in self.intel_api_client.get_indicators(start_get_events,
+                                                                    self.delete_outdated,
+                                                                    self.import_settings["type"]
+                                                                    ):
             self.push_indicators(indicators_page)
             indicators_count += len(indicators_page)
 
@@ -332,6 +336,7 @@ class IndicatorsImporter:
 
     def clean_laundry(self, batch_size, all_tot, f_failure, m_failure):
         """Save each of the events that have been flagged as dirty. Spawns multiple threads."""
+        saved = []
         dirty = self.get_laundry()
         self.log.info(
             "This batch of %s produced %s indicators for %s events.",
@@ -342,20 +347,20 @@ class IndicatorsImporter:
             thousands(f_failure),
             thousands(m_failure)
             )
-        saved = []
         thread_lock = Lock()
         # Spawn multiple threads to save any events that are dirty
-        with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count, thread_name_prefix="thread") as executor:
-            futures = {
-                executor.submit(self.event_thread, feed_data["object"], feed_data["count"], thread_lock)
-                for feed_data in dirty.values()
-            }
+        if dirty:
+            with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count, thread_name_prefix="thread") as executor:
+                futures = {
+                    executor.submit(self.event_thread, feed_data["object"], feed_data["count"], thread_lock)
+                    for feed_data in dirty.values()
+                }
 
-            if not futures:
-                return
+                if not futures:
+                    return
 
-            for fut in futures:
-                saved.append(fut.result())
+                for fut in futures:
+                    saved.append(fut.result())
 
         return saved
 
@@ -389,7 +394,6 @@ class IndicatorsImporter:
             # Update our current position in the total batch
             pushed_so_far += len(batch)
             self.log.debug("%s have been pushed so far out of this batch of %s.", thousands(pushed_so_far), thousands(len(indicators)))
-
 
         batch_duration = datetime.now().timestamp() - total_batch_start  # Total time for the entire indicator run
         self.log.info("Pushed %s indicators into MISP in %.2f seconds.", thousands(len(indicators)), batch_duration)
