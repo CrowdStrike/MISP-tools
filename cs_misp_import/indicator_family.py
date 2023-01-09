@@ -30,7 +30,7 @@ def retrieve_family_events(misp_client: ExpandedPyMISP,
 
     log_util.info("Retrieved %i CrowdStrike indicator malware family events from MISP.", len(families))
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(misp_client.thread_count, thread_name_prefix="thread") as executor:
         futures = {
             executor.submit(convert_event, family, log_util) for family in families
         }
