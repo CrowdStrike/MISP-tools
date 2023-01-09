@@ -81,7 +81,7 @@ class IntelAPIClient:
 
         return reports
 
-    def get_indicators(self, start_time, include_deleted):
+    def get_indicators(self, start_time, include_deleted, type_list: str = None):
         """Get all the indicators that were updated after a certain moment in time (UNIX).
 
         :param start_time: unix time of the oldest indicator you want to pull
@@ -89,11 +89,18 @@ class IntelAPIClient:
         """
         indicators_in_request = []
         first_run = True
-
         while len(indicators_in_request) == self.request_size_limit or first_run:
+            # Recalculate our filter based off of our new marker
+            filter_string = f"_marker:>='{start_time}'+deleted:false"
+            if type_list:
+                filter_string = f"{filter_string}+("
+                for typ in type_list.split(","):
+                    filter_string = f"{filter_string}type:'{typ.lower()}',"
+                filter_string = f"{filter_string[:-1]})"
+
             resp_json = self.falcon.query_indicator_entities(
                 sort="_marker.asc",
-                filter=f"_marker:>='{start_time}'+deleted:false",
+                filter=filter_string,
                 limit=self.request_size_limit,
                 include_deleted=include_deleted
                 )
@@ -108,7 +115,6 @@ class IntelAPIClient:
                                      "meta.pagination.total".split("."),
                                      resp_json
                                      )
-                #log_msg = f"Retrieved {thousands(len(indicators_in_request))} of {thousands(total_found)} remaining indicators."
                 self.log.info("Retrieved %s of %s remaining indicators.",
                               thousands(len(indicators_in_request)),
                               thousands(total_found)
