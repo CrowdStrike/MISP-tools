@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "b97c1eac1d2e1ca1b844b58e3327f8cceaeef69a00d97e227b9874bc6e381eb4"
+            "sha256": "091f0e12d47c90bc8e0c8815240db9d7cd137866128b6d786a624f0a28b0a812"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -136,11 +136,11 @@
         },
         "crowdstrike-falconpy": {
             "hashes": [
-                "sha256:728e250875047844a428e4341ef1c1fe88226bd093c04b36710ffe861466b478",
-                "sha256:f514379b294003585b9195573ba4b5d2559a704a7d66b31a570761406c69362e"
+                "sha256:1800a5c337363d33afc013852492c37de20eea5198b44527889ee922f12a30fe",
+                "sha256:c27604fce89456d14b746feb000ad8b26288f8512e9ea042ed841a9daf908b48"
             ],
             "index": "pypi",
-            "version": "==1.2.8"
+            "version": "==1.2.9"
         },
         "deprecated": {
             "hashes": [
