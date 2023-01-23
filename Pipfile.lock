@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "091f0e12d47c90bc8e0c8815240db9d7cd137866128b6d786a624f0a28b0a812"
+            "sha256": "2c3d181801128e103cadbb931d33716f25e4f5d387429f73b1f7d7f084a2dac5"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -176,19 +176,19 @@
         },
         "publicsuffixlist": {
             "hashes": [
-                "sha256:0c3acbac87ce2e3b230e2123076c76278f827d4e6e78a536a01b7f9143466f36",
-                "sha256:2882fab94c2ff0c1eecb1206487ccdda8d09d04e1e3b4d64bd00fae0987c0939"
+                "sha256:8fe444e9b2fd47e377b7af7c90404532afebb24519e493a2b177e518279a4c8c",
+                "sha256:d1aa03a40ad6ba5c12d6617b3ea1c7ffccb928b4ed6b5523f65a2ff968df01f3"
             ],
             "markers": "python_version >= '2.6'",
-            "version": "==0.9.1"
+            "version": "==0.9.2"
         },
         "pymisp": {
             "hashes": [
-                "sha256:0f2c985f4d9b4ae158943cd53f2c448e19245ee265aa5dd6d931b92939ac94fc",
-                "sha256:3977f23c09ecdf7c62fd91bb0a176dcdea6512ffc06f6e537fe561c71d90ad02"
+                "sha256:2cffa7ca117a153fe501c197cb6834083f1c94867ea63863cbade698813fc8ca",
+                "sha256:f3e986826aadb1700b7d1ea73d06e6e40f231d2891a41841450fc2835a5e33be"
             ],
             "index": "pypi",
-            "version": "==2.4.167"
+            "version": "==2.4.167.2"
         },
         "pyrsistent": {
             "hashes": [
