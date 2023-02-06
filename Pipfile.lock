@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "091f0e12d47c90bc8e0c8815240db9d7cd137866128b6d786a624f0a28b0a812"
+            "sha256": "62c0cbb4d4d628c7819b72a04499a9c4f852133ece1f5a37815b36747e79fd6d"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -26,11 +26,11 @@
         },
         "beautifulsoup4": {
             "hashes": [
-                "sha256:58d5c3d29f5a36ffeb94f02f0d786cd53014cf9b3b3951d42e0080d8a9498d30",
-                "sha256:ad9aa55b65ef2808eb405f46cf74df7fcb7044d5cbc26487f96eb2ef2e436693"
+                "sha256:0e79446b10b3ecb499c1556f7e228a53e64a2bfcebd455f370d8927cb5b59e39",
+                "sha256:bc4bdda6717de5a2987436fb8d72f45dc90dd856bdfd512a1314ce90349a0106"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==4.11.1"
+            "version": "==4.11.2"
         },
         "certifi": {
             "hashes": [
@@ -136,11 +136,11 @@
         },
         "crowdstrike-falconpy": {
             "hashes": [
-                "sha256:1800a5c337363d33afc013852492c37de20eea5198b44527889ee922f12a30fe",
-                "sha256:c27604fce89456d14b746feb000ad8b26288f8512e9ea042ed841a9daf908b48"
+                "sha256:b9fa17356525de2f36be5c61236bc6527341c5fbdfb3f614734d482e41ce69d5",
+                "sha256:e6bb22b3577e468e6c9f4c2f65f21d69e1f1286e13b407bf86dd2a35bd333a0a"
             ],
             "index": "pypi",
-            "version": "==1.2.9"
+            "version": "==1.2.11"
         },
         "deprecated": {
             "hashes": [
@@ -176,11 +176,11 @@
         },
         "publicsuffixlist": {
             "hashes": [
-                "sha256:0c3acbac87ce2e3b230e2123076c76278f827d4e6e78a536a01b7f9143466f36",
-                "sha256:2882fab94c2ff0c1eecb1206487ccdda8d09d04e1e3b4d64bd00fae0987c0939"
+                "sha256:89dc66bdf7fd3ef00265b0370472d46ec1d8bcd42e8cb16c7f5dcdc582b711dc",
+                "sha256:f624196fdbfc695ee183a52a2dfc56181c8f59bf269fed78be4b48bc2457e218"
             ],
             "markers": "python_version >= '2.6'",
-            "version": "==0.9.1"
+            "version": "==0.9.3"
         },
         "pymisp": {
             "hashes": [
