@@ -331,7 +331,11 @@ class ReportsImporter:
             if actor.get('name'):
                 actor_detail = self.intel_api_client.falcon.get_actor_entities(ids=actor.get("id"))
                 if actor_detail["status_code"] == 200:
-                    actor_detail = actor_detail["body"]["resources"][0]
+                    try:
+                        actor_detail = actor_detail["body"]["resources"][0]
+                    except TypeError:
+                        # Bad actor id lookup
+                        actor_detail = {}
                 actor_name = actor.get('name').split(" ")
                 first = actor_detail.get("first_activity_date", 0)
                 last = actor_detail.get("last_activity_date", 0)
