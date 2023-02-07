@@ -6,7 +6,7 @@ name = "pypi"
 [packages]
 urllib3 = "==1.26.14"
 requests = "*"
-pymisp = "==2.4.167"
+pymisp = "==2.4.168"
 crowdstrike-falconpy = "==1.2.11"
 certifi = "==2022.12.07"
 markdownify = "*"
