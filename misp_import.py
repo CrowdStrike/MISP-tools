@@ -51,6 +51,8 @@ from cs_misp_import import (
     VERSION,
     check_config
 )
+# from cs_misp_import.helper import confirm_boolean_param
+
 
 def parse_command_line() -> Namespace:
     """Parse the running command line provided by the user."""
@@ -269,6 +271,7 @@ def main():
         raise SystemExit("Invalid configuration specified, unable to continue.")
 
     settings = ConfigParser(interpolation=ExtendedInterpolation())
+    settings.optionxform = str  # Don't lowercase configuration keys
     settings.read(args.config_file)
 
     galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
@@ -282,12 +285,27 @@ def main():
         # Not specified, default to enable warnings
         pass
 
+    # Set any extra headers to pass to the APIs
+    extra_headers = {}
+    if "EXTRA_HEADERS" in settings:
+        for header_item,header_value in settings["EXTRA_HEADERS"].items():
+            set_val = header_value
+            # MISP only allows str or bytes header values
+            # try:
+            #     set_val = int(header_value)
+            # except ValueError:
+            #     if header_value.lower() in ["true", "false"]:
+            #         set_val = confirm_boolean_param(header_value)
+
+            extra_headers[header_item] = set_val
+
 
     # Interface to the CrowdStrike Falcon Intel API
     intel_api_client = IntelAPIClient(settings["CrowdStrike"]["client_id"],
                                       settings["CrowdStrike"]["client_secret"],
                                       settings["CrowdStrike"]["crowdstrike_url"],
                                       int(settings["CrowdStrike"]["api_request_max"]),
+                                      extra_headers,
                                       False if "F" in settings["CrowdStrike"]["api_enable_ssl"].upper() else True,
                                       main_log
                                       )
@@ -312,7 +330,8 @@ def main():
         "no_dupe_check": args.no_dupe_check,
         "type": args.type,
         "publish": args.publish,
-        "verbose_tags": args.verbose
+        "verbose_tags": args.verbose,
+        "ext_headers": extra_headers
     }
     
     if not import_settings["unknown_mapping"]:
