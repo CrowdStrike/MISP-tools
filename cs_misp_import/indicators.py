@@ -525,38 +525,50 @@ class IndicatorsImporter:
 
     def add_indicator_event(self, indicator, lock):
         """Add an indicator event or update an event for the indicator specified. Executed as a thread."""
-        itype = IndicatorType[indicator.get('type', None).upper()].value
-        cs_search = f"{self.settings['CrowdStrike'].get('indicator_type_title', 'Indicator Type:')} {itype}"
-        # Search for an event of this type in our feed list
-        evt = [e for e in self.feeds if cs_search == e.info]
-        event: MISPEvent = evt[0] if evt else None
-        # Create a malware family event if necessary and update the event list shared among the threads
-        with lock:
-            mal_event, self.feeds = find_or_create_family_event(indicator,
-                                                                self.settings,
-                                                                self.crowdstrike_org,
-                                                                self.log,
-                                                                self.misp,
-                                                                self.feeds,
-                                                                *get_affiliated_branches(indicator)
-                                                                )
-
-        indicator_value = indicator.get("indicator")
-        # Check for a pre-existing indicator within our indicator type event
-        attribute_list = {iv.value: iv.uuid for iv in event.attributes} if event else {}
-        evt_dupe = True if indicator_value in attribute_list else False
-        # Check for a pre-existing indicator within our malware family event
-        mal_attribute_list = {iv.value: iv.uuid for iv in mal_event.attributes} if mal_event else {}
-        mal_dupe = True if indicator_value in mal_attribute_list else False
         # Default returns
         feed_result = 0
         fam_result = 0
-        # Do we log duplicative sightings or skip them?
-        do_sightings = self.settings["MISP"].get("log_duplicates_as_sightings", False)
-        SIGHTED = False
+        evt_dupe = False
+        mal_dupe = False
+        do_sightings = False
+        try:
+            itype = IndicatorType[indicator.get('type', None).upper()].value
+        except KeyError:
+            # This indicator type does not exist in our enumerator
+            itype = None
+        if itype:
+            cs_search = f"{self.settings['CrowdStrike'].get('indicator_type_title', 'Indicator Type:')} {itype}"
+            # Search for an event of this type in our feed list
+            evt = [e for e in self.feeds if cs_search == e.info]
+            event: MISPEvent = evt[0] if evt else None
+            # Create a malware family event if necessary and update the event list shared among the threads
+            with lock:
+                mal_event, self.feeds = find_or_create_family_event(indicator,
+                                                                    self.settings,
+                                                                    self.crowdstrike_org,
+                                                                    self.log,
+                                                                    self.misp,
+                                                                    self.feeds,
+                                                                    *get_affiliated_branches(indicator)
+                                                                    )
+
+            indicator_value = indicator.get("indicator")
+            # Check for a pre-existing indicator within our indicator type event
+            attribute_list = {iv.value: iv.uuid for iv in event.attributes} if event else {}
+            evt_dupe = True if indicator_value in attribute_list else False
+            # Check for a pre-existing indicator within our malware family event
+            mal_attribute_list = {iv.value: iv.uuid for iv in mal_event.attributes} if mal_event else {}
+            mal_dupe = True if indicator_value in mal_attribute_list else False
+
+            # Do we log duplicative sightings or skip them?
+            do_sightings = self.settings["MISP"].get("log_duplicates_as_sightings", False)
+            SIGHTED = False
 
         if not do_sightings and (mal_dupe and evt_dupe):
             # Skipped
+            with lock:
+                self.skipped += 1
+        elif not itype:
             with lock:
                 self.skipped += 1
         else:
