@@ -22,6 +22,7 @@ class IndicatorType(Enum):
     IP_ADDRESS = "IP addresses"
     SERVICE_NAME = "Service names"
     USER_AGENT = "User-Agent strings"
+    PERSONA_NAME = "Alias or persona name"
     PORT = "TCP ports"
     PASSWORD = "Password credentials"  # nosec  # unavoidable bandit false positive
     USERNAME = "Credential user names"
