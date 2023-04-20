@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-urllib3 = "==1.26.14"
+urllib3 = "==1.26.15"
 requests = "*"
 pymisp = "==2.4.168"
 crowdstrike-falconpy = "==1.2.14"
