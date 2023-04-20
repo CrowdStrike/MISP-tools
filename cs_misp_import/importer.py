@@ -53,7 +53,8 @@ class CrowdstrikeToMISPImporter:
                                 max_threads=import_settings["max_threads"],
                                 logger=logger,
                                 cs_org_id=import_settings["crowdstrike_org_uuid"],
-                                http_headers=import_settings["ext_headers"]
+                                http_headers=import_settings["ext_headers"],
+                                proxies=import_settings["proxy"]
                                 )
         self.config = provided_arguments
         self.settings = settings
