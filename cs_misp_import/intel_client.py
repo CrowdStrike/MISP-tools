@@ -27,6 +27,7 @@ class IntelAPIClient:
                  crowdstrike_url,
                  api_request_max,
                  ext_headers,
+                 proxies,
                  use_ssl: bool = True,
                  logger: logging.Logger = None
                  ):
@@ -45,7 +46,8 @@ class IntelAPIClient:
                             base_url=crowdstrike_url,
                             ssl_verify=use_ssl,
                             user_agent=ua,
-                            ext_headers=ext_headers
+                            ext_headers=ext_headers,
+                            proxy=proxies
                             )
         self.valid_report_types = [x.name.lower() for x in ReportType]
         self.request_size_limit = api_request_max

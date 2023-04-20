@@ -285,6 +285,15 @@ def main():
         # Not specified, default to enable warnings
         pass
 
+    # Configure the proxy if specified
+    proxies = {}
+    if "PROXY" in settings:
+        # Only the two proxies (http / https) are allowed
+        if "http" in settings["PROXY"]:
+            proxies["http"] = settings["PROXY"]["http"]
+        if "https" in settings["PROXY"]:
+            proxies["https"] = settings["PROXY"]["https"]
+
     # Set any extra headers to pass to the APIs
     extra_headers = {}
     if "EXTRA_HEADERS" in settings:
@@ -299,13 +308,13 @@ def main():
 
             extra_headers[header_item] = set_val
 
-
     # Interface to the CrowdStrike Falcon Intel API
     intel_api_client = IntelAPIClient(settings["CrowdStrike"]["client_id"],
                                       settings["CrowdStrike"]["client_secret"],
                                       settings["CrowdStrike"]["crowdstrike_url"],
                                       int(settings["CrowdStrike"]["api_request_max"]),
                                       extra_headers,
+                                      proxies,
                                       False if "F" in settings["CrowdStrike"]["api_enable_ssl"].upper() else True,
                                       main_log
                                       )
@@ -331,7 +340,8 @@ def main():
         "type": args.type,
         "publish": args.publish,
         "verbose_tags": args.verbose,
-        "ext_headers": extra_headers
+        "ext_headers": extra_headers,
+        "proxy": proxies
     }
     
     if not import_settings["unknown_mapping"]:
