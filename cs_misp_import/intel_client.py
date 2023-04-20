@@ -21,7 +21,15 @@ if bool(float(f"{current[0]}.{current[1]}") < float(f"{requested[0]}.{requested[
 class IntelAPIClient:
     """This class provides the interface for the CrowdStrike Intel API."""
 
-    def __init__(self, client_id, client_secret, crowdstrike_url, api_request_max, use_ssl: bool = True, logger: logging.Logger = None):
+    def __init__(self,
+                 client_id,
+                 client_secret,
+                 crowdstrike_url,
+                 api_request_max,
+                 ext_headers,
+                 use_ssl: bool = True,
+                 logger: logging.Logger = None
+                 ):
         """Construct an instance of the IntelAPIClient class.
 
         :param client_id: CrowdStrike API Client ID
@@ -32,7 +40,13 @@ class IntelAPIClient:
         """
         
         ua = f"crowdstrike-misp-import/{MISPImportVersion}"
-        self.falcon = Intel(client_id=client_id, client_secret=client_secret, base_url=crowdstrike_url, ssl_verify=use_ssl, user_agent=ua)
+        self.falcon = Intel(client_id=client_id,
+                            client_secret=client_secret,
+                            base_url=crowdstrike_url,
+                            ssl_verify=use_ssl,
+                            user_agent=ua,
+                            ext_headers=ext_headers
+                            )
         self.valid_report_types = [x.name.lower() for x in ReportType]
         self.request_size_limit = api_request_max
         self.log = logger
