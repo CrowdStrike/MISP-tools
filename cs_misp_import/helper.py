@@ -84,7 +84,8 @@ def gen_indicator(indicator, tag_list) -> MISPObject or MISPAttribute:
             indicator_attribute.category = ind_att[1]
             indicator_attribute.type = ind_att[2]
             indicator_attribute.value = indicator_value
-
+            for tag in tag_list:
+                indicator_attribute.add_tag(tag)
             return indicator_attribute
 
     return False

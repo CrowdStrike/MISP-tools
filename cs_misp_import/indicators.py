@@ -573,7 +573,8 @@ class IndicatorsImporter:
                 self.skipped += 1
         else:
             if indicator_value:
-                indicator_object = gen_indicator(indicator, self.settings["CrowdStrike"]["indicators_tags"].split(","))
+                custom_tag_list = self.settings["CrowdStrike"]["indicators_tags"].split(",")
+                indicator_object = gen_indicator(indicator, custom_tag_list)
                 if indicator_object:
                     if isinstance(indicator_object, MISPObject):
                         self.add_indicator_obj(indicator_object, event, mal_event)
@@ -592,6 +593,8 @@ class IndicatorsImporter:
                                         event.info, indicator_value, attribute_list, seen, lock
                                         )
                                     SIGHTED = True
+                            for tag_val in custom_tag_list:
+                                event.add_tag(tag_val)
 
                         if mal_event:
                             with lock:
@@ -609,6 +612,8 @@ class IndicatorsImporter:
                                         mal_event.info, indicator_value, mal_attribute_list, seen, lock
                                         )
                                     SIGHTED = True
+                            for tag_val in custom_tag_list:
+                                mal_event.add_tag(tag_val)
 
                         if not SIGHTED and indicator_value in self.existing_indicators and do_sightings:
                             self.add_report_sighting(
