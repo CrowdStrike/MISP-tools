@@ -368,7 +368,7 @@ class ActorsImporter:
                     for alias in aliased:
                         kao = known_as_object.add_attribute('alias', alias, disable_correlation=True)
                         # Tag the aliases to the threat-actor attribution
-                        if verbosity:
+                        if verbosity and kao:
                             kao.add_tag(f"CrowdStrike:adversary:branch: {actor_branch}")
                             kao.add_tag(f"CrowdStrike:adversary:{slug}:alias: {alias.upper()}")
                             event.add_attribute_tag(f"CrowdStrike:adversary:{slug}:alias: {alias.upper()}", ta.uuid)
