@@ -34,7 +34,8 @@ from .helper import (
     INDICATORS_BANNER,
     display_banner,
     thousands,
-    format_seconds
+    format_seconds,
+    confirm_boolean_param
     )
 from .indicator_type import IndicatorType
 from .indicator_feeds import retrieve_or_create_feed_events
@@ -561,7 +562,7 @@ class IndicatorsImporter:
             mal_dupe = True if indicator_value in mal_attribute_list else False
 
             # Do we log duplicative sightings or skip them?
-            do_sightings = self.settings["MISP"].get("log_duplicates_as_sightings", False)
+            do_sightings = confirm_boolean_param(self.settings["MISP"].get("log_duplicates_as_sightings", False))
             SIGHTED = False
 
         if not do_sightings and (mal_dupe and evt_dupe):
