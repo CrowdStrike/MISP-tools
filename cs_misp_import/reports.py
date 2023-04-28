@@ -17,7 +17,7 @@ import os
 import time
 import concurrent.futures
 try:
-    from pymisp import MISPObject, MISPEvent, MISPAttribute, ExpandedPyMISP
+    from pymisp import MISPObject, MISPEvent, MISPAttribute, ExpandedPyMISP, PyMISPError
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
@@ -25,7 +25,16 @@ except ImportError as no_pymisp:
 from markdownify import markdownify
 from .adversary import Adversary
 from .report_type import ReportType
-from .helper import confirm_boolean_param, gen_indicator, REPORTS_BANNER, display_banner
+from .helper import (
+    confirm_boolean_param,
+    gen_indicator,
+    REPORTS_BANNER,
+    display_banner,
+    get_actor_galaxy_map,
+    get_region_galaxy_map,
+    normalize_sector,
+    normalize_locale
+    )
 from .intel_client import IntelAPIClient
 
 class ReportsImporter:
@@ -77,6 +86,10 @@ class ReportsImporter:
         self.known_actors = []
         self.imported = 0
         self.tracking = 0
+        self.actor_map = get_actor_galaxy_map(self.misp, self.intel_api_client, self.import_settings["type"])
+        self.tag_map = {}
+        self.not_found = []
+        self.regions = get_region_galaxy_map(misp_client)
 
     def batch_report_detail(self, id_list: list or str) -> dict:
         """Retrieve extended report details for the ID list provided.
@@ -353,12 +366,17 @@ class ReportsImporter:
                     actor_att["last_seen"] = actor.get("first_activity_date")
 
                 att = event.add_attribute(**actor_att, disable_correlation=True)
+                if actor_proper_name.upper() in self.actor_map:
+                    event.add_attribute_tag(self.actor_map[actor_proper_name.upper()]["tag_name"], att.uuid)
                 for stem in actor_name:
                     for adversary in Adversary:
                         if adversary.name == stem.upper() and self.import_settings["verbose_tags"]:
                             # Can't cross-tag with this as we're using it for delete
                             event.add_attribute_tag(f"CrowdStrike:report:adversary:branch: {stem.upper()}", att.uuid)
-                event.add_tag(f"CrowdStrike:report:adversary: {actor.get('name')}")
+                if actor.get("name").upper() in self.actor_map:
+                    event.add_tag(self.actor_map[actor.get("name").upper()]["tag_name"])
+                else:
+                    event.add_tag(f"CrowdStrike:report:adversary: {actor.get('name')}")
                  # Event level only
 #                for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
 #                    event.add_attribute_tag(tag, att.uuid)
@@ -366,25 +384,43 @@ class ReportsImporter:
         return event
 
     def add_indicator_detail(self, event: MISPEvent, report_id: str, indicator_list: list) -> MISPEvent:
+        gal_types = [
+            "banker", "stealer", "rat", "ransomware", "rsit", "mitre-mobile-attack-tool", "mitre-mobile-attack-malware",
+            "mitre-malware", "mitre-tool", "exploit-kit", "cryptominers", "malpedia", "backdoor", "botnet", "android"
+            ]
         if report_id:
+            galaxies = []
+            galaxy_tags = []
             ind_list = [i for i in indicator_list if report_id in i.get("reports")]
             indicator_count = len(ind_list)
             if indicator_count:
                 self.log.debug("Retrieved %i indicators detailed within report %s", indicator_count, report_id)
             for ind in ind_list:
-                galaxies = []
-                galaxy_tags = []
                 for malware_family in ind.get('malware_families', []):
                     galaxy = self.import_settings["galaxy_map"].get(malware_family)
                     if galaxy:
                         galaxies.append(galaxy)
+                    elif malware_family in self.tag_map:
+                        galaxies.append(self.tag_map[malware_family])
+                    #elif malware_family in self.not_found:
+                        # We've already searched and failed for this one
+                        # galaxy_tags.append(malware_family)
                     else:
-                        galaxy_tags.append(malware_family)
-                    event.add_tag(f'CrowdStrike:malware:family="{malware_family}"')
+                        for gal in [g["Galaxy"] for g in self.misp.galaxies() if g["Galaxy"]["type"] in gal_types]:
+                            try:
+                                cluster = self.misp.search_galaxy_clusters(gal["id"], searchall=malware_family)
+                            except PyMISPError:
+                                cluster = None
+                            if cluster:
+                                galaxies.append(cluster[0]["GalaxyCluster"]["tag_name"])
+                                self.tag_map[malware_family] = cluster[0]["GalaxyCluster"]["tag_name"]
+                            else:
+                                self.not_found.append(malware_family)
+
                 indicator_object = gen_indicator(ind, self.settings["CrowdStrike"]["indicators_tags"].split(","))
+
                 if isinstance(indicator_object, MISPObject):
                     event.add_object(indicator_object)
-
                 elif isinstance(indicator_object, MISPAttribute):
                     ind_seen = {}
                     if ind.get("published_date"):
@@ -394,23 +430,41 @@ class ReportsImporter:
                     if ind_seen.get("last_seen", 0) < ind_seen.get("first_seen", 0):
                         ind_seen["first_seen"] = ind.get("last_updated")
                         ind_seen["last_seen"] = ind.get("published_date")
-
                     added = event.add_attribute(indicator_object.type, indicator_object.value, category=indicator_object.category, **ind_seen)
+                    # Tag the related indicator actor galaxy
+                    for actor in ind.get('actors', []):
+                        for adv in [a for a in dir(Adversary) if "__" not in a]:
+                            if adv in actor and " " not in actor:
+                                actor = actor.replace(adv, f" {adv}")
+                                if actor.upper() in self.actor_map:
+                                    event.add_attribute_tag(self.actor_map[actor.upper()]["tag_name"], added.uuid)
+                    # Tag the related indicator malware family galaxy
+                    # Mapping should already be populated from above
+                    for malware_family in ind.get('malware_families', []):
+                        galaxy = self.import_settings["galaxy_map"].get(malware_family)
+                        if galaxy is not None:
+                            event.add_attribute_tag(galaxy, added.uuid)
+                        elif malware_family in self.tag_map:
+                            event.add_attribute_tag(self.tag_map[malware_family], added.uuid)
+                        else:
+                            galaxy_tags.append(malware_family)
+
                     if self.import_settings["verbose_tags"]:
                         event.add_attribute_tag(f"CrowdStrike:report:indicator:type: {indicator_object.type.upper()}", added.uuid)
-                    # Event level only
-                    #for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
-                    #    event.add_attribute_tag(tag, added.uuid)
-                if confirm_boolean_param(self.settings["TAGGING"].get("tag_unknown_galaxy_maps", False)):
-                    for gal in list(set(galaxy_tags)):
-                        event.add_tag(f'CrowdStrike:malware:galaxy:unmapped="{gal}"')
-                if galaxy_tags:
-                    if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_WORKFLOW", False)):
-                        event.add_tag('workflow:todo="add-missing-misp-galaxy-cluster-values"')
-                for galactic in list(set(galaxies)):
-                    event.add_tag(galactic)
+            # Event level only
+            #for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
+            #    event.add_attribute_tag(tag, added.uuid)
+            if confirm_boolean_param(self.settings["TAGGING"].get("tag_unknown_galaxy_maps", False)):
+                for gal in list(set(galaxy_tags)):
+                    event.add_tag(f'CrowdStrike:malware:galaxy:unmapped="{gal}"')
+            if galaxy_tags:
+                if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_WORKFLOW", False)):
+                    event.add_tag('workflow:todo="add-missing-misp-galaxy-cluster-values"')
+            for galactic in list(set(galaxies)):
+                event.add_tag(galactic)
 
         return event
+
 
     def add_victim_detail(self, report: dict, event: MISPEvent) -> MISPEvent:
         victim = None
@@ -421,11 +475,15 @@ class ReportsImporter:
                 if not victim:
                     victim = MISPObject("victim")
                 vic = victim.add_attribute('regions', country, disable_correlation=True)
+                country = normalize_locale(country)
+                if country in self.regions:
+                    self.log.debug("Regional match. Tagging %s", self.regions[country])
+                    event.add_tag(self.regions[country])
+                else:
+                    self.log.debug("Country match. Tagging %s.", country)
+                    event.add_tag(f"misp-galaxy:target-information=\"{country}\"")
                 if self.import_settings["verbose_tags"]:
                     vic.add_tag(f"CrowdStrike:target:location: {country.upper()}")
-                # Also create a target-location attribute for this value  (Too noisy?)
-                # reg = event.add_attribute('target-location', country)
-                # event.add_attribute_tag(f"CrowdStrike:target: {country.upper()}", reg.uuid)
 
         # Targeted industries
         if report.get("target_industries", None):
@@ -437,6 +495,9 @@ class ReportsImporter:
                     vic = victim.add_attribute('sectors', sector, disable_correlation=True)
                     if self.import_settings["verbose_tags"]:
                         vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
+                    sector = normalize_sector(sector)
+                    event.add_tag(f"misp-galaxy:sector=\"{sector}\"")
+
             if victim:
                 event.add_object(victim)
 
@@ -475,12 +536,6 @@ class ReportsImporter:
                 md_version = long_desc
             if not md_version:
                 md_version = reg_desc
-            # annot = MISPObject("annotation")
-            # attributes.append(annot.add_attribute("text", md_version, category=rpt_cat, disable_correlation=True, **seen))
-            # attributes.append(annot.add_attribute("format", "markdown", category=rpt_cat, disable_correlation=True, **seen))
-            # attributes.append(annot.add_attribute("type", "Full Report", category=rpt_cat, disable_correlation=True, **seen))
-            # attributes.append(annot.add_attribute("ref", report.get("url"), disable_correlation=True, **seen))
-            # event.add_object(annot)
 
             # event.add_event_report(report.get("name"), details.get("description"))
             event.add_event_report(report.get("name"), md_version)
@@ -524,7 +579,7 @@ class ReportsImporter:
                     report_type = ReportType[rpt_type].value
             if "Q" in report_id.upper():
                 report_type = "Quarterly Report"
-            event.add_tag(f"CrowdStrike:report:type: {report_type_id}")
+            event.add_tag(f"CrowdStrike:report:type: {report_type_id.upper()}")
             if report_type:
                 event.add_tag(f"CrowdStrike:report: {report_type.upper()}")
             # First / Last seen timestamps
