@@ -35,7 +35,8 @@ from .helper import (
     display_banner,
     thousands,
     format_seconds,
-    confirm_boolean_param
+    confirm_boolean_param,
+    get_actor_galaxy_map
     )
 from .indicator_type import IndicatorType
 from .indicator_feeds import retrieve_or_create_feed_events
@@ -100,6 +101,9 @@ class IndicatorsImporter:
         self.skipped = 0
         self.reload = []
         self.batch_update = 0
+        self.actor_map = get_actor_galaxy_map(self.misp, self.intel_api_client, self.import_settings["type"])
+        self.tag_map = {}
+        self.not_found = []
 
 
     def attribute_search(self, att_name, att_type):
@@ -421,20 +425,20 @@ class IndicatorsImporter:
     def process_attribute_tags(self, ind, uuid, tagging_list, t_lock, evt: MISPEvent):
         """Review the indicator labels and metadata, then tag the attribute accordingly. Executed as a thread."""
         try:
-            did_branch, tagging_list = tag_attribute_actor(ind, tagging_list)
+            did_branch, tagging_list = tag_attribute_actor(ind, tagging_list, self.actor_map, evt)
             # tagging_list = tag_attribute_malicious_confidence(ind, tagging_list)
-            tagging_list = tag_attribute_targets(ind, tagging_list)
+            tagging_list = tag_attribute_targets(ind, tagging_list, evt)
 
             did_threat, tagging_list = tag_attribute_threats(ind, tagging_list)
 
             with t_lock:
                 # Lock the thread since we're sharing the missing galaxy list
                 tagging_list, self.MISSING_GALAXIES = tag_attribute_family(
-                    ind, tagging_list, self.import_settings, self.settings,
-                    self.MISSING_GALAXIES, self.galaxy_miss_file
+                    ind, tagging_list, self.import_settings, self.not_found,
+                    self.MISSING_GALAXIES, self.galaxy_miss_file, self.tag_map, self.misp, evt
                     )
             tagging_list = tag_attribute_labels(
-               ind, tagging_list, self.log, did_branch, did_threat, self.settings
+               ind, tagging_list, self.log, did_branch, did_threat, self.settings, self.import_settings, evt
                )
             for _tag in tagging_list:
                 evt.add_attribute_tag(_tag, uuid)
@@ -596,6 +600,8 @@ class IndicatorsImporter:
                                     SIGHTED = True
                             for tag_val in custom_tag_list:
                                 event.add_tag(tag_val)
+                            if self.import_settings["publish"]:
+                                event.published = True
 
                         if mal_event:
                             with lock:
@@ -615,6 +621,8 @@ class IndicatorsImporter:
                                     SIGHTED = True
                             for tag_val in custom_tag_list:
                                 mal_event.add_tag(tag_val)
+                            if self.import_settings["publish"]:
+                                mal_event.published = True
 
                         if not SIGHTED and indicator_value in self.existing_indicators and do_sightings:
                             self.add_report_sighting(
