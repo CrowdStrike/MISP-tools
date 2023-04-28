@@ -341,7 +341,8 @@ def main():
         "publish": args.publish,
         "verbose_tags": args.verbose,
         "ext_headers": extra_headers,
-        "proxy": proxies
+        "proxy": proxies,
+        "actor_map": {}
     }
     
     if not import_settings["unknown_mapping"]:
