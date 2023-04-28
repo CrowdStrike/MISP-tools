@@ -25,14 +25,25 @@ import os
 import time
 import concurrent.futures
 try:
-    from pymisp import MISPObject, MISPEvent, ExpandedPyMISP
+    from pymisp import MISPObject, MISPEvent, ExpandedPyMISP, MISPGalaxyCluster, MISPGalaxyClusterElement
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
         ) from no_pymisp
 
 from .adversary import Adversary
-from .helper import ADVERSARIES_BANNER, confirm_boolean_param, display_banner
+from .helper import (
+    ADVERSARIES_BANNER,
+    confirm_boolean_param,
+    display_banner,
+    get_threat_actor_galaxy_id,
+    get_actor_galaxy_map,
+    add_cluster_elements,
+    normalize_locale,
+    normalize_sector,
+    get_region_galaxy_map,
+    normalize_killchain
+    )
 
 class ActorsImporter:
     """Tool used to import actors from the Crowdstrike Intel API and push them as events in MISP through the MISP API.
@@ -51,6 +62,7 @@ class ActorsImporter:
         self.unknown = import_settings.get("unknown_mapping", "UNIDENTIFIED")
         self.import_settings = import_settings
         self.log: logging.Logger = logger
+        self.regions = get_region_galaxy_map(misp_client)
 
 
     def batch_import_actors(self, act, act_det, already):
@@ -129,6 +141,72 @@ class ActorsImporter:
             datetime.datetime.today() + datetime.timedelta(days=-int(min(actors_days_before, 7300)))
         ).timestamp())
 
+        # Galaxy Clusters
+        self.log.info("Start Threat Actor galaxy cluster alignment")
+        actors = self.intel_api_client.get_actors(start_get_events, self.import_settings["type"])
+        self.log.info("Got %i adversaries from the Crowdstrike Intel API.", len(actors))
+        actor_map = get_actor_galaxy_map(self.misp, self.intel_api_client, self.import_settings["type"])
+        act_id_list = [x.get("id") for x in actors if x["name"] not in actor_map]
+        if act_id_list:
+            act_detail = self.intel_api_client.falcon.get_actor_entities(
+                ids=act_id_list,
+                fields="__full__"
+                )["body"]["resources"]
+        else:
+            act_detail = []
+        # Set any inbound CS cluster elements
+        for mapped in actor_map.values():
+            cluster = self.misp.get_galaxy_cluster(mapped["uuid"])
+            details = {}
+            for det in [d for d in act_detail if d.get("id") == mapped["cs_id"]]:
+                details = det
+                add_cluster_elements(details, details, cluster)
+            # act_rec = {}
+            # for this_act in actors:
+            #     if this_act.get("id") == mapped["cs_id"]:
+            #         act_rec = this_act
+
+        threat_actors_galaxy = get_threat_actor_galaxy_id(self.misp)
+        # Create Threat Actor Galaxy Clusters for missing CS adversaries
+        
+
+        for act in [a for a in actors if a["name"] not in actor_map]:
+            details = {}
+            for det in act_detail:
+                if det.get("id") == act.get("id"):
+                    details = det
+            cluster = MISPGalaxyCluster()
+            cluster["distribution"] = 1
+            # cluster.distribution = 1
+            cluster["authors"] = ["CrowdStrike"]
+            # cluster.authors = ["CrowdStrike"]
+            cluster["type"] = "threat-actor"
+            cluster["default"] = False
+            cluster["source"] = "CrowdStrike"
+            cluster["description"] = details["description"]
+            cluster["value"] = act["name"].upper()
+            cluster.Orgc = self.crowdstrike_org
+            add_cluster_elements(act, details, cluster)
+
+            cluster_result = self.misp.add_galaxy_cluster(threat_actors_galaxy, cluster)
+            actor_map[act['name'].upper()] = {
+                "uuid": cluster_result["GalaxyCluster"]["uuid"],
+                "tag_name": cluster_result["GalaxyCluster"]["tag_name"],
+                "custom": True,
+                "name": cluster_result["GalaxyCluster"]["value"],
+                "id": cluster_result["GalaxyCluster"]["id"],
+                "deleted": cluster_result["GalaxyCluster"]["deleted"],
+                "cs_name": act["name"].upper(),
+                "cs_id": act["id"]
+            }
+        # Restore any soft deleted CrowdStrike adversary threat actor clusters
+        for act in [a["id"] for a in actor_map.values() if a["deleted"]]:
+            # -ca does a hard delete so this will be skipped.
+            self.misp._check_json_response(self.misp._prepare_request("POST", f"galaxy_clusters/restore/{act}"))
+
+        self.import_settings["actor_map"] = actor_map
+        self.log.info("Threat Actor galaxy alignment complete.")
+
         if os.path.isfile(self.actors_timestamp_filename):
             with open(self.actors_timestamp_filename, 'r', encoding="utf-8") as ts_file:
                 line = ts_file.readline()
@@ -136,9 +214,8 @@ class ActorsImporter:
                     start_get_events = int(line)
         self.log.info(f"Start importing CrowdStrike Adversaries as events into MISP (past {actors_days_before} days).")
         time_send_request = datetime.datetime.now()
-        actors = self.intel_api_client.get_actors(start_get_events, self.import_settings["type"])
-        self.log.info("Got %i adversaries from the Crowdstrike Intel API.", len(actors))
 
+        #actors = self.intel_api_client.get_actors(start_get_events, self.import_settings["type"])
         if len(actors) == 0:
             with open(self.actors_timestamp_filename, 'w', encoding="utf-8") as ts_file:
                 ts_file.write(str(int(time_send_request.timestamp())))
@@ -165,6 +242,7 @@ class ActorsImporter:
 
     @staticmethod
     def int_ref_handler(evt, kc_name, kc_detail, ref_list, slg, act_name, int_ref, verbose: bool = False):
+        kc_items = ["actions_and_objectives", "command_and_control", "delivery", "exploitation", "installation", "reconnaissance", "weaponization", "objectives", "command and control"]
         misp_object = MISPObject("internal-reference")
         misp_object.add_attribute("type", "Adversary detail", disable_correlation=True)
         misp_object.add_attribute("identifier", kc_name.title(), disable_correlation=True)
@@ -175,6 +253,12 @@ class ActorsImporter:
         if verbose:
             evt.add_attribute_tag(f"CrowdStrike:adversary:{kc_name.lower().replace(' ', '-')}: {act_name}", sum_id.uuid)
             evt.add_attribute_tag(f"CrowdStrike:adversary:{slg}: {kc_name.upper()}", sum_id.uuid)
+        if kc_name.lower() in kc_items:
+            predicate = "Action on Objectives"
+            if normalize_killchain(kc_name) != "objectives":
+                predicate = "Initial Foothold"
+            evt.add_attribute_tag(f"unified-kill-chain:{predicate}=\"{normalize_killchain(kc_name)}\"", sum_id.uuid)
+
         int_ref.add_reference(misp_object.uuid, "Adversary detail")
 
     def create_event_from_actor(self, actor, act_details) -> MISPEvent():
@@ -209,7 +293,10 @@ class ActorsImporter:
                 "type": "threat-actor",
                 "value": actor_proper_name,
             }
-            event.add_tag(f"CrowdStrike:adversary: {actor_name}")
+            if actor_name.upper() in self.import_settings["actor_map"]:
+                event.add_tag(self.import_settings["actor_map"][actor_name.upper()]["tag_name"])
+            else:
+                event.add_tag(f"CrowdStrike:adversary: {actor_name}")
 
             if details.get('url'):
                 event.add_attribute('link', details.get('url'), disable_correlation=True)
@@ -278,12 +365,15 @@ class ActorsImporter:
                 # Kill chain - Objectives
                 if objectives:
                     self.int_ref_handler(event, "objectives", objectives, to_reference, slug, actor_name, internal, verbosity)
+
                 # Kill chain - Command and Control
                 if candc:
                     self.int_ref_handler(event, "command and control", candc, to_reference, slug, actor_name, internal, verbosity)
+
                 # Kill chain - Delivery
                 if delivery:
                     self.int_ref_handler(event, "delivery", delivery, to_reference, slug, actor_name, internal, verbosity)
+
                 # Kill chain - Exploitation
                 if exploitation:
                     exploitation_object = MISPObject("internal-reference")
@@ -293,6 +383,7 @@ class ActorsImporter:
                         exploits = exploitation.replace("\t", "").replace("&nbsp;", "").split("\r\n")
                         ex_id = exploitation_object.add_attribute("comment", exploitation.replace("\t", "").replace("&nbsp;", ""), disable_correlation=True)
                         to_reference.append(event.add_object(exploitation_object))
+                        event.add_attribute_tag(f"unified-kill-chain:Initial Foothold=\"exploitation\"", ex_id.uuid)
                         if verbosity:
                             event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: EXPLOITATION", ex_id.uuid)
                             event.add_attribute_tag(f"CrowdStrike:adversary:exploitation: {actor_name}", ex_id.uuid)
@@ -305,6 +396,7 @@ class ActorsImporter:
                 # Kill chain - Installation
                 if installation:
                     self.int_ref_handler(event, "installation", installation, to_reference, slug, actor_name, internal, verbosity)
+                    
                 # Kill chain - Reconnaissance
                 if reconnaissance:
                     self.int_ref_handler(event, "reconnaissance", reconnaissance, to_reference, slug, actor_name, internal, verbosity)
@@ -387,9 +479,17 @@ class ActorsImporter:
             if actor.get("target_countries"):
                 region_list = [c.get('value') for c in actor.get('target_countries', [])]
                 for region in region_list:
+                    #event.add_tag(f"misp-galaxy:target-information=\"{region}\"")
                     if not victim:
                         victim = MISPObject("victim")
                     vic = victim.add_attribute('regions', region, disable_correlation=True)
+                    region = normalize_locale(region)
+                    if region in self.regions:
+                        self.log.debug("Regional match. Tagging %s", self.regions[region])
+                        event.add_tag(self.regions[region])
+                    else:
+                        self.log.debug("Country match. Tagging %s.", region)
+                        event.add_tag(f"misp-galaxy:target-information=\"{region}\"")
                     if verbosity:
                         vic.add_tag(f"CrowdStrike:target:location: {region.upper()}")
                         vic.add_tag(f"CrowdStrike:adversary:{slug}:target:location: {region.upper()}")
@@ -404,6 +504,7 @@ class ActorsImporter:
                     if verbosity:
                         vic.add_tag(f"CrowdStrike:adversary:{slug}:target:sector: {sector.upper()}")
                         vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
+                    event.add_tag(f"misp-galaxy:sector=\"{normalize_sector(sector)}\"")
             if victim:
                 event.add_object(victim)
 

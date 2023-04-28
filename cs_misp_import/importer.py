@@ -17,9 +17,10 @@ from .helper import (
     INDICATOR_TYPES,
     display_banner,
     format_seconds,
-    thousands
+    thousands,
+    get_actor_galaxy_map
 )
-
+from pymisp import MISPServerError
 
 class CrowdstrikeToMISPImporter:
     """Tool used to import indicators and reports from the Crowdstrike Intel API.
@@ -63,6 +64,7 @@ class CrowdstrikeToMISPImporter:
         #     "indicators": import_settings["indicators_unique_tag"],
         #     "actors": import_settings["actors_unique_tag"],
         # }
+        self.intel_api_client = intel_api_client
         self.import_settings = import_settings
         self.log = logger
         self.event_ids = {}
@@ -73,7 +75,7 @@ class CrowdstrikeToMISPImporter:
 
         if self.config["actors"]:
             self.actors_importer = ActorsImporter(self.misp_client,
-                                                  intel_api_client,
+                                                  self.intel_api_client,
                                                   import_settings["crowdstrike_org_uuid"],
                                                   import_settings["actors_timestamp_filename"],
                                                   self.settings,
@@ -82,7 +84,7 @@ class CrowdstrikeToMISPImporter:
                                                   )
         if self.config["reports"]:
             self.reports_importer = ReportsImporter(self.misp_client,
-                                                    intel_api_client,
+                                                    self.intel_api_client,
                                                     import_settings["crowdstrike_org_uuid"],
                                                     import_settings["reports_timestamp_filename"],
                                                     self.settings,
@@ -90,7 +92,7 @@ class CrowdstrikeToMISPImporter:
                                                     logger=logger
                                                     )
         if self.config["indicators"]:
-            self.indicators_importer = IndicatorsImporter(self.misp_client, intel_api_client,
+            self.indicators_importer = IndicatorsImporter(self.misp_client, self.intel_api_client,
                                                           import_settings["crowdstrike_org_uuid"],
                                                           import_settings["indicators_timestamp_filename"],
                                                           self.config["indicators"],
@@ -170,6 +172,13 @@ class CrowdstrikeToMISPImporter:
                               adv_type,
                               format_seconds(adv_run_time)
                               )
+            for act_data in get_actor_galaxy_map(self.misp_client, self.intel_api_client, self.import_settings["type"]).values():
+                # print(act_data)
+                if act_data["custom"]:
+                    try:
+                        self.misp_client.delete_galaxy_cluster(act_data["uuid"], True)
+                    except MISPServerError:
+                        already_removed = True
 
         if clean_reports:
             report_list = [r.name for r in ReportType]
@@ -181,7 +190,7 @@ class CrowdstrikeToMISPImporter:
                         report_list.append(rpt_type.upper())
             for report_type in report_list:
                 rep_time = datetime.datetime.now().timestamp()
-                perform_threaded_delete(tag_to_hunt=f"CrowdStrike:report:type: {report_type}", tag_type=f"{report_type} report", do_min=True)
+                perform_threaded_delete(tag_to_hunt=f"CrowdStrike:report:type: {report_type}", tag_type=f"{report_type.upper()} report", do_min=True)
                 rep_run_time = datetime.datetime.now().timestamp() - rep_time
                 self.log.info("Completed deletion of CrowdStrike %s reports within MISP in %s seconds",
                               report_type,

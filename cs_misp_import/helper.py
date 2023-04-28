@@ -1,9 +1,11 @@
 """Helper methods."""
 from logging import Logger
+from datetime import datetime, timedelta
 from ._version import __version__ as MISP_IMPORT_VERSION
+#from .intel_client import IntelAPIClient
 
 try:
-    from pymisp import MISPObject, MISPAttribute
+    from pymisp import MISPObject, MISPAttribute, ExpandedPyMISP, MISPGalaxyCluster
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
@@ -127,7 +129,206 @@ def display_banner(banner: str = None,
         else:
             if fallback:
                 logger.info(fallback, extra={"key": ""})
-    
+
+def get_threat_actor_galaxy_id(client: ExpandedPyMISP):
+    # Retrieve the Threat Actors galaxy
+    ta_galaxy_id = None
+    galaxies = client.galaxies()
+    for gal in galaxies:
+        if gal["Galaxy"]["name"] == "Threat Actor":
+            ta_galaxy_id = gal["Galaxy"]["uuid"]
+    return ta_galaxy_id
+
+
+def get_region_galaxy_map(mispclient: ExpandedPyMISP):
+    region_map = {}
+    galaxy_id = [g for g in mispclient.galaxies() if g["Galaxy"]["name"] == "Regions UN M49"][0]["Galaxy"]["uuid"]
+    galaxy = mispclient.get_galaxy(galaxy_id)
+    if "GalaxyCluster" in galaxy:
+        for gal in galaxy["GalaxyCluster"]:
+            region_map[" ".join(gal["value"].split(" ")[2:])] = gal["tag_name"]
+
+    return region_map
+
+
+def get_actor_galaxy_map(mispclient: ExpandedPyMISP,
+                         intel_client,
+                         type_filter
+                         ):
+    actor_map = {}
+    # Retrieve the Threat Actors galaxy
+    galaxy = mispclient.get_galaxy(get_threat_actor_galaxy_id(mispclient))
+    # Review all available actors within the galaxy
+    threat_actors = {}
+    for gal in galaxy["GalaxyCluster"]:
+        # print(gal)
+        threat_actors[gal["value"]] = {
+                "tag_name": gal["tag_name"],
+                "uuid": gal["uuid"],
+                "default": gal["default"],
+                "name": gal["value"],
+                "deleted": gal["deleted"],
+                "id": gal["id"]
+            }
+    # Retrieve all CrowdStrike adversaries
+    start_get_events = int((datetime.today() + timedelta(days=-7300)).timestamp())
+    actors = intel_client.get_actors(start_get_events, type_filter)
+    # Review all adversaries and map the CS names to existing actors
+    for act in actors:
+        for taname, taval in threat_actors.items():
+            #print(taval)
+            if taname.upper() == act["name"].upper():
+                actor_map[taname.upper()] = {
+                    "uuid": taval["uuid"],
+                    "tag_name": taval["tag_name"],
+                    "custom": not taval["default"],
+                    "name": taval["name"],
+                    "deleted": taval["deleted"],
+                    "id": taval["id"],
+                    "cs_name": act["name"].upper(),
+                    "cs_id": act["id"]
+                }
+    for act in [a for a in actors if a["name"] not in actor_map]:
+        not_set = True
+        aliases = [a.strip().upper() for a in act["known_as"].split(",")]
+        for taname, taval in threat_actors.items():
+            if taname.upper() in aliases and not_set:
+                actor_map[act['name'].upper()] = {
+                    "uuid": taval["uuid"],
+                    "tag_name": taval["tag_name"],
+                    "custom": not taval["default"],
+                    "name": taval["name"],
+                    "deleted": taval["deleted"],
+                    "id": taval["id"],
+                    "cs_name": act["name"].upper(),
+                    "cs_id": act["id"]
+                }
+                not_set = False
+    return actor_map
+
+def add_cluster_elements(actrec, actdet, clust: MISPGalaxyCluster):
+# Adversary motivations
+    motives = actdet.get("motivations", None)
+    if motives:
+        for mname in [m.get("value") for m in motives]:
+            clust.add_cluster_element("motive", mname)
+    # Adversary Synonyms
+    if actrec.get('known_as'):
+        for alias in [a.strip() for a in actrec.get("known_as").split(",")]:
+            clust.add_cluster_element("synonyms", alias)
+    # Adversary targets
+    if actrec.get("target_countries"):
+        for region in [c.get('value') for c in actrec.get('target_countries', [])]:
+            clust.add_cluster_element("cfr-suspected-victims", region)
+    # Adversary target categories
+    if actrec.get("target_industries"):
+        for sector in [s.get('value') for s in actrec.get('target_industries', [])]:
+            clust.add_cluster_element("cfr-target-category", sector)
+    # Actor origin
+    if actrec.get("origins"):
+        for orig in [o for o in actrec.get('origins', [])]:
+            if len(orig.get("slug")) == 2:
+                clust.add_cluster_element("country", orig.get("slug").upper())
+            else:
+                clust.add_cluster_element("region", orig.get("value"))
+    # MITRE ATT&CK will happen here
+
+
+def normalize_locale(locale_to_normalize: str):
+    normalize = {
+        "Russian Federation": "Russia",
+        "Southeast Asia": "South-eastern Asia",
+        "Subsaharan Africa": "Sub-Saharan Africa",
+        "North America": "Northern America",
+        "North Africa": "Northern Africa",
+        "Middle East": "Western Asia",
+        "Central Africa": "Middle Africa",
+        "West Africa": "Western Africa",
+        "East Africa": "Eastern Africa",
+        "East Asia": "Asia",
+        "South Asia": "Asia",
+        "Latin America": "Latin America and the Caribbean",
+        "Syrian Arab Republic": "Syria",
+        "Libyan Arab Jamahiriya": "Libya",
+        "Congo": "Republic of the Congo",
+        "Côte D'Ivoire": "Ivory Coast",
+        "Vatican City State": "Vatican",
+        "St. Helena": "Saint Helena",
+        "St. Martin": "Saint Martin",
+        "Timor-Leste": "East Timor",
+        "Bosnia/Herzegovina": "Bosnia and Herzegovina",
+        "Macedonia": "North Macedonia",
+        "Brunei Darussalam": "Brunei",
+        "Macao": "Macau",
+        "Virgin Islands, British": "British Virgin Islands",
+        "Lao": "Laos"
+    }
+    if locale_to_normalize in normalize.keys():
+        locale_to_normalize = normalize[locale_to_normalize]
+    return locale_to_normalize
+
+
+def normalize_killchain(kc_to_normalize: str):
+    normalize = {
+        "actions_and_objectives": "objectives",
+        "actions_on_objectives": "objectives",
+        "command_and_control": "command-control",
+        "command and control": "command-control",
+        "actions and objectives": "objectives",
+        "actions on objectives": "objectives"
+    }
+    if kc_to_normalize.lower() in normalize:
+        kc_to_normalize = normalize[kc_to_normalize.lower()]
+
+    return kc_to_normalize
+
+def normalize_sector(sector_to_normalize: str):
+    normalize = {
+        "Healthcare": "Health",
+        "Universities": "Academia - University",
+        "Higher Education": "Higher education",
+        "Telecommunications": "Telecoms",
+        "Telecom": "Telecoms",
+        "Cryptocurrency": "Finance",
+        "Industrials and Engineering": "Industrial",
+        "Architectural and Engineering": "Construction",
+        "Government": "Government, Administration",
+        "Academic": "Academia - University",
+        "Law Enforcement": "Police - Law enforcement",
+        "Media": "News - Media",
+        "Financial Services": "Finance",
+        "Sports Organizations": "Sport",
+        "Oil and Gas": "Oil",
+        "Logistics": "Logistic",
+        "Social Media": "Social networks",
+        "National Government": "Country",
+        "Opportunistic": "Other",
+        "Transportation": "Transport",
+        "Local Government": "Government, Administration",
+        "Nuclear": "Energy",
+        "International Government": "Diplomacy",
+        "Political Parties": "Political party",
+        "Utilities": "Infrastructure",
+        "Dissident": "Dissidents",
+        "Consumer Goods": "Retail",
+        "Food and Beverage": "Food",
+        "Computer Gaming": "Game",
+        "Aviation": "Civil Aviation",
+        "Real Estate": "Investment",
+        "Chemicals": "Chemical",
+        "Pharmaceutical": "Pharmacy",
+        "Consulting and Professional Services": "Consulting",
+        "Emergency Services": "Citizens",
+        "Extractive": "Mining",
+        "Nonprofit": "Civil society",
+        "Research Entities": "Research - Innovation",
+        "Vocational and Higher-Level Education": "Higher education",
+        "Financial Management & Hedge Funds": "Investment",
+        "Financial": "Finance"
+    }
+    if sector_to_normalize in normalize.keys():
+        sector_to_normalize = normalize[sector_to_normalize]
+    return sector_to_normalize 
 
 # These are here because I didn't want us to have to import pyFiglet
 ADVERSARIES_BANNER = """
