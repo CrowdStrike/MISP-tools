@@ -4,7 +4,7 @@ class KillChain(Enum):
     """Kill chain enumerator."""
 
     ACTIONONOBJECTIVES = "Actions on Objectives"
-    COMMANDANDCONTROL = "Command and Control"
+    C2 = "Command and Control"
     DELIVERY = "Delivery"
     EXPLOITATION = "Exploitation"
     INSTALLATION = "Installation"

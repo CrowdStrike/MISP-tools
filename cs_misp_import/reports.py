@@ -25,6 +25,7 @@ except ImportError as no_pymisp:
 from markdownify import markdownify
 from .adversary import Adversary
 from .report_type import ReportType
+#from .indicator_type import IndicatorType
 from .helper import (
     confirm_boolean_param,
     gen_indicator,
@@ -33,9 +34,13 @@ from .helper import (
     get_actor_galaxy_map,
     get_region_galaxy_map,
     normalize_sector,
-    normalize_locale
+    normalize_locale,
+    normalize_threatmatch,
+    taxonomic_event_tagging
     )
+from .kill_chain import KillChain
 from .intel_client import IntelAPIClient
+from .threat_type import ThreatType
 
 class ReportsImporter:
     """Tool used to import reports from the Crowdstrike Intel API and push them as events in MISP through the MISP API."""
@@ -86,7 +91,7 @@ class ReportsImporter:
         self.known_actors = []
         self.imported = 0
         self.tracking = 0
-        self.actor_map = get_actor_galaxy_map(self.misp, self.intel_api_client, self.import_settings["type"])
+        self.actor_map = {}
         self.tag_map = {}
         self.not_found = []
         self.regions = get_region_galaxy_map(misp_client)
@@ -123,8 +128,6 @@ class ReportsImporter:
                         f"{self.errored} errors).")
                 success = True
             except Exception as erred:
-                # timeout = 0.3 * 2 ** iter
-                # self.log.warning("Could not add report %s", rname)
                 try:
                     err_split = str(erred).split(", ")
                     self.log.warning("MISP Server error: %s", err_split[1])
@@ -134,16 +137,12 @@ class ReportsImporter:
                     time.sleep(timeout)
                 except Exception as err:
                     self.log.warning("%s", str(erred))
-                # self.log.warning("Sleeping for %.2f seconds", timeout)
-                # time.sleep(timeout)
 
             return created, success
 
         report_name = report.get('name', None)
         rpt_id = report_name.split(" ")[0]
         returned = {}
-        #check_list = self.events_already_imported.keys()
-        #found_it = self.events_already_imported.get(rpt_id, False)
         if report_name:
             if self.events_already_imported.get(rpt_id, False):
                 self.log.debug(
@@ -160,14 +159,10 @@ class ReportsImporter:
                 if event:
                     for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
                         event.add_tag(tag)
-                        #for rtype in self.intel_api_client.valid_report_types:
-                        #    if rtype.upper() in report.get('name', None):
-                        #        event.add_tag(f"CrowdStrike:report: {rtype.upper()}")
                     
                     retry_count = 1
                     good_insert = False
                     while not good_insert and retry_count <= 3:
-                        #event = self.misp.add_event(event, True)
                         event, good_insert = perform_insert(event, report_name, retry_count)
 
                     if not good_insert:
@@ -255,7 +250,7 @@ class ReportsImporter:
                        fallback="BEGIN REPORTS IMPORT",
                        hide_cool_banners=self.import_settings["no_banners"]
                        )
-        # self.log.info(REPORTS_BANNER)
+        self.actor_map = get_actor_galaxy_map(self.misp, self.intel_api_client, self.import_settings["type"])
         start_get_events = (
             datetime.datetime.today() - datetime.timedelta(days=int(min(reports_days_before, 7300)))  # magic number
         ).timestamp()
@@ -282,7 +277,6 @@ class ReportsImporter:
             with open(self.reports_timestamp_filename, 'w', encoding="utf-8") as ts_file:
                 ts_file.write(str(int(time_send_request.timestamp())))
         else:
-            #adversary_events = self.misp.get_adversaries()
             self.known_actors = self.intel_api_client.get_actor_name_list()
             report_ids = [rep.get("name").split(" ")[0] for rep in reports]
             rep_batches = [report_ids[i:i+500] for i in range(0, len(report_ids), 500)]
@@ -314,8 +308,6 @@ class ReportsImporter:
 
             # Threaded insert of report events into MISP instance
             reported = {}
-#            lock = Lock()
-
             with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count, thread_name_prefix="thread") as executor:
                 futures = {
                     executor.submit(self.batch_import_reports, rp, details, indicator_list) for rp in reports
@@ -325,9 +317,6 @@ class ReportsImporter:
 
                 with open(self.reports_timestamp_filename, 'w', encoding="utf-8") as ts_file:
                     ts_file.write(str(int(self.last_pos)))
-                # with open("debug.json", "w", encoding="utf-8") as report_mapping:
-                #     json.dump(reported, report_mapping, indent=4)
-
 
         self.log.info("Finished importing %i (%i skipped) Crowdstrike Threat Intelligence reports.", len(reports), self.skipped)
 
@@ -372,14 +361,17 @@ class ReportsImporter:
                     for adversary in Adversary:
                         if adversary.name == stem.upper() and self.import_settings["verbose_tags"]:
                             # Can't cross-tag with this as we're using it for delete
-                            event.add_attribute_tag(f"CrowdStrike:report:adversary:branch: {stem.upper()}", att.uuid)
+                            event.add_attribute_tag(f"crowdstrike:branch=\"{stem.upper()}\"", att.uuid)
+                            event.add_tag(f"crowdstrike:report-adversary-branch=\"{stem.upper()}\"")
+                            if stem.upper() not in ["BAT", "JACKAL", "SPIDER"]:  # May swapped this to motivations?
+                                event.add_tag("state-responsibility:state-coordinated")
+                            elif stem.upper() == "JACKAL":
+                                event.add_tag("state-responsibility:state-prohibited-but-inadequate.")
+
                 if actor.get("name").upper() in self.actor_map:
                     event.add_tag(self.actor_map[actor.get("name").upper()]["tag_name"])
                 else:
                     event.add_tag(f"CrowdStrike:report:adversary: {actor.get('name')}")
-                 # Event level only
-#                for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
-#                    event.add_attribute_tag(tag, att.uuid)
 
         return event
 
@@ -411,11 +403,12 @@ class ReportsImporter:
                                 cluster = self.misp.search_galaxy_clusters(gal["id"], searchall=malware_family)
                             except PyMISPError:
                                 cluster = None
-                            if cluster:
-                                galaxies.append(cluster[0]["GalaxyCluster"]["tag_name"])
-                                self.tag_map[malware_family] = cluster[0]["GalaxyCluster"]["tag_name"]
-                            else:
-                                self.not_found.append(malware_family)
+                            for clust in cluster:
+                                if clust["GalaxyCluster"]["value"] == malware_family:
+                                    galaxies.append(clust["GalaxyCluster"]["tag_name"])
+                                    self.tag_map[malware_family] = clust["GalaxyCluster"]["tag_name"]
+                            # else:
+                            #     self.not_found.append(malware_family)
 
                 indicator_object = gen_indicator(ind, self.settings["CrowdStrike"]["indicators_tags"].split(","))
 
@@ -450,13 +443,40 @@ class ReportsImporter:
                             galaxy_tags.append(malware_family)
 
                     if self.import_settings["verbose_tags"]:
-                        event.add_attribute_tag(f"CrowdStrike:report:indicator:type: {indicator_object.type.upper()}", added.uuid)
+                        itype = indicator_object.type.upper().replace("SHA1", "HASH_SHA1")
+                        itype = itype.replace("SHA256", "HASH_SHA256").replace("MD5", "HASH_MD5").replace("IMPHASH", "HASH_IMPHASH")
+                        itype = itype.replace("EMAIL-REPLY-TO", "EMAIL_ADDRESS").replace("IP-SRC", "IP_ADDRESS")
+                        itype = itype.replace("-", "_")
+                        event.add_tag(f"crowdstrike:indicator-type=\"{itype}\"")
+
+                labels = [lab.get("name") for lab in ind.get("labels")]
+                for label in labels:
+                    #print(label)
+                    label = label.lower()
+                    parts = label.split("/")
+                    label_val = parts[1]
+                    label_type = parts[0].lower().replace("killchain", "kill-chain")
+                    if label_type == "kill-chain":
+                        for kc in [k.name for k in KillChain if k.name == label_val.upper()]:
+                            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_KILL-CHAIN", False)):
+                                event.add_tag(f"kill-chain:{KillChain[kc].value}")
+                                event.add_attribute_tag(f"kill-chain:{KillChain[kc].value}", added.uuid)
+                    #print(label_type)
+                    if label_type in ["threattype"]:
+                        normalized = normalize_threatmatch(label_val.upper())
+                        if label_val.upper() != normalized:
+                            tms = normalized.split(",")
+                            for match in tms:
+                                #print(f"threatmatch:{match}")
+                                event.add_tag(f"threatmatch:{match}")
+                        else:
+                            # Shouldn't need this after this next run
+                            event.add_tag(f"CrowdStrike:adversary:motivation: {label_val.upper()}")
+
             # Event level only
-            #for tag in self.settings["CrowdStrike"]["indicators_tags"].split(","):
-            #    event.add_attribute_tag(tag, added.uuid)
             if confirm_boolean_param(self.settings["TAGGING"].get("tag_unknown_galaxy_maps", False)):
                 for gal in list(set(galaxy_tags)):
-                    event.add_tag(f'CrowdStrike:malware:galaxy:unmapped="{gal}"')
+                    event.add_tag(f'crowdstrike:unmapped-malware-cluster="MALWARE: {gal}"')
             if galaxy_tags:
                 if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_WORKFLOW", False)):
                     event.add_tag('workflow:todo="add-missing-misp-galaxy-cluster-values"')
@@ -479,11 +499,13 @@ class ReportsImporter:
                 if country in self.regions:
                     self.log.debug("Regional match. Tagging %s", self.regions[country])
                     event.add_tag(self.regions[country])
+                    if self.import_settings["verbose_tags"]:
+                        vic.add_tag(f"{self.regions[country]}")
                 else:
                     self.log.debug("Country match. Tagging %s.", country)
                     event.add_tag(f"misp-galaxy:target-information=\"{country}\"")
-                if self.import_settings["verbose_tags"]:
-                    vic.add_tag(f"CrowdStrike:target:location: {country.upper()}")
+                    if self.import_settings["verbose_tags"]:
+                        vic.add_tag(f"misp-galaxy:target-information=\"{country}\"")
 
         # Targeted industries
         if report.get("target_industries", None):
@@ -493,11 +515,10 @@ class ReportsImporter:
                     if not victim:
                         victim = MISPObject("victim")
                     vic = victim.add_attribute('sectors', sector, disable_correlation=True)
-                    if self.import_settings["verbose_tags"]:
-                        vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
                     sector = normalize_sector(sector)
                     event.add_tag(f"misp-galaxy:sector=\"{sector}\"")
-
+                    if self.import_settings["verbose_tags"]:
+                        vic.add_tag(f"misp-galaxy:sector=\"{sector.upper()}\"")
             if victim:
                 event.add_object(victim)
 
@@ -505,10 +526,6 @@ class ReportsImporter:
 
     def add_report_content(self, report: dict, event: MISPEvent, details: dict, report_id: str, seen: dict) -> MISPEvent:
         attributes: list[MISPAttribute] = []
-        # report_tag = None
-        # for rtype in [r for r in dir(ReportType) if "__" not in r]: #self.intel_api_client.valid_report_types:
-        #     if report.get('name', None).startswith(rtype.upper()):
-        #         report_tag = rtype.upper()
         rpt_cat = "Internal reference"
         short_desc = details.get("short_description")
         if not short_desc:
@@ -531,23 +548,17 @@ class ReportsImporter:
         reg_desc = details.get("description", None)
         if long_desc or rich_desc:
             # Moving over to just using the event report for the MD formatted content
+            if rich_desc:
+                rich_desc = rich_desc
             md_version = markdownify(rich_desc)
             if not md_version:
                 md_version = long_desc
             if not md_version:
                 md_version = reg_desc
 
-            # event.add_event_report(report.get("name"), details.get("description"))
+            md_version = md_version.replace("\t", "").replace("        ", "").replace("   ", "")
+            
             event.add_event_report(report.get("name"), md_version)
-
-        for att in attributes:
-            # Event level only
-            #for tag in self.settings["CrowdStrike"]["reports_tags"].split(","):
-            #    event.add_attribute_tag(tag, att.uuid)
-            if att.value not in ["text", "Full Report", "Report", report_id] and self.import_settings["verbose_tags"]:
-                event.add_attribute_tag(f"CrowdStrike:report:{report_id.lower().replace('-',': ')}", att.uuid)
-            #if report_tag:
-            #    event.add_attribute_tag(f"CrowdStrike:report: {report_tag.upper()}", att.uuid)
 
         return event
 
@@ -579,9 +590,8 @@ class ReportsImporter:
                     report_type = ReportType[rpt_type].value
             if "Q" in report_id.upper():
                 report_type = "Quarterly Report"
-            event.add_tag(f"CrowdStrike:report:type: {report_type_id.upper()}")
             if report_type:
-                event.add_tag(f"CrowdStrike:report: {report_type.upper()}")
+                event.add_tag(f"crowdstrike:report-type=\"{report_type}\"")
             # First / Last seen timestamps
             seen = {}
             if details.get("created_date"):
@@ -602,24 +612,7 @@ class ReportsImporter:
             # Formatted report link and content
             event = self.add_report_content(report, event, details, report_id, seen)
             # TYPE Taxonomic tag, all events
-            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TYPE", False)):
-                event.add_tag('type:CYBINT')
-            # INFORMATION-SECURITY-DATA-SOURCE Taxonomic tag, all events
-            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_INFORMATION-SECURITY-DATA-SOURCE", False)):
-                event.add_tag('information-security-data-source:integrability-interface="api"')
-                event.add_tag('information-security-data-source:originality="original-source"')
-                event.add_tag('information-security-data-source:type-of-source="security-product-vendor-website"')
-            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP", False)):
-                event.add_tag('iep:commercial-use="MUST NOT"')
-                event.add_tag('iep:provider-attribution="MUST"')
-                event.add_tag('iep:unmodified-resale="MUST NOT"')
-            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP2", False)):
-                if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP2_VERSION", False)):
-                    event.add_tag('iep2-policy:iep_version="2.0"')
-                event.add_tag('iep2-policy:attribution="must"')
-                event.add_tag('iep2-policy:unmodified_resale="must-not"')
-            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TLP", False)):
-                event.add_tag("tlp:amber")
+            event = taxonomic_event_tagging(event, self.settings["TAGGING"])
 
         else:
             self.log.warning("Report %s missing name field.", report.get('id'))

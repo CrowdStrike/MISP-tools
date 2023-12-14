@@ -1,0 +1,50 @@
+from enum import Enum
+
+class ThreatType(Enum):
+    """CrowdStrike threat type enumerator.
+    
+    Returns the necessary tagging value(s).
+    """
+
+    ADWARE = "malware-type=\"Adware\""
+    ATM_MALWARE = "incident-type=\"ATM Attacks\""
+    BACKDOOR = "malware-type=\"Backdoor\""
+    BANKING = "sector=\"Banking & Capital Markets\""  # malware-type=\"Banking Trojan\",
+    BRUTEFORCE = "malware-type=\"Unknown\""
+    BOTNET = "malware-type=\"Botnet\""
+    COMMODITY = "sector=\"Commodities\""  # incident-type=\"Malware Infection\",
+    CREDENTIALHARVESTING = "alert-type=\"Credential Breaches\""
+    #CRIMINAL = "incident-type=\"Unknown\""
+    CRYPTOCURRENCYTHEFT = "incident-type=\"Crypto Mining\""
+    DDOS = "incident-type=\"DDoS\""
+    DEPLOYMENTFRAMEWORK = "malware-type=\"Exploit Kit\""
+    DESTRUCTIVE = "malware-type=\"Destructive\""
+    DOWNLOADER = "malware-type=\"Downloader\""
+    DROPPER = "malware-type=\"Unknown\""
+    EXTORTION = "incident-type=\"Extortion Activity\""
+    FILEINFECTOR = "incident-type=\"Malware Infection\""
+    FORMJACKING = "incident-type=\"Social Engineering Activity\",incident-type=\"Website Attack (Other)\""
+    KEYLOGGER = "malware-type=\"Keylogger\""
+    KNOWNGOOD = "malware-type=\"Legitimate Tool\""
+    INFORMATIONSTEALER = "incident-type=\"Data Breach/Compromise\""
+    LOADER = "incident-type=\"Malware Infection\""
+    MALICIOUSSCRIPT = "incident-type=\"Attempted Exploitation\""
+    MANINTHEBROWSER = "incident-type=\"Man in the Middle Attacks\",incident-type=\"Website Attack (Other)\""
+    MINEWARE = "incident-type=\"Crypto Mining\""
+    MOBILEMALWARE = "incident-type=\"Phishing Activity\",malware-type=\"Mobile Malware\""
+    MODULAR = "malware-type=\"Exploit Kit\""
+    OPENSOURCE = "incident-type=\"Supply Chain Compromise\""
+    PHISHING = "incident-type=\"Phishing Activity\""
+    POINTOFSALE = "malware-type=\"Point-of-Sale (PoS)\""
+    PRIVILEGEESCALATION = "alert-type=\"Credential Breaches\""
+    PROXY = "incident-type=\"Man in the Middle Attacks\""
+    RANSOMWARE = "incident-type=\"Ransomware Activity\""
+    RAT = "malware-type=\"Remote Access Trojan\""
+    REPURPOSEDLEGITIMATESOFTWARE = "malware-type=\"Legitimate Tool\",incident-type=\"Malware Infection\""
+    ROOTKIT = "malware-type=\"Rootkit\""
+    SPAMBOT = "malware-type=\"Adware\""
+    SOURCECODELEAKED = "incident-type=\"Data Breach/Compromise\""
+    #SUSPICIOUS = "malware-type=\"Unknown\""
+    #TARGETED = "incident-type=\"Exec Targeting\""
+    #TARGETEDCRIMEWARE = "incident-type=\"Exec Targeting\""
+    WEBSHELL = "incident-type=\"Website Attack (Other)\""

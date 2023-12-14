@@ -9,8 +9,7 @@ from .helper import CONFIG_BANNER, CHECKS_FAILED, CHECKS_PASSED
 BOOL_KEYS = [
     "api_enable_ssl", "misp_enable_ssl", "tag_unknown_galaxy_maps", "taxonomic_kill-chain",
     "taxonomic_information-security-data-source", "taxonomic_type", "taxonomic_iep",
-    "taxonomic_iep2", "taxonomic_iep2_version", "taxonomic_tlp", "taxonomic_workflow",
-    "log_duplicates_as_sightings"
+    "taxonomic_iep2", "taxonomic_iep2_version", "taxonomic_tlp", "taxonomic_workflow"
 ]
 
 REDACTED = ['client_id', 'client_secret', 'misp_auth_key']
@@ -306,7 +305,7 @@ def validate_api_limits(c_key: str, c_val: str, keyz: dict, logg: ConfigurationC
             keyz[c_key] = invalid(logg, c_val)
     if c_key == "ind_attribute_batch_size":
         try:
-            keyz[c_key] = invalid(logg, c_val) if (5000 < int(c_val) or int(c_val) < 50) else True
+            keyz[c_key] = invalid(logg, c_val) if (25000 < int(c_val) or int(c_val) < 50) else True
         except ValueError:
             keyz[c_key] = invalid(logg, c_val)
 

@@ -199,14 +199,14 @@ def retrieve_tags(tag_type: str, settings):
     """Retrieve all tags used for CrowdStrike elements within MISP (broken out by type)."""
     tags = []
     if tag_type == "reports":
-        for report_type in [r for r in dir(ReportType) if "__" not in r]:
-            tags.append(f"CrowdStrike:report:type: {report_type}")
+        for report_type in [r.value for r in ReportType]:
+            tags.append(f"crowdstrike:report-type=\"{report_type}\"")
     # No indicators dupe checking atm - jshcodes@CrowdStrike / 08.18.22
     # if args.indicators:
     #     tags.append(settings["CrowdStrike"]["indicators_unique_tag"])
     if tag_type == "actors":
-        for adv_type in [a for a in dir(Adversary) if "__" not in a]:
-            tags.append(f"CrowdStrike:adversary:branch: {adv_type}")
+        for adv_type in [a.value for a in Adversary]:
+            tags.append(f"crowdstrike:report-type=\"Adversary Detail Report\"")
 
     return tags
 
