@@ -24,14 +24,16 @@ import logging
 import os
 import time
 import concurrent.futures
+
 try:
     from pymisp import MISPObject, MISPEvent, ExpandedPyMISP, MISPGalaxyCluster, MISPGalaxyClusterElement
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
         ) from no_pymisp
-
+from markdownify import markdownify
 from .adversary import Adversary
+from .adversary_motivations import AdversaryMotivation
 from .helper import (
     ADVERSARIES_BANNER,
     confirm_boolean_param,
@@ -42,7 +44,8 @@ from .helper import (
     normalize_locale,
     normalize_sector,
     get_region_galaxy_map,
-    normalize_killchain
+    normalize_threatmatch,
+    taxonomic_event_tagging
     )
 
 class ActorsImporter:
@@ -64,6 +67,9 @@ class ActorsImporter:
         self.log: logging.Logger = logger
         self.regions = get_region_galaxy_map(misp_client)
 
+    def adversary_galaxy_tag(self, actor: str):
+        return self.import_settings["actor_map"][actor.upper()]["tag_name"]
+
 
     def batch_import_actors(self, act, act_det, already):
         def do_update(evt):
@@ -78,21 +84,18 @@ class ActorsImporter:
                 event: MISPEvent = self.create_event_from_actor(act, act_det)
                 self.log.debug("Created adversary event for %s", act.get('name'))
                 if event:
-                    #try:
                     for tag in self.settings["CrowdStrike"]["actors_tags"].split(","):
                         event.add_tag(tag)
                     # Create an actor specific tag
                     actor_tag = actor_name.split(" ")[1]
-                    event.add_tag(f"CrowdStrike:adversary:branch: {actor_tag}")
-                    #event.add_tag(f"CrowdStrike:actor: {actor_tag}")
+                    event.add_tag(f"crowdstrike:branch=\"{actor_tag}\"")
                     if actor_name is not None:
                         already[actor_name] = True
-#                   event = self.misp.add_event(event, True)
                     success = False
                     max_tries = 3
                     for cur_try in range(max_tries):
                         try:
-                            event = do_update(event)
+                            do_update(event)
                             success = True
                         except Exception as err:
                             timeout = 0.3 * 2 ** cur_try
@@ -136,7 +139,6 @@ class ActorsImporter:
                        fallback="BEGIN ADVERSARIES IMPORT",
                        hide_cool_banners=self.import_settings["no_banners"]
                        )
-        #self.log.info(ADVERSARIES_BANNER)
         start_get_events = int((
             datetime.datetime.today() + datetime.timedelta(days=-int(min(actors_days_before, 7300)))
         ).timestamp())
@@ -161,15 +163,8 @@ class ActorsImporter:
             for det in [d for d in act_detail if d.get("id") == mapped["cs_id"]]:
                 details = det
                 add_cluster_elements(details, details, cluster)
-            # act_rec = {}
-            # for this_act in actors:
-            #     if this_act.get("id") == mapped["cs_id"]:
-            #         act_rec = this_act
 
-        threat_actors_galaxy = get_threat_actor_galaxy_id(self.misp)
         # Create Threat Actor Galaxy Clusters for missing CS adversaries
-        
-
         for act in [a for a in actors if a["name"] not in actor_map]:
             details = {}
             for det in act_detail:
@@ -177,9 +172,7 @@ class ActorsImporter:
                     details = det
             cluster = MISPGalaxyCluster()
             cluster["distribution"] = 1
-            # cluster.distribution = 1
             cluster["authors"] = ["CrowdStrike"]
-            # cluster.authors = ["CrowdStrike"]
             cluster["type"] = "threat-actor"
             cluster["default"] = False
             cluster["source"] = "CrowdStrike"
@@ -188,7 +181,7 @@ class ActorsImporter:
             cluster.Orgc = self.crowdstrike_org
             add_cluster_elements(act, details, cluster)
 
-            cluster_result = self.misp.add_galaxy_cluster(threat_actors_galaxy, cluster)
+            cluster_result = self.misp.add_galaxy_cluster(get_threat_actor_galaxy_id(self.misp), cluster)
             actor_map[act['name'].upper()] = {
                 "uuid": cluster_result["GalaxyCluster"]["uuid"],
                 "tag_name": cluster_result["GalaxyCluster"]["tag_name"],
@@ -233,33 +226,30 @@ class ActorsImporter:
 
         self.log.info("Finished importing CrowdStrike Adversaries as events into MISP.")
 
-    @staticmethod
-    def create_internal_reference() -> MISPObject:
-            inter = MISPObject("internal-reference")
-            inter.add_attribute("type", "Adversary detail", disable_correlation=True)
-
-            return inter
 
     @staticmethod
-    def int_ref_handler(evt, kc_name, kc_detail, ref_list, slg, act_name, int_ref, verbose: bool = False):
-        kc_items = ["actions_and_objectives", "command_and_control", "delivery", "exploitation", "installation", "reconnaissance", "weaponization", "objectives", "command and control"]
-        misp_object = MISPObject("internal-reference")
-        misp_object.add_attribute("type", "Adversary detail", disable_correlation=True)
-        misp_object.add_attribute("identifier", kc_name.title(), disable_correlation=True)
+    def int_ref_handler(evt, kc_name, kc_detail, kcatt: MISPObject = None, galaxy_tag: str = None):
+        sum_id = None
+        goal_cat = "External analysis"
+        if kc_name.title() == "Installation":
+            goal_cat = "Payload installation"
+        if kc_name.title() in ["Weaponization", "Delivery"]:
+            goal_cat = "Payload delivery"
+        if kc_name.title() in ["Objectives", "Reconnaissance"]:
+            goal_cat = "External analysis"
+        if kc_name.lower() == "command and control":
+            goal_cat = "Network activity"
         if not isinstance(kc_detail, list):
-            kc_detail.replace("\t", "").replace("&nbsp;", "")
-            sum_id = misp_object.add_attribute("comment", kc_detail, disable_correlation=True)
-        ref_list.append(evt.add_object(misp_object))
-        if verbose:
-            evt.add_attribute_tag(f"CrowdStrike:adversary:{kc_name.lower().replace(' ', '-')}: {act_name}", sum_id.uuid)
-            evt.add_attribute_tag(f"CrowdStrike:adversary:{slg}: {kc_name.upper()}", sum_id.uuid)
-        if kc_name.lower() in kc_items:
-            predicate = "Action on Objectives"
-            if normalize_killchain(kc_name) != "objectives":
-                predicate = "Initial Foothold"
-            evt.add_attribute_tag(f"unified-kill-chain:{predicate}=\"{normalize_killchain(kc_name)}\"", sum_id.uuid)
+            kc_detail = kc_detail.replace("\t", "").replace("&nbsp;", "")
+        if kc_detail not in ["Unknown", "N/A"]:
+            sum_id = kcatt.add_attribute("goals", kc_detail, disable_correlation=True, category=goal_cat)
+            if kc_name.lower().strip() == "objectives":
+                kc_name = "Actions on Objectives"
+            sum_id.add_tag(f"kill-chain:{kc_name}")
+            if galaxy_tag:
+                sum_id.add_tag(galaxy_tag)
+            evt.add_tag(f"kill-chain:{kc_name}")
 
-        int_ref.add_reference(misp_object.uuid, "Adversary detail")
 
     def create_event_from_actor(self, actor, act_details) -> MISPEvent():
         """Create a MISP event for a valid Actor."""
@@ -277,11 +267,12 @@ class ActorsImporter:
         for det in act_details:
             if det.get("id") == actor.get("id"):
                 details = det
-
+        # Actor name, slug and branch
         actor_name = actor.get("name", None)
         actor_proper_name = " ".join([n.title() for n in actor.get("name", "").split(" ")])
         slug = details.get("slug", actor_name.lower().replace(" ", "-"))
         actor_branch = actor_name.split(" ")[1].upper()
+
         actor_region = ""
         verbosity = self.import_settings["verbose_tags"]
         if actor_name:
@@ -293,134 +284,9 @@ class ActorsImporter:
                 "type": "threat-actor",
                 "value": actor_proper_name,
             }
-            if actor_name.upper() in self.import_settings["actor_map"]:
-                event.add_tag(self.import_settings["actor_map"][actor_name.upper()]["tag_name"])
-            else:
-                event.add_tag(f"CrowdStrike:adversary: {actor_name}")
-
-            if details.get('url'):
-                event.add_attribute('link', details.get('url'), disable_correlation=True)
-
-            to_reference: list[MISPObject] = []
-            internal = None
-            # Adversary description
-            if details.get('description'):
-                internal = self.create_internal_reference()
-                internal.add_attribute("identifier", "Description", disable_correlation=True)
-                desc_id = internal.add_attribute('comment', details.get('description'), disable_correlation=True)
-
-            # Adversary type
-            act_type = details.get("actor_type", None)
-            if act_type:
-                if not internal:
-                    internal = self.create_internal_reference()
-
-                self.int_ref_handler(event, "Actor Type", act_type.title(), to_reference, slug, actor_name, internal, verbosity)
-                event.add_tag(f"CrowdStrike:adversary:type: {act_type.upper()}")
-
-            # Adversary motives
-            motives = details.get("motivations", None)
-            if motives:
-                mlist = [m.get("value") for m in motives]
-                motive_list_string = "\n".join(mlist)
-                if not internal:
-                    internal = self.create_internal_reference()
-
-                self.int_ref_handler(event, "Motivation", motive_list_string, to_reference, slug, actor_name, internal, verbosity)
-                for mname in mlist:
-                    event.add_tag(f"CrowdStrike:adversary:motivation: {mname.upper()}")
-
-            # Adversary capability
-            cap = details.get("capability", None)
-            if cap:
-                cap_val = cap.get("value")
-                if cap_val:
-                    if not internal:
-                        internal = self.create_internal_reference()
-
-                    self.int_ref_handler(event, "Capability", cap_val, to_reference, slug, actor_name, internal, verbosity)
-                    event.add_tag(f"CrowdStrike:adversary:capability: {cap_val.upper()}")
-                    # Set adversary event threat level based upon adversary capability
-                    if "BELOW" in cap_val.upper() or "LOW" in cap_val.upper():
-                        event.threat_level_id = 3
-                    elif "ABOVE" in cap_val.upper() or "HIGH" in cap_val.upper():
-                        event.threat_level_id = 1
-                    else:
-                        event.threat_level_id = 2
-
-            # Kill chain elements
-            kill_chain_detail = details.get("kill_chain")
-            if kill_chain_detail:
-                objectives = kill_chain_detail.get("actions_and_objectives", None)
-                candc = kill_chain_detail.get("command_and_control", None)
-                delivery = kill_chain_detail.get("delivery", None)
-                exploitation = kill_chain_detail.get("exploitation", None)
-                installation = kill_chain_detail.get("installation", None)
-                reconnaissance = kill_chain_detail.get("reconnaissance", None)
-                weaponization = kill_chain_detail.get("weaponization", None)
-
-                if not internal:
-                    internal = self.create_internal_reference()
-
-                # Kill chain - Objectives
-                if objectives:
-                    self.int_ref_handler(event, "objectives", objectives, to_reference, slug, actor_name, internal, verbosity)
-
-                # Kill chain - Command and Control
-                if candc:
-                    self.int_ref_handler(event, "command and control", candc, to_reference, slug, actor_name, internal, verbosity)
-
-                # Kill chain - Delivery
-                if delivery:
-                    self.int_ref_handler(event, "delivery", delivery, to_reference, slug, actor_name, internal, verbosity)
-
-                # Kill chain - Exploitation
-                if exploitation:
-                    exploitation_object = MISPObject("internal-reference")
-                    if exploitation.replace("\t", "".replace("&nbsp;", "")) not in ["Unknown", "N/A"]:
-                        exploitation_object.add_attribute("type", "Adversary detail", disable_correlation=True)
-                        exploitation_object.add_attribute("identifier", "Exploitation", disable_correlation=True)
-                        exploits = exploitation.replace("\t", "").replace("&nbsp;", "").split("\r\n")
-                        ex_id = exploitation_object.add_attribute("comment", exploitation.replace("\t", "").replace("&nbsp;", ""), disable_correlation=True)
-                        to_reference.append(event.add_object(exploitation_object))
-                        event.add_attribute_tag(f"unified-kill-chain:Initial Foothold=\"exploitation\"", ex_id.uuid)
-                        if verbosity:
-                            event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: EXPLOITATION", ex_id.uuid)
-                            event.add_attribute_tag(f"CrowdStrike:adversary:exploitation: {actor_name}", ex_id.uuid)
-                            for exptt in [exp for exp in exploits if exp]:
-                                if exptt not in ["Unknown", "N/A"]:
-                                    for exploit in [a.strip() for a in exptt.split(",")]:
-                                        if len(exploit.split(" ")) <= 4:
-                                            event.add_attribute_tag(f"CrowdStrike:adversary:exploitation: {exploit.upper()}", ex_id.uuid)
-                    internal.add_reference(exploitation_object.uuid, "Adversary detail")
-                # Kill chain - Installation
-                if installation:
-                    self.int_ref_handler(event, "installation", installation, to_reference, slug, actor_name, internal, verbosity)
-                    
-                # Kill chain - Reconnaissance
-                if reconnaissance:
-                    self.int_ref_handler(event, "reconnaissance", reconnaissance, to_reference, slug, actor_name, internal, verbosity)
-                # Kill chain - Weaponization
-                if weaponization:
-                    self.int_ref_handler(event, "weaponization", weaponization, to_reference, slug, actor_name, internal, verbosity)
-
-            for ref in to_reference:
-                internal.add_reference(ref.uuid, "Adversary detail")
-                for web in to_reference:
-                    if web.uuid != ref.uuid:
-                        web.add_reference(ref.uuid, "Adversary detail")
-
-            if internal:       
-                event.add_object(internal)
-                # Add the description tags
-                if details.get('description') and verbosity:
-                    event.add_attribute_tag(f"CrowdStrike:adversary:description: {actor_name}", desc_id.uuid)
-                    event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: DESCRIPTION", desc_id.uuid)
-
+            # Timestamps
             had_timestamp = False
             timestamp_object = MISPObject('timestamp')
-            tsf = None
-            tsl = None
             actor_att["first_seen"] = actor.get("first_activity_date", 0)
             if not actor_att["first_seen"]:
                 self.log.warning("Adversary %s missing field first_activity_date.", actor_name)
@@ -434,55 +300,218 @@ class ActorsImporter:
             if actor_att["first_seen"] == 0:
                 actor_att["first_seen"] = actor_att["last_seen"]
             if actor_att["first_seen"]:
-                tsf = timestamp_object.add_attribute('first-seen', datetime.datetime.utcfromtimestamp(actor_att["first_seen"]).isoformat())
+                timestamp_object.add_attribute('first-seen', datetime.datetime.utcfromtimestamp(actor_att["first_seen"]).isoformat())
                 had_timestamp = True
 
             if actor_att["last_seen"]:
-                tsl = timestamp_object.add_attribute('last-seen', datetime.datetime.utcfromtimestamp(actor_att["last_seen"]).isoformat())
+                timestamp_object.add_attribute('last-seen', datetime.datetime.utcfromtimestamp(actor_att["last_seen"]).isoformat())
                 had_timestamp = True
 
             ta = event.add_attribute(**actor_att, disable_correlation=True)
+            ta.add_tag(self.adversary_galaxy_tag(actor_name))
             actor_split = actor_name.split(" ")
             actor_branch = actor_split[1] if len(actor_split) > 1 else actor_split[0]
-            event.add_attribute_tag(f"CrowdStrike:adversary:branch: {actor_branch}", ta.uuid)
+            event.add_attribute_tag(f"crowdstrike:branch=\"{actor_branch}\"", ta.uuid)
             if had_timestamp:
                 event.add_object(timestamp_object)
-                if tsf and verbosity:
-                    event.add_attribute_tag(f"CrowdStrike:adversary:first-seen: {actor_name}", tsf.uuid)
-                    event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: FIRST SEEN", tsf.uuid)
-                if tsl and verbosity:
-                    event.add_attribute_tag(f"CrowdStrike:adversary:last-seen: {actor_name}", tsl.uuid)
-                    event.add_attribute_tag(f"CrowdStrike:adversary:{slug}: LAST SEEN", tsl.uuid)
+
+            # Create the organization object for this actor
+            known_as_object = MISPObject('organization')
+            kao_name = known_as_object.add_attribute("name",
+                                                     actor_proper_name,
+                                                     disable_correlation=True,
+                                                     category="Attribution",
+                                                     first_seen=datetime.datetime.utcfromtimestamp(actor_att["first_seen"]).isoformat(),
+                                                     last_seen=datetime.datetime.utcfromtimestamp(actor_att["last_seen"]).isoformat()
+                                                     )
+            kao_ts = known_as_object.add_attribute("date-of-inception",
+                                                   datetime.datetime.utcfromtimestamp(actor_att["first_seen"]).isoformat(),
+                                                   disable_correlation=True,
+                                                   category="External analysis"
+                                                   )
+            kao_name.add_tag(self.adversary_galaxy_tag(actor_name))
+            kao_ts.add_tag(self.adversary_galaxy_tag(actor_name))
+            # All actor reports are of the adversary report type
+            event.add_tag("crowdstrike:report-type=\"Adversary Report\"")
+            # All actor reports are considered Threat Actor Updates
+            event.add_tag("threatmatch:alert-type=\"Threat Actor Updates\"")
+            # All adversary events are considered "complete" from a workflow perspective.
+            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_WORKFLOW", False)):
+                event.add_tag("workflow:state=\"complete\"")
+
+            if actor_name.upper() in self.import_settings["actor_map"]:
+                event.add_tag(self.adversary_galaxy_tag(actor_name))
+            else:
+                event.add_tag(f"CrowdStrike:adversary: {actor_name}")
+
+            if details.get('url'):
+                event.add_attribute('link', details.get('url'), disable_correlation=True)
+
+            # Adversary description
+            reg_desc = details.get("description", None)
+            if reg_desc:
+                kao_desc = known_as_object.add_attribute("description", reg_desc, disable_correlation=True, category="External analysis")
+                kao_desc.add_tag(self.adversary_galaxy_tag(actor_name))
+                # Report Annotation and full text
+                rich_desc = details.get("rich_text_description", None)
+                long_desc = details.get("long_description", None)
+                if long_desc or rich_desc:
+                    # Moving over to just using the event report for the MD formatted content
+                    md_version = markdownify(rich_desc)
+                    if not md_version:
+                        md_version = long_desc
+                    if not md_version:
+                        md_version = reg_desc
+
+                event.add_event_report(event.info, md_version.replace("\t", "").replace("      ", ""))
+
+            # Adversary type
+            act_type = details.get("actor_type", None)
+            if act_type:
+                event.add_tag(f"crowdstrike:type=\"{act_type.upper()}\"")
+
+            # Adversary motives
+            motive_list = []
+            motives = details.get("motivations", None)
+            if motives:
+                motive_list = [m.get("value") for m in motives]
+                to_set = []
+                for mname in motive_list:
+                    if mname.upper() == "STATE-SPONSORED":
+                        if "state-responsibility:state-prohibited-but-inadequate." in to_set:
+                            to_set.pop(to_set.index("state-responsibility:state-prohibited-but-inadequate."))
+                        to_set.append("state-responsibility:state-coordinated")
+                    elif mname.upper() in ["CRIMINAL", "HACKTIVISM"]:
+                        if not "state-responsibility:state-coordinated" in to_set:
+                            to_set.append("state-responsibility:state-prohibited-but-inadequate.")
+                        if mname.upper() == "HACKTIVISM":
+                            event.add_tag("threatmatch:incident-type=\"Hacktivism Activity\"")
+                    else:
+                        event.add_tag(f"CrowdStrike:adversary:motivation: {mname.upper()}")
+                for lab in to_set:
+                    event.add_tag(lab)
+            if motive_list:
+                for mot in motive_list:
+                    if mot.upper() in ["STATE-SPONSORED", "HACKTIVISM", "CRIMINAL"]:
+                        known_as_object.add_attribute("type-of-organization", mot, disable_correlation=True, category="External analysis")
+
+            # Adversary capability
+            cap_val = None
+            cap = details.get("capability", None)
+            if cap:
+                cap_val = cap.get("value")
+                if cap_val:
+                    event.add_tag(f"crowdstrike:capability=\"{cap_val.upper()}\"")
+                    # Set adversary event threat level based upon adversary capability
+                    if "BELOW" in cap_val.upper() or "LOW" in cap_val.upper():
+                        event.threat_level_id = 3
+                    elif "ABOVE" in cap_val.upper() or "HIGH" in cap_val.upper():
+                        event.threat_level_id = 1
+                    else:
+                        event.threat_level_id = 2
+            # Adversary threatmatch capabilities
+            for caps in [c["value"] for c in details.get("capabilities", [])]:
+                if caps.upper() != normalize_threatmatch(caps.upper()):
+                    for match in normalize_threatmatch(caps.upper()).split(","):
+                        event.add_tag(f"threatmatch:{match}")
+            for objectives in [c["value"] for c in details.get("objectives", [])]:
+                if objectives.upper() != normalize_threatmatch(objectives.upper()):
+                    for match in normalize_threatmatch(objectives.upper()).split(","):
+                        event.add_tag(f"threatmatch:{match}")
+            # Kill chain elements
+            kill_chain_detail = details.get("kill_chain")
+            if kill_chain_detail:
+                kc_att = MISPObject("intrusion-set")
+                objectives = kill_chain_detail.get("actions_and_objectives", None)
+                candc = kill_chain_detail.get("command_and_control", None)
+                delivery = kill_chain_detail.get("delivery", None)
+                exploitation = kill_chain_detail.get("exploitation", None)
+                installation = kill_chain_detail.get("installation", None)
+                reconnaissance = kill_chain_detail.get("reconnaissance", None)
+                weaponization = kill_chain_detail.get("weaponization", None)
+                adv_objectives = [o["value"] for o in details.get("objectives", [])]
+
+                # Kill chain - Objectives
+                if objectives:
+                    self.int_ref_handler(event, "actions on objectives", objectives, kc_att, self.adversary_galaxy_tag(actor_name))
+
+                # Kill chain - Command and Control
+                if candc:
+                    self.int_ref_handler(event, "command and control", candc, kc_att, self.adversary_galaxy_tag(actor_name))
+
+                # Kill chain - Delivery
+                if delivery:
+                    self.int_ref_handler(event, "delivery", delivery, kc_att, self.adversary_galaxy_tag(actor_name))
+
+                # Kill chain - Exploitation
+                if exploitation:
+                    if exploitation.replace("\t", "".replace("&nbsp;", "")) not in ["Unknown", "N/A"]:
+                        #exploits = exploitation.replace("\t", "").replace("&nbsp;", "").split("\r\n")
+                        for exploits in exploitation.replace("\t", "").replace("&nbsp;", "").split("\r\n"):
+                            for exploit in exploits.split(","):
+                                ex_id = event.add_attribute("vulnerability", exploit.upper(), category="External analysis")
+                                if verbosity:
+                                    event.add_attribute_tag("kill-chain:Exploitation", ex_id.uuid)
+                                    event.add_tag("kill-chain:Exploitation")
+                # Kill chain - Installation
+                if installation:
+                    self.int_ref_handler(event, "installation", installation, kc_att, self.adversary_galaxy_tag(actor_name))
+                    
+                # Kill chain - Reconnaissance
+                if reconnaissance:
+                    self.int_ref_handler(event, "reconnaissance", reconnaissance, kc_att, self.adversary_galaxy_tag(actor_name))
+                # Kill chain - Weaponization
+                if weaponization:
+                    self.int_ref_handler(event, "weaponization", weaponization, kc_att, self.adversary_galaxy_tag(actor_name))
+
+                if cap_val:
+                    kc_att.add_attribute("resource_level", cap_val, disable_correlation=True, category="External analysis")
+                if motive_list:
+                    motlist = []
+                    for mot in motive_list:
+                        if mot.upper() in ["STATE-SPONSORED", "HACKTIVISM", "CRIMINAL"]:
+                            primary = mot.title().replace("Sponsored", "sponsored")
+                            if act_type:
+                                primary = f"{primary} ({act_type.title()})"
+                            motlist.append(primary)
+                    for mot in motlist:
+                        res = kc_att.add_attribute("primary-motivation", mot, disable_correlation=True, category="External analysis")
+                        res.add_tag(self.adversary_galaxy_tag(actor_name))
+                if adv_objectives:
+                    objs_list = []
+                    for objs in adv_objectives:
+                        if objs.upper() in [a.name for a in AdversaryMotivation]:
+                            objs_list.append(AdversaryMotivation[objs.upper()].value)
+                    if objs_list:
+                        for objective in objs_list:
+                            res = kc_att.add_attribute("secondary-motivation", objective, disable_correlation=True, category="External analysis")
+                            res.add_tag(self.adversary_galaxy_tag(actor_name))
+                event.add_object(kc_att)
+
             if actor.get('known_as') or actor.get("origins"):
                 if actor.get("known_as"):
-                    known_as_object = MISPObject('organization')
                     aliased = [a.strip() for a in actor.get("known_as").split(",")]
-                    for alias in aliased:
-                        kao = known_as_object.add_attribute('alias', alias, disable_correlation=True)
+                    for alias in [a for a in aliased if a]:
+                        kao = known_as_object.add_attribute('alias', alias, disable_correlation=True, category="Attribution")
                         # Tag the aliases to the threat-actor attribution
                         if verbosity and kao:
-                            kao.add_tag(f"CrowdStrike:adversary:branch: {actor_branch}")
-                            kao.add_tag(f"CrowdStrike:adversary:{slug}:alias: {alias.upper()}")
-                            event.add_attribute_tag(f"CrowdStrike:adversary:{slug}:alias: {alias.upper()}", ta.uuid)
-                    event.add_object(known_as_object)
+                            kao.add_tag(f"crowdstrike:branch=\"{actor_branch}\"")
+                            kao.add_tag(self.adversary_galaxy_tag(actor_name))
+            
                 for orig in actor.get("origins", []):
                     locale = orig.get("value")
                     if locale:
                         kar = event.add_attribute("country-of-residence", locale, disable_correlation=True)
-                        event.add_tag(f"CrowdStrike:adversary:origin: {locale.upper()}")
+                        event.add_tag(f"crowdstrike:origin=\"{locale.upper()}\"")
                         if verbosity:
-                            event.add_attribute_tag(f"CrowdStrike:adversary:{slug}:origin: {locale.upper()}", kar.uuid)
-                            event.add_attribute_tag(f"CrowdStrike:adversary:origin: {locale.upper()}", kar.uuid)
+                            event.add_attribute_tag(f"crowdstrike:origin=\"{locale.upper()}\"", kar.uuid)
+            if known_as_object:
+                event.add_object(known_as_object)
 
-            victim = None
             # Adversary victim location
             if actor.get("target_countries"):
                 region_list = [c.get('value') for c in actor.get('target_countries', [])]
                 for region in region_list:
-                    #event.add_tag(f"misp-galaxy:target-information=\"{region}\"")
-                    if not victim:
-                        victim = MISPObject("victim")
-                    vic = victim.add_attribute('regions', region, disable_correlation=True)
                     region = normalize_locale(region)
                     if region in self.regions:
                         self.log.debug("Regional match. Tagging %s", self.regions[region])
@@ -490,43 +519,14 @@ class ActorsImporter:
                     else:
                         self.log.debug("Country match. Tagging %s.", region)
                         event.add_tag(f"misp-galaxy:target-information=\"{region}\"")
-                    if verbosity:
-                        vic.add_tag(f"CrowdStrike:target:location: {region.upper()}")
-                        vic.add_tag(f"CrowdStrike:adversary:{slug}:target:location: {region.upper()}")
 
             # Adversary victim industry
             if actor.get("target_industries"):
                 sector_list = [s.get('value') for s in actor.get('target_industries', [])]
                 for sector in sector_list:
-                    if not victim:
-                        victim = MISPObject("victim")
-                    vic = victim.add_attribute('sectors', sector, disable_correlation=True)
-                    if verbosity:
-                        vic.add_tag(f"CrowdStrike:adversary:{slug}:target:sector: {sector.upper()}")
-                        vic.add_tag(f"CrowdStrike:target:sector: {sector.upper()}")
                     event.add_tag(f"misp-galaxy:sector=\"{normalize_sector(sector)}\"")
-            if victim:
-                event.add_object(victim)
-
             # TYPE Taxonomic tag, all events
-            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TYPE", False)):
-                event.add_tag('type:CYBINT')
-            # INFORMATION-SECURITY-DATA-SOURCE Taxonomic tag, all events
-            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_INFORMATION-SECURITY-DATA-SOURCE", False)):
-                event.add_tag('information-security-data-source:integrability-interface="api"')
-                event.add_tag('information-security-data-source:originality="original-source"')
-                event.add_tag('information-security-data-source:type-of-source="security-product-vendor-website"')
-            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP", False)):
-                event.add_tag('iep:commercial-use="MUST NOT"')
-                event.add_tag('iep:provider-attribution="MUST"')
-                event.add_tag('iep:unmodified-resale="MUST NOT"')
-            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP2", False)):
-                if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_IEP2_VERSION", False)):
-                    event.add_tag('iep2-policy:iep_version="2.0"')
-                event.add_tag('iep2-policy:attribution="must"')
-                event.add_tag('iep2-policy:unmodified_resale="must-not"')
-            if confirm_boolean_param(self.settings["TAGGING"].get("taxonomic_TLP", False)):
-                event.add_tag("tlp:amber")
+            event = taxonomic_event_tagging(event, self.settings["TAGGING"])
 
         else:
             self.log.warning("Adversary %s missing field name.", actor.get('id'))

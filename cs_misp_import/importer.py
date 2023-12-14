@@ -11,6 +11,7 @@ from .actors import ActorsImporter
 from .indicators import IndicatorsImporter
 from .reports import ReportsImporter
 from .threaded_misp import MISP
+from threading import Lock
 from .helper import (
     IMPORT_BANNER,
     DELETE_BANNER,
@@ -162,7 +163,7 @@ class CrowdstrikeToMISPImporter:
                         adv_list.append(adv_type.upper())
             for adv_type in adv_list:
                 adv_time = datetime.datetime.now().timestamp()
-                perform_threaded_delete(tag_to_hunt=f"CrowdStrike:adversary:branch: {adv_type}",
+                perform_threaded_delete(tag_to_hunt=f"crowdstrike:branch=\"{adv_type}\"",
                                         tag_type=f"Adversary ({adv_type})",
                                         #skip_tags=get_feed_tags(do_not=True),
                                         do_min=True
@@ -190,7 +191,7 @@ class CrowdstrikeToMISPImporter:
                         report_list.append(rpt_type.upper())
             for report_type in report_list:
                 rep_time = datetime.datetime.now().timestamp()
-                perform_threaded_delete(tag_to_hunt=f"CrowdStrike:report:type: {report_type}", tag_type=f"{report_type.upper()} report", do_min=True)
+                perform_threaded_delete(tag_to_hunt=f"crowdstrike:report-type=\"{ReportType[report_type].value}\"", tag_type=f"{report_type.upper()} report", do_min=True)
                 rep_run_time = datetime.datetime.now().timestamp() - rep_time
                 self.log.info("Completed deletion of CrowdStrike %s reports within MISP in %s seconds",
                               report_type,
@@ -208,12 +209,12 @@ class CrowdstrikeToMISPImporter:
 
             for ind_type in ind_list:
                 perform_threaded_delete(
-                    tag_to_hunt=f"CrowdStrike:indicator:type: {ind_type.upper()}",
+                    tag_to_hunt=f"crowdstrike:indicator:type: {ind_type.upper()}",
                     tag_type=f"{ind_type.upper()} indicator"
                     )
             for indy in ind_list:
                 perform_threaded_delete(
-                    tag_to_hunt=f"CrowdStrike:indicator:feed:type: {indy.upper()}",
+                    tag_to_hunt=f"crowdstrike:indicator:feed:type: {indy.upper()}",
                     tag_type=f"{IndicatorType[indy.upper()].value} indicator type",
                     do_min=True
                 )
@@ -234,13 +235,24 @@ class CrowdstrikeToMISPImporter:
         removed = 0
         self.log.info("Retrieving list of tags to remove from MISP instance (may take several minutes).")
         lock = Lock()
+        # print(self.misp_client.search_tags("crowdstrike-%", strict_tagname=True))
+        # print("=" * 120)
+        # print(self.misp_client.search_tags("CrowdStrike:%", strict_tagname=True))
+        # Support both styles for now
         with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
             futures = {
-                executor.submit(self.misp_client.clear_tag, tg, lock=lock)
+                executor.submit(self.misp_client.clear_tag, tg["Tag"]["id"], lock=lock)
                 for tg in self.misp_client.search_tags("CrowdStrike:%", strict_tagname=True)
+            }
+            additional = {
+                executor.submit(self.misp_client.clear_tag, tg["Tag"]["id"], lock=lock)
+                for tg in self.misp_client.search_tags("crowdstrike%", strict_tagname=False)
             }
             for _ in concurrent.futures.as_completed(futures):
                 removed += 1
+            for _ in concurrent.futures.as_completed(additional):
+                removed += 1
+
         self.log.info("Finished cleaning up CrowdStrike related tags from MISP, %i tags deleted.", removed)
 
     def clean_old_crowdstrike_events(self, max_age, event_type = False):
@@ -372,6 +384,7 @@ class CrowdstrikeToMISPImporter:
                     self.actor_ids[event.get('info')] = event["uuid"]
                     self.event_ids[event.get('info')] = event["uuid"]
                 elif style == "reports":
+                    #thread_lock = Lock()
                     with concurrent.futures.ThreadPoolExecutor(self.misp_client.thread_count, thread_name_prefix="thread") as executor:
                         executor.map(self.threaded_report_search, )
                     self.event_ids[event.get("info").split(" ")[0]] = event["uuid"]

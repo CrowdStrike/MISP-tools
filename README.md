@@ -1,6 +1,6 @@
 ![CrowdStrike Falcon](https://raw.githubusercontent.com/CrowdStrike/falconpy/main/docs/asset/cs-logo.png) 
 
-[![Twitter URL](https://img.shields.io/twitter/url?label=Follow%20%40CrowdStrike&style=social&url=https%3A%2F%2Ftwitter.com%2FCrowdStrike)](https://twitter.com/CrowdStrike)
+[![CrowdStrike Subreddit](https://img.shields.io/badge/-r%2Fcrowdstrike-white?logo=reddit&labelColor=gray&link=https%3A%2F%2Freddit.com%2Fr%2Fcrowdstrike)](https://reddit.com/r/crowdstrike)
 
 # MISP Tools
 <img align="right" width="400" src="docs/misp-import.gif">
@@ -84,7 +84,6 @@ The MISP section contains detail for communicating with your MISP instance.
 | `max_threads` | Number of processor threads to use for processing. |
 | `miss_track_file` | The name of the file used to track malware families without a galaxy mapping.
 | `galaxies_map_file` | The name of the galaxy mapping file (default: `galaxy.ini`) |
-| `log_duplicates_as_sightings` | Boolean flag indicating if duplicate indicators should be marked as a new sighting or skipped. |
 | `ind_attribute_batch_size` | Maximum number of indicators to process before updating MISP event records. Performance impacts. |
 | `event_save_memory_refresh_interval` | Amount of time (in seconds) an event save must take before the event is subsequently refreshed in memory. |
 

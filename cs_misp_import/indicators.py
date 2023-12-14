@@ -30,12 +30,9 @@ from requests.exceptions import SSLError, ConnectionError
 from cs_misp_import.indicator_feeds import retrieve_or_create_feed_events
 from .helper import (
     gen_indicator,
-    INDICATOR_TYPES,
     INDICATORS_BANNER,
     display_banner,
     thousands,
-    format_seconds,
-    confirm_boolean_param,
     get_actor_galaxy_map
     )
 from .indicator_type import IndicatorType
@@ -44,14 +41,10 @@ from .indicator_family import check_and_set_threat_level, find_or_create_family_
 from .indicator_tags import (
     tag_attribute_actor,
     tag_attribute_family,
-    tag_attribute_labels,
-    tag_attribute_targets,
-    tag_attribute_threats,
-    tag_attribute_labels,
-    tag_attribute_malicious_confidence
+    tag_attribute_targets
 )
 try:
-    from pymisp import MISPObject, MISPEvent, MISPAttribute, ExpandedPyMISP, MISPSighting, MISPServerError # , MISPTag
+    from pymisp import MISPEvent, MISPAttribute, ExpandedPyMISP, MISPServerError
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
@@ -72,7 +65,7 @@ class IndicatorsImporter:
     :param import_settings: Import settings (Namespace)
     :param logger: Log utility
     """
-    MISSING_GALAXIES = None
+    MISSING_GALAXIES = []
     def __init__(self,
                  misp_client,
                  intel_api_client,
@@ -106,49 +99,6 @@ class IndicatorsImporter:
         self.not_found = []
 
 
-    def attribute_search(self, att_name, att_type):
-        """Search for indicators of a specific type and return a clean dictionary of the indicator and UUID."""
-        clean_result = None
-        try:
-            result = self.misp.search(controller="attributes", type_attribute=att_type, include_event_uuid=True)
-            if not result:
-                return {}
-            clean_result = {
-                res.get("value"): {
-                    "uuid": res.get("uuid"),
-                    "event_uuid": res.get("event_uuid"),
-                    "timestamp": res.get("timestamp")
-                }
-                for res in result.get("Attribute")
-            }
-            self.log.info("Retrieved %s %s indicators from MISP.", thousands(len(clean_result)), att_name)
-        except (SSLError, ConnectionError):
-            self.log.warning("Unable to retrieve %s attributes for duplicate checking.", att_type)
-        #return {att_name: clean_result}
-        return clean_result
-
-
-    def find_report_indicators(self):
-        retrieved_indicators = {}
-        with concurrent.futures.ThreadPoolExecutor(self.misp.thread_count, thread_name_prefix="thread") as executor:
-            futures = {
-                executor.submit(self.attribute_search, at, atn)
-                for at, atn in INDICATOR_TYPES.items() if atn
-
-            }
-            if not futures:
-                return
-            for fut in futures:
-                if fut and retrieved_indicators:
-                    retrieved_indicators.update(fut.result())
-
-        non_report_ids = [fe.uuid for fe in self.feeds]
-        for ret_ind, ind_detail in retrieved_indicators.items():
-            if ind_detail.get("event_uuid") not in non_report_ids:
-                self.existing_indicators[ret_ind] = ind_detail
-        self.log.info("Found %s pre-existing indicators within CrowdStrike reports.", len(self.existing_indicators))
-
-
     def process_indicators(self, indicators_mins_before):
         """Pull and process indicators.
 
@@ -180,28 +130,40 @@ class IndicatorsImporter:
 
         # FEED EVENT SETUP
         self.feeds = retrieve_or_create_feed_events(
-            self.settings, self.crowdstrike_org, self.misp, self.feeds, self.log
+            self.settings, self.import_settings, self.crowdstrike_org, self.misp, self.feeds, self.log
         )
 
         # FAMILY EVENT SEARCH
         self.feeds = retrieve_family_events(self.misp, self.feeds, self.log)
 
-        # DUPLICATE INDICATORS SEARCH
-        self.find_report_indicators()
-
         # MAIN INDICATORS PROCESSING
         self.log.info("Starting import of CrowdStrike indicators into MISP.")
         indicators_count = 0
 
+        # Trying something different
         for indicators_page in self.intel_api_client.get_indicators(start_get_events,
                                                                     self.delete_outdated,
                                                                     self.import_settings["type"]
                                                                     ):
             self.push_indicators(indicators_page)
             indicators_count += len(indicators_page)
+        # Load it all first
+        # all_indicators = []
+        # for indicators_page in self.intel_api_client.get_indicators(start_get_events,
+        #                                                             self.delete_outdated,
+        #                                                             self.import_settings["type"]
+        #                                                             ):
+        #     indicators_count += len(indicators_page)
+        #     all_indicators.extend(indicators_page)
+        # # This might break things
+        # self.push_indicators(all_indicators)
 
+        # Old way
         if indicators_count == 0:
             self._note_timestamp(time_send_request.timestamp())
+
+        # New way
+#        self._note_timestamp(time_send_request.timestamp())
 
         self.log.info("Finished importing %s CrowdStrike Threat Intelligence indicators into MISP. "
                       f"(%s existing indicators skipped)",
@@ -374,7 +336,7 @@ class IndicatorsImporter:
         # This is the main application thread
         total_batch_start = datetime.now().timestamp()  # Batch start time
         # Retrieve the specified MISP update batch size using upper and lower bounds
-        IND_BATCH_SIZE = max(50, min(5000, int(self.settings["MISP"].get("ind_attribute_batch_size", 500))))
+        IND_BATCH_SIZE = max(50, min(25000, int(self.settings["MISP"].get("ind_attribute_batch_size", 500))))
         self.log.debug("Configuration states we should process batches of %s indicators.", thousands(IND_BATCH_SIZE))
         pushed_so_far = 0  # Track the total number of indicators processed
         # Cut our batch down to the MISP batch size specified in our configuration file
@@ -429,25 +391,30 @@ class IndicatorsImporter:
             # tagging_list = tag_attribute_malicious_confidence(ind, tagging_list)
             tagging_list = tag_attribute_targets(ind, tagging_list, evt)
 
-            did_threat, tagging_list = tag_attribute_threats(ind, tagging_list)
-
-            with t_lock:
-                # Lock the thread since we're sharing the missing galaxy list
-                tagging_list, self.MISSING_GALAXIES = tag_attribute_family(
+            # did_threat, tagging_list = tag_attribute_threats(ind, tagging_list)
+            # with t_lock:
+            #     # Lock the thread since we're sharing the missing galaxy list
+            #     tagging_list, self.MISSING_GALAXIES = tag_attribute_family(
+            #         ind, tagging_list, self.import_settings, self.not_found,
+            #         self.MISSING_GALAXIES, self.galaxy_miss_file, self.tag_map, self.misp, evt
+            #         )
+            
+            # tagging_list = tag_attribute_labels(
+            #    ind, tagging_list, self.log, did_branch, did_threat, self.settings, self.import_settings, evt
+            #    )
+            tagging_list, self.MISSING_GALAXIES = tag_attribute_family(
                     ind, tagging_list, self.import_settings, self.not_found,
                     self.MISSING_GALAXIES, self.galaxy_miss_file, self.tag_map, self.misp, evt
                     )
-            tagging_list = tag_attribute_labels(
-               ind, tagging_list, self.log, did_branch, did_threat, self.settings, self.import_settings, evt
-               )
             for _tag in tagging_list:
                 evt.add_attribute_tag(_tag, uuid)
+
             if evt.info not in self.dirty_feeds:
-                with t_lock:
-                    self.dirty_feeds.update({evt.info: 1})  # Shared
+                #with t_lock:
+                self.dirty_feeds.update({evt.info: 1})  # Shared
             else:
-                with t_lock:
-                    self.dirty_feeds[evt.info] += 1  # Shared
+                #with t_lock:
+                self.dirty_feeds[evt.info] += 1  # Shared
 
         except Exception as errored:
             exc_type, _, exc_tb = sys.exc_info()
@@ -456,66 +423,13 @@ class IndicatorsImporter:
             self.log.error("%s (#%i) %s", exc_type, exc_tb.tb_lineno, fname)
 
 
-    def add_report_sighting(self, seen_dict: dict, ind_value, ind_uuid: str, ind_timestamp: int, tlock: Lock):
-        last = int(seen_dict.get("last_seen", 0))
-        if last and last != ind_timestamp:
-            sght = MISPSighting()
-            sght_setup = {
-                "value": ind_value,
-                "uuid": ind_uuid,
-                "source": self.crowdstrike_org,
-                "timestamp": seen_dict.get("last_seen")
-            }
-            sght.from_dict(**sght_setup)
-            self.misp.add_sighting(sght, lock=tlock)
-            self.log.debug("Adding sighting for %s (report).", ind_timestamp)
-
-
-    def add_sighting_to_attribute(self, evt_name: str, att: str, att_list: dict, seen_dict: dict, tlock: Lock):
-        try:
-            ind_obj = self.misp.get_attribute(att_list[att])
-            # I'm back and forth on if we should only check for newer indicators
-            # or any that have a different timestamp. When not checking for newer
-            # we seem to get an awful lot of matches.
-            if int(seen_dict.get("last_seen", 0)) > int(ind_obj.get("Attribute", {}).get("timestamp", 0)):
-                sight = MISPSighting()
-                sight_setup = {
-                    "value": att,
-                    "uuid": ind_obj.get("uuid"),
-                    "source": self.crowdstrike_org,
-                    "timestamp": seen_dict.get("last_seen")
-                }
-                sight.from_dict(**sight_setup)
-                self.misp.add_sighting(sight, lock=tlock)
-                self.log.debug("Adding sighting for %s.", att)
-            else:
-                self.log.debug("Skipping addition of %s to %s as already present", att, evt_name)
-                with tlock:
-                    self.skipped += 1
-        except Exception as oops:
-            exc_type, _, exc_tb = sys.exc_info()
-            pyfname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            self.log.error(str(oops))
-            self.log.error("%s (#%i) %s", exc_type, exc_tb.tb_lineno, pyfname)
-            self.log.error("Could not add sighting for: %s", att)
-
-        #return evt
-
-
-    def add_indicator_obj(self, obj, evt: MISPEvent = None, mal: MISPEvent = None):
-        # This still needs to change - 10.21.22 / @jshcodes
-        if evt:
-            evt.add_object(obj)
-        if mal:
-            mal.add_object(obj)
-
-
     def add_and_tag_attribute(self, ind, ind_obj, evt: MISPEvent, when: dict, tlock: Lock):
         returned = 0
         try:
             self.process_attribute_tags(  # May be faster to pass the tags in as a list and then add_attribute
                 ind, evt.add_attribute(ind_obj.type, ind_obj.value, **when).uuid, [], tlock, evt  # Correlate indicators
                 )
+            #evt.add_attribute(ind_obj.type, ind_obj.value, **when)
             returned = 1
             self.log.debug("Added %s indicators to event %s", ind_obj.value, evt.info)
         except Exception as oops:
@@ -533,15 +447,15 @@ class IndicatorsImporter:
         # Default returns
         feed_result = 0
         fam_result = 0
-        evt_dupe = False
-        mal_dupe = False
-        do_sightings = False
         try:
             itype = IndicatorType[indicator.get('type', None).upper()].value
         except KeyError:
             # This indicator type does not exist in our enumerator
             itype = None
-        if itype:
+        if not itype:
+            with lock:
+                self.skipped += 1
+        else:
             cs_search = f"{self.settings['CrowdStrike'].get('indicator_type_title', 'Indicator Type:')} {itype}"
             # Search for an event of this type in our feed list
             evt = [e for e in self.feeds if cs_search == e.info]
@@ -550,6 +464,7 @@ class IndicatorsImporter:
             with lock:
                 mal_event, self.feeds = find_or_create_family_event(indicator,
                                                                     self.settings,
+                                                                    self.import_settings,
                                                                     self.crowdstrike_org,
                                                                     self.log,
                                                                     self.misp,
@@ -558,86 +473,29 @@ class IndicatorsImporter:
                                                                     )
 
             indicator_value = indicator.get("indicator")
-            # Check for a pre-existing indicator within our indicator type event
-            attribute_list = {iv.value: iv.uuid for iv in event.attributes} if event else {}
-            evt_dupe = True if indicator_value in attribute_list else False
-            # Check for a pre-existing indicator within our malware family event
-            mal_attribute_list = {iv.value: iv.uuid for iv in mal_event.attributes} if mal_event else {}
-            mal_dupe = True if indicator_value in mal_attribute_list else False
-
-            # Do we log duplicative sightings or skip them?
-            do_sightings = confirm_boolean_param(self.settings["MISP"].get("log_duplicates_as_sightings", False))
-            SIGHTED = False
-
-        if not do_sightings and (mal_dupe and evt_dupe):
-            # Skipped
-            with lock:
-                self.skipped += 1
-        elif not itype:
-            with lock:
-                self.skipped += 1
-        else:
             if indicator_value:
                 custom_tag_list = self.settings["CrowdStrike"]["indicators_tags"].split(",")
                 indicator_object = gen_indicator(indicator, custom_tag_list)
                 if indicator_object:
-                    if isinstance(indicator_object, MISPObject):
-                        self.add_indicator_obj(indicator_object, event, mal_event)
-                    elif isinstance(indicator_object, MISPAttribute):
-                        # 0.6.4 conversion
+                    if isinstance(indicator_object, MISPAttribute):
                         seen = self.calculate_seen(indicator, self.crowdstrike_org)
                         if event:
-                            if not evt_dupe:
-                                feed_result = self.add_and_tag_attribute(
-                                    indicator, indicator_object, event, seen, lock
-                                )
-
-                            else:
-                                if do_sightings:
-                                    self.add_sighting_to_attribute(
-                                        event.info, indicator_value, attribute_list, seen, lock
-                                        )
-                                    SIGHTED = True
-                            for tag_val in custom_tag_list:
-                                event.add_tag(tag_val)
-                            if self.import_settings["publish"]:
-                                event.published = True
+                            feed_result = self.add_and_tag_attribute(
+                                indicator, indicator_object, event, seen, lock
+                            )
 
                         if mal_event:
-                            with lock:
-                                mal_event = check_and_set_threat_level(indicator, mal_event, self.log)  # Shared event
-                            # The event is shared, but the attribute is unique
-                            # so adding to the dictionary *should* be ok. (potential deadlock)
-                            if not mal_dupe:
-                                fam_result = self.add_and_tag_attribute(
-                                    indicator, indicator_object, mal_event, seen, lock
-                                )
-
-                            else:
-                                if indicator_value not in attribute_list and do_sightings:  # Prevent dupe sightings
-                                    self.add_sighting_to_attribute(
-                                        mal_event.info, indicator_value, mal_attribute_list, seen, lock
-                                        )
-                                    SIGHTED = True
-                            for tag_val in custom_tag_list:
-                                mal_event.add_tag(tag_val)
-                            if self.import_settings["publish"]:
-                                mal_event.published = True
-
-                        if not SIGHTED and indicator_value in self.existing_indicators and do_sightings:
-                            self.add_report_sighting(
-                                seen,
-                                indicator_value,
-                                indicator.get("uuid"),
-                                int(indicator.get("Attribute", {}).get("timestamp", 0)),
-                                lock
-                                )
+                            #with lock:
+                            #    mal_event = check_and_set_threat_level(indicator, mal_event, self.log)  # Shared event
+                            fam_result = self.add_and_tag_attribute(
+                                indicator, indicator_object, mal_event, seen, lock
+                            )
 
                         if feed_result or fam_result:
                             self.log.debug("Creating attribute for indicator %s", indicator_value)
 
                     else:
-                        self.log.warning("Couldn't generate indicator object %s to attach to event, skipping.",
+                        self.log.warning("Couldn't generate indicator attribute %s to attach to event, skipping.",
                                         indicator_value
                                         )
             else:

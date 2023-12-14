@@ -23,7 +23,7 @@ def retrieve_family_events(misp_client: ExpandedPyMISP,
                            log_util: Logger
                            ):
 
-    tag_search_base = ['CrowdStrike:indicator:malware%']
+    tag_search_base = ['crowdstrike:indicator:malware%']
     #ind_type_names = [i for i in dir(IndicatorType) if "__" not in i]
     #tag_search = [f"{tag_search_base}{ind_tn}" for ind_tn in ind_type_names]
     families = misp_client.search(eventinfo="Malware Family: %")
@@ -87,13 +87,16 @@ def get_affiliated_branches(ind):
                 branch = None
     return branches, actors
 
-def create_family_event(settings, cs_org: str, fam_name: str, log_util: Logger, branch_list: list, actor_list: list):
+def create_family_event(settings, impsettings, cs_org: str, fam_name: str, log_util: Logger, branch_list: list, actor_list: list):
     log_util.debug("Start creation of malware family event object")
     event_to_tag = MISPEvent()
     event_to_tag.analysis = 2
     event_to_tag.orgc = cs_org
     event_to_tag.info = f"Malware Family: {fam_name}"
-    event_to_tag.add_tag(f'CrowdStrike:indicator:malware:family="{fam_name}"')
+    event_to_tag.add_tag(f'crowdstrike:indicator:malware:family="{fam_name}"')
+    galaxy = impsettings["galaxy_map"].get(fam_name)
+    if galaxy is not None:
+        event_to_tag.add_tag(galaxy)
     # TYPE Taxonomic tag, all events
     if confirm_boolean_param(settings["TAGGING"].get("taxonomic_TYPE", False)):
         event_to_tag.add_tag('type:CYBINT')
@@ -115,7 +118,15 @@ def create_family_event(settings, cs_org: str, fam_name: str, log_util: Logger, 
         event_to_tag.add_tag("tlp:amber")
 
     for branch in branch_list:
-        event_to_tag.add_tag(f"CrowdStrike:adversary:branch: {branch}")
+        event_to_tag.add_tag(f"crowdstrike:adversary:branch: {branch}")
+
+    custom_tag_list = settings["CrowdStrike"]["indicators_tags"].split(",")
+    for tag_val in custom_tag_list:
+        event_to_tag.add_tag(tag_val)
+    if impsettings["publish"]:
+        event_to_tag.published = True
+
+
 
     for actor in actor_list:
 
@@ -147,6 +158,7 @@ def create_family_event(settings, cs_org: str, fam_name: str, log_util: Logger, 
 
 def find_or_create_family_event(ind,
                                 settings,
+                                imp_settings,
                                 org_id: str,
                                 log_util: Logger,
                                 misp_client: ExpandedPyMISP,
@@ -156,6 +168,7 @@ def find_or_create_family_event(ind,
                                 ):
     try:
         returned = None
+        preexisting = False
         for malware in ind.get('malware_families', []):
             log_util.debug("Malware Family identified: %s", malware)
             cs_search = f"Malware Family: {malware}"
@@ -163,20 +176,22 @@ def find_or_create_family_event(ind,
             if evt:
                 log_util.debug("Found existing malware family event for %s", malware)
                 returned = evt[0]
+                preexisting = True
             else:
                 returned = create_family_event(settings,
-                                                org_id,
-                                                malware,
-                                                log_util,
-                                                branches,
-                                                actors
-                                                )
+                                               imp_settings,
+                                               org_id,
+                                               malware,
+                                               log_util,
+                                               branches,
+                                               actors
+                                               )
                 if returned:
                     log_util.debug("Successfully created malware family event for %s", malware)
                 else:
                     log_util.debug("Unable to create malware family event for %s", malware)
 
-                if returned:
+                if returned and not preexisting:
                     misp_client.add_event(returned)
                     feed_list.append(returned)  # Shared resource
     except Exception as mal_error:

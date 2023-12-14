@@ -3,9 +3,10 @@ from logging import Logger
 from datetime import datetime, timedelta
 from ._version import __version__ as MISP_IMPORT_VERSION
 #from .intel_client import IntelAPIClient
+from .threat_type import ThreatType
 
 try:
-    from pymisp import MISPObject, MISPAttribute, ExpandedPyMISP, MISPGalaxyCluster
+    from pymisp import MISPObject, MISPAttribute, ExpandedPyMISP, MISPGalaxyCluster, MISPEvent
 except ImportError as no_pymisp:
     raise SystemExit(
         "The PyMISP package must be installed to use this program."
@@ -18,43 +19,43 @@ def gen_indicator(indicator, tag_list) -> MISPObject or MISPAttribute:
 
     indicator_type = indicator.get('type')
     indicator_value = indicator.get('indicator')
-    indicator_first = indicator.get("published_date", 0)
-    indicator_last = indicator.get("last_updated", 0)
+    # indicator_first = indicator.get("published_date", 0)
+    # indicator_last = indicator.get("last_updated", 0)
     # Type, Object_Type, Attribute Name
-    ind_objects = [
+    # ind_objects = [
         # ["hash_md5", "file", "md5"],
         # ["hash_sha256", "file", "sha256"],
         # ["hash_sha1", "file", "sha1"],
         # ["file_name", "file", "filename"],
         # ["mutex_name", "mutex", "name"],
-        ["password", "credential", "password"],
+        # ["password", "credential", "password"],
         # ["url", "url", "url"],
         # ["email_address", "email", "reply-to"],
-        ["username", "credential", "username"],
+        # ["username", "credential", "username"],
         # ["bitcoin_address", "btc-transaction", "btc-address"],
         # ["registry", "registry-key", "key"],
-        ["x509_serial", "x509", "serial-number"],
+        # ["x509_serial", "x509", "serial-number"],
         # ["file_path", "file", "fullpath"],
         # ["email_subject", "email", "subject"],
         # ["coin_address", "coin-address", "address"],
-        ["x509_subject", "x509", "subject"],
-        #["device_name", "device", "name"],
+        # ["x509_subject", "x509", "subject"],
+        # ["device_name", "device", "name"],
         # ["hash_imphash", "pe", "imphash"]
-    ]
+    # ]
 
-    for ind_obj in ind_objects:
-        if indicator_type == ind_obj[0]:
-            indicator_object = MISPObject(ind_obj[1])
-            att = indicator_object.add_attribute(ind_obj[2], indicator_value)
-            if indicator_first:
-                att.first_seen = indicator_first
-            if indicator_last:
-                att.last_seen = indicator_last
-            att.add_tag(f"CrowdStrike:indicator:type: {ind_obj[2].upper()}")
-            for tag in tag_list:
-                att.add_tag(tag)
+    # for ind_obj in ind_objects:
+    #     if indicator_type == ind_obj[0]:
+    #         indicator_object = MISPObject(ind_obj[1])
+    #         att = indicator_object.add_attribute(ind_obj[2], indicator_value)
+    #         if indicator_first:
+    #             att.first_seen = indicator_first
+    #         if indicator_last:
+    #             att.last_seen = indicator_last
+    #         att.add_tag(f"CrowdStrike:indicator:type: {ind_obj[2].upper()}")
+    #         for tag in tag_list:
+    #             att.add_tag(tag)
 
-            return indicator_object
+    #         return indicator_object
 
     # Type, Category, Attribute Type
     ind_attributes = [
@@ -77,7 +78,11 @@ def gen_indicator(indicator, tag_list) -> MISPObject or MISPAttribute:
         ["ip_address", "Network activity", "ip-src"],
         ["service_name", "Artifacts Dropped", "windows-service-name"],
         ["user_agent", "Network activity", "user-agent"],
-        ["port", "Network activity", "port"]
+        ["port", "Network activity", "port"],
+        ["x509_serial", "Network activity", "x509-fingerprint-sha256"],
+        ["x509_subject", "Network activity", "other"],
+        ["password", "Payload delivery", "comment"],
+        ["username", "Payload delivery", "comment"]
     ]
 
     for ind_att in ind_attributes:
@@ -86,6 +91,8 @@ def gen_indicator(indicator, tag_list) -> MISPObject or MISPAttribute:
             indicator_attribute.category = ind_att[1]
             indicator_attribute.type = ind_att[2]
             indicator_attribute.value = indicator_value
+            if indicator_type in ["password", "username"]:
+                indicator_attribute.value = f"{indicator_type}: {indicator_value}"
             for tag in tag_list:
                 indicator_attribute.add_tag(tag)
             return indicator_attribute
@@ -114,6 +121,29 @@ def confirm_boolean_param(val: str or bool) -> bool:
         returned = True
 
     return returned
+
+
+def taxonomic_event_tagging(evt: MISPEvent, tag_settings: dict):
+    if confirm_boolean_param(tag_settings.get("taxonomic_TYPE", False)):
+        evt.add_tag('type:CYBINT')
+    # INFORMATION-SECURITY-DATA-SOURCE Taxonomic tag, all events
+    if confirm_boolean_param(tag_settings.get("taxonomic_INFORMATION-SECURITY-DATA-SOURCE", False)):
+        evt.add_tag('information-security-data-source:integrability-interface="api"', disable_correlation=True)
+        evt.add_tag('information-security-data-source:originality="original-source"', disable_correlation=True)
+        evt.add_tag('information-security-data-source:type-of-source="security-product-vendor-website"', disable_correlation=True)
+    if confirm_boolean_param(tag_settings.get("taxonomic_IEP", False)):
+        evt.add_tag('iep:commercial-use="MUST NOT"', disable_correlation=True)
+        evt.add_tag('iep:provider-attribution="MUST"', disable_correlation=True)
+        evt.add_tag('iep:unmodified-resale="MUST NOT"', disable_correlation=True)
+    if confirm_boolean_param(tag_settings.get("taxonomic_IEP2", False)):
+        if confirm_boolean_param(tag_settings.get("taxonomic_IEP2_VERSION", False)):
+            evt.add_tag('iep2-policy:iep_version="2.0"', disable_correlation=True)
+        evt.add_tag('iep2-policy:attribution="must"', disable_correlation=True)
+        evt.add_tag('iep2-policy:unmodified_resale="must-not"', disable_correlation=True)
+    if confirm_boolean_param(tag_settings.get("taxonomic_TLP", False)):
+        evt.add_tag("tlp:amber", disable_correlation=True)
+
+    return evt
 
 
 def display_banner(banner: str = None,
@@ -261,7 +291,8 @@ def normalize_locale(locale_to_normalize: str):
         "Brunei Darussalam": "Brunei",
         "Macao": "Macau",
         "Virgin Islands, British": "British Virgin Islands",
-        "Lao": "Laos"
+        "Lao": "Laos",
+        "Falkland Islands(Malvinas)": "Falkland Islands"
     }
     if locale_to_normalize in normalize.keys():
         locale_to_normalize = normalize[locale_to_normalize]
@@ -324,11 +355,83 @@ def normalize_sector(sector_to_normalize: str):
         "Research Entities": "Research - Innovation",
         "Vocational and Higher-Level Education": "Higher education",
         "Financial Management & Hedge Funds": "Investment",
-        "Financial": "Finance"
+        "Financial": "Finance",
+        "International Organizations": "Diplomacy",
+        "Software": "Programming",
+        "Telecom Services": "Telecoms",
+        "Telecom Equipment": "Telecoms"
+        #"Banking": "Finance",
+       # "Commodity": "Finance"
     }
     if sector_to_normalize in normalize.keys():
         sector_to_normalize = normalize[sector_to_normalize]
     return sector_to_normalize 
+
+def normalize_threatmatch(threat_to_normalize: str):
+    normalize = {
+        "ADWARE": "malware-type=\"Adware\"",
+        "ATM_MALWARE": "incident-type=\"ATM Attacks\"",
+        "ATMMALWARE": "incident-type=\"ATM Attacks\"",
+        "BACKDOOR": "malware-type=\"Backdoor\"",
+        "BANKING": "malware-type=\"Banking Trojan\"",
+        "BANKINGSTEALER": "malware-type=\"Skimmer\"",
+        "BRUTEFORCE": "malware-type=\"Unknown\"",
+        "BOTNET": "malware-type=\"Botnet\"",
+        "BUSINESSEMAILCOMPROMISE": "incident-type=\"Business Email Compromise\"",
+        "COMMODITY": "incident-type=\"Malware Infection\"",
+        "CREDENTIALHARVESTING": "alert-type=\"Credential Breaches\"",
+        "CRIMINAL": "incident-type=\"Unknown\"",
+        "CRYPTOCURRENCYTHEFT": "incident-type=\"Crypto Mining\"",
+        "DDOS": "incident-type=\"DDoS\"",
+        "DEFACEMENT": "incident-type=\"Defacement Activity\"",
+        "DENIALOFSERVICE": "incident-type=\"Denial of Service (DoS)\"",
+        "DEPLOYMENTFRAMEWORK": "malware-type=\"Exploit Kit\"",
+        "DESTRUCTIVE": "malware-type=\"Destructive\"",
+        "DESTRUCTION": "incident-type=\"Disruption Activity\",malware-type=\"Destructive\"",
+        "DLLSIDELOADING": "incident-type=\"Trojanised Software\"",
+        "DOWNLOADER": "malware-type=\"Downloader\"",
+        "DROPPER": "malware-type=\"Unknown\"",
+        "EXTORTION": "incident-type=\"Extortion Activity\"",
+        "EXPLOIT": "alert-type=\"Exploit Alert\"",
+        "EXPLOITKIT": "malware-type=\"Exploit Kit\"",
+        "FILEINFECTOR": "incident-type=\"Malware Infection\"",
+        "FINANCIALGAIN": "incident-type=\"Fraud Activity\",sector=\"Financial Services\"",
+        "FORMJACKING": "incident-type=\"Social Engineering Activity\",incident-type=\"Website Attack (Other)\"",
+        "KEYLOGGER": "malware-type=\"Keylogger\"",
+        "KNOWNGOOD": "malware-type=\"Legitimate Tool\"",
+        "INFORMATIONSTEALER": "incident-type=\"Data Breach/Compromise\"",
+        "INTELLIGENCEGATHERING": "malware-type=\"Surveillance Tool\"",
+        "LOADER": "incident-type=\"Malware Infection\"",
+        "MALICIOUSSCRIPT": "incident-type=\"Attempted Exploitation\"",
+        "MANINTHEBROWSER": "incident-type=\"Man in the Middle Attacks\",incident-type=\"Website Attack (Other)\"",
+        "MINEWARE": "incident-type=\"Crypto Mining\"",
+        "MOBILEMALWARE": "incident-type=\"Phishing Activity\",malware-type=\"Mobile Malware\"",
+        "MODULAR": "malware-type=\"Exploit Kit\"",
+        "OPENSOURCE": "incident-type=\"Supply Chain Compromise\"",
+        "PHISHING": "incident-type=\"Phishing Activity\"",
+        "POINTOFSALE": "malware-type=\"Point-of-Sale (PoS)\"",
+        "PRIVILEGEESCALATION": "alert-type=\"Credential Breaches\"",
+        "PROXY": "incident-type=\"Man in the Middle Attacks\"",
+        "RANSOMWARE": "incident-type=\"Ransomware Activity\"",
+        "RAT": "malware-type=\"Remote Access Trojan\"",
+        "REPURPOSEDLEGITIMATESOFTWARE": "malware-type=\"Legitimate Tool\",malware-type=\"Unknown\"",
+        "ROOTKIT": "malware-type=\"Rootkit\"",
+        "SPAMBOT": "malware-type=\"Adware\"",
+        "SPEARPHISHING": "incident-type=\"Spear-phishing Activity\"",
+        "SOURCECODELEAKED": "incident-type=\"Data Breach/Compromise\"",
+        "SUSPICIOUS": "malware-type=\"Unknown\"",
+        "TARGETED": "incident-type=\"Exec Targeting\"",
+        "TARGETEDCRIMEWARE": "incident-type=\"Exec Targeting\"",
+        "WEBSHELL": "incident-type=\"Website Attack (Other)\"",
+        "WIPER": "malware-type=\"Destructive\"",
+    }
+    #print(threat_to_normalize)
+    #if threat_to_normalize in [t.name for t in ThreatType]:
+    if threat_to_normalize in normalize:
+        #print(ThreatType[threat_to_normalize].value)
+        #threat_to_normalize = ThreatType[threat_to_normalize].value
+        threat_to_normalize = normalize[threat_to_normalize]
+    return threat_to_normalize
 
 # These are here because I didn't want us to have to import pyFiglet
 ADVERSARIES_BANNER = """
@@ -466,4 +569,5 @@ INDICATOR_TYPES = {
     "username" : "",
     "x509_serial" : "",
     "x509_subject" : "",
+    "persona_name": "",
 }

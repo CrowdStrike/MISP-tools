@@ -97,7 +97,7 @@ class IntelAPIClient:
 
         return reports
 
-    def get_indicators(self, start_time, include_deleted, type_list: str = None):
+    def get_indicators(self, start_time, include_deleted, type_list: str = None) -> list:
         """Get all the indicators that were updated after a certain moment in time (UNIX).
 
         :param start_time: unix time of the oldest indicator you want to pull

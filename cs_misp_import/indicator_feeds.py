@@ -5,7 +5,7 @@ from .indicator_type import IndicatorType
 from .helper import confirm_boolean_param
 
 def get_feed_tags(do_not: bool = False):
-    tag_search_base = "CrowdStrike:indicator:feed:type: "
+    tag_search_base = "crowdstrike:indicator:feed:type: "
     ind_type_names = [i for i in dir(IndicatorType) if "__" not in i]
     exclusive = ""
     if do_not:
@@ -14,6 +14,7 @@ def get_feed_tags(do_not: bool = False):
     return tag_search
 
 def retrieve_or_create_feed_events(settings,
+                                   impsettings,
                                    org_id: str,
                                    misp_client: ExpandedPyMISP,
                                    feed_list: list,
@@ -21,7 +22,7 @@ def retrieve_or_create_feed_events(settings,
                                    ):
 
     title_base = settings['CrowdStrike'].get('indicator_type_title', 'Indicator Type:')
-    # tag_search_base = "CrowdStrike:indicator:feed:type: "
+    # tag_search_base = "crowdstrike:indicator:feed:type: "
     ind_type_names = [i for i in dir(IndicatorType) if "__" not in i]
     # tag_search = [f"{tag_search_base}{ind_tn}" for ind_tn in ind_type_names]
     tag_search = get_feed_tags()
@@ -34,7 +35,7 @@ def retrieve_or_create_feed_events(settings,
             feed.analysis = 2
             feed.orgc = org_id
             feed.info = f"{title_base} {IndicatorType[iname].value}"
-            feed.add_tag(f"CrowdStrike:indicator:feed:type: {iname.upper()}")
+            feed.add_tag(f"crowdstrike:indicator:feed:type: {iname.upper()}")
             # TYPE Taxonomic tag, all events
             if confirm_boolean_param(settings["TAGGING"].get("taxonomic_TYPE", False)):
                 feed.add_tag('type:CYBINT')
@@ -54,6 +55,11 @@ def retrieve_or_create_feed_events(settings,
                 feed.add_tag('iep2-policy:unmodified_resale="must-not"')
             if confirm_boolean_param(settings["TAGGING"].get("taxonomic_TLP", False)):
                 feed.add_tag("tlp:amber")
+            custom_tag_list = settings["CrowdStrike"]["indicators_tags"].split(",")
+            for tag_val in custom_tag_list:
+                feed.add_tag(tag_val)
+            if impsettings["publish"]:
+                feed.published = True
 
             misp_client.add_event(feed)
             feed_list.append(feed)
