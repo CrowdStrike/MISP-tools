@@ -191,7 +191,8 @@ def generate_primer():
         "ind_attribute_batch_size": "WARNING",
         "unattributed_title": "WARNING",
         "malware_family_title": "WARNING",
-        "event_save_memory_refresh_interval": "WARNING"
+        "event_save_memory_refresh_interval": "WARNING",
+        "misp_malware_family_range": "WARNING"
     }
     bool_keys = {
         key_item: "WARNING" for key_item in BOOL_KEYS

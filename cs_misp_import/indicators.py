@@ -134,7 +134,7 @@ class IndicatorsImporter:
         )
 
         # FAMILY EVENT SEARCH
-        self.feeds = retrieve_family_events(self.misp, self.feeds, self.log)
+        self.feeds = retrieve_family_events(self.misp, self.feeds, self.log, self.settings["MISP"]["misp_malware_family_range"])
 
         # MAIN INDICATORS PROCESSING
         self.log.info("Starting import of CrowdStrike indicators into MISP.")
