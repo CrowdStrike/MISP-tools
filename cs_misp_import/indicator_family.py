@@ -20,13 +20,14 @@ def convert_event(fam: dict, logg: Logger):
 
 def retrieve_family_events(misp_client: ExpandedPyMISP,
                            feed_list: list,
-                           log_util: Logger
+                           log_util: Logger,
+                           drange: str = ""
                            ):
 
     tag_search_base = ['crowdstrike:indicator:malware%']
     #ind_type_names = [i for i in dir(IndicatorType) if "__" not in i]
     #tag_search = [f"{tag_search_base}{ind_tn}" for ind_tn in ind_type_names]
-    families = misp_client.search(eventinfo="Malware Family: %")
+    families = misp_client.search(eventinfo="Malware Family: %", timestamp=drange)
 
     log_util.info("Retrieved %i CrowdStrike indicator malware family events from MISP.", len(families))
 
