@@ -52,7 +52,8 @@ class ReportsImporter:
                  reports_timestamp_filename: str,
                  settings: dict,
                  import_settings: dict,
-                 logger: Logger
+                 logger: Logger,
+                 gal_list: list
                  ):
         """Construct and return an instance of the ReportsImporter class.
 
@@ -95,6 +96,7 @@ class ReportsImporter:
         self.tag_map = {}
         self.not_found = []
         self.regions = get_region_galaxy_map(misp_client)
+        self.all_galaxies = gal_list
 
     def batch_report_detail(self, id_list: list or str) -> dict:
         """Retrieve extended report details for the ID list provided.
@@ -376,10 +378,11 @@ class ReportsImporter:
         return event
 
     def add_indicator_detail(self, event: MISPEvent, report_id: str, indicator_list: list) -> MISPEvent:
-        gal_types = [
-            "banker", "stealer", "rat", "ransomware", "rsit", "mitre-mobile-attack-tool", "mitre-mobile-attack-malware",
-            "mitre-malware", "mitre-tool", "exploit-kit", "cryptominers", "malpedia", "backdoor", "botnet", "android"
-            ]
+        def set_clust_vals(val, fam, nam):
+            if val == fam:
+                galaxies.append(nam)
+                self.tag_map[fam] = nam
+    
         if report_id:
             galaxies = []
             galaxy_tags = []
@@ -398,17 +401,12 @@ class ReportsImporter:
                         # We've already searched and failed for this one
                         # galaxy_tags.append(malware_family)
                     else:
-                        for gal in [g["Galaxy"] for g in self.misp.galaxies() if g["Galaxy"]["type"] in gal_types]:
-                            try:
-                                cluster = self.misp.search_galaxy_clusters(gal["id"], searchall=malware_family)
-                            except PyMISPError:
-                                cluster = None
-                            for clust in cluster:
-                                if clust["GalaxyCluster"]["value"] == malware_family:
-                                    galaxies.append(clust["GalaxyCluster"]["tag_name"])
-                                    self.tag_map[malware_family] = clust["GalaxyCluster"]["tag_name"]
-                            # else:
-                            #     self.not_found.append(malware_family)
+                        for clust in self.all_galaxies:
+                            if isinstance(clust, list):
+                                for cl in clust:
+                                    set_clust_vals(cl["GalaxyCluster"]["value"], malware_family, cl["GalaxyCluster"]["tag_name"])
+                            else:
+                                set_clust_vals(clust["GalaxyCluster"]["value"], malware_family, clust["GalaxyCluster"]["tag_name"])
 
                 indicator_object = gen_indicator(ind, self.settings["CrowdStrike"]["indicators_tags"].split(","))
 
