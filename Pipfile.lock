@@ -139,11 +139,12 @@
         },
         "crowdstrike-falconpy": {
             "hashes": [
-                "sha256:9fc8bb358b010888a1e25a34b4757108bffeeefddbdbccb6969f05658dd7f16a",
-                "sha256:f4b63c51b8d689a331feafa4fbec797705bd863011c82585ea95612620df8b29"
+                "sha256:2924f0cc9663245382f6fcaa709bff59fd087f6457de7f40c7116303fbb8625f",
+                "sha256:f2e1a81761d202df114573222f3d7dd3b22810f7078fa6e928b18a8b83ea0cfd"
             ],
             "index": "pypi",
-            "version": "==1.3.4"
+            "markers": "python_version >= '3.7'",
+            "version": "==1.4.0"
         },
         "deprecated": {
             "hashes": [
