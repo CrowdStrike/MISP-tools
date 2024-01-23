@@ -73,6 +73,7 @@ class CrowdstrikeToMISPImporter:
         self.actor_ids = {}
         self.indicator_ids = {}
         self.org_id = import_settings["crowdstrike_org_uuid"]
+        self.all_galaxies = self.get_galaxies()
 
         if self.config["actors"]:
             self.actors_importer = ActorsImporter(self.misp_client,
@@ -90,7 +91,8 @@ class CrowdstrikeToMISPImporter:
                                                     import_settings["reports_timestamp_filename"],
                                                     self.settings,
                                                     self.import_settings,
-                                                    logger=logger
+                                                    logger=logger,
+                                                    gal_list = self.all_galaxies
                                                     )
         if self.config["indicators"]:
             self.indicators_importer = IndicatorsImporter(self.misp_client, self.intel_api_client,
@@ -100,7 +102,8 @@ class CrowdstrikeToMISPImporter:
                                                           self.config["delete_outdated_indicators"],
                                                           self.settings,
                                                           self.import_settings,
-                                                          logger=logger
+                                                          logger=logger,
+                                                          gal_list = self.all_galaxies
                                                           )
 
 
@@ -254,6 +257,19 @@ class CrowdstrikeToMISPImporter:
                 removed += 1
 
         self.log.info("Finished cleaning up CrowdStrike related tags from MISP, %i tags deleted.", removed)
+
+    def get_galaxies(self):
+        gal_types = [
+            "banker", "stealer", "rat", "ransomware", "rsit", "mitre-mobile-attack-tool", "mitre-mobile-attack-malware",
+            "mitre-malware", "mitre-tool", "exploit-kit", "cryptominers", "malpedia", "backdoor", "botnet", "android"
+            ]
+        all_galaxies = []
+        if self.config["reports"] or self.config["indicators"]:
+            for gal in [g["Galaxy"] for g in self.misp_client.galaxies() if g["Galaxy"]["type"] in gal_types]:
+                self.log.info("Retrieving all galaxy cluster values for the %s cluster.", gal["name"])
+                all_galaxies.append(self.misp_client.search_galaxy_clusters(gal["id"], searchall=""))
+        return all_galaxies
+
 
     def clean_old_crowdstrike_events(self, max_age, event_type = False):
         """Remove events from MISP that are dated greater than the specified max_age value (in days)."""

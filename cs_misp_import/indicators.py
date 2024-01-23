@@ -75,7 +75,8 @@ class IndicatorsImporter:
                  delete_outdated,
                  settings,
                  import_settings,
-                 logger
+                 logger,
+                 gal_list
                  ):
         """Construct an instance of the IndicatorsImporter class."""
         self.misp: ExpandedPyMISP = misp_client
@@ -97,6 +98,7 @@ class IndicatorsImporter:
         self.actor_map = get_actor_galaxy_map(self.misp, self.intel_api_client, self.import_settings["type"])
         self.tag_map = {}
         self.not_found = []
+        self.all_galaxies = gal_list
 
 
     def process_indicators(self, indicators_mins_before):
@@ -404,7 +406,7 @@ class IndicatorsImporter:
             #    )
             tagging_list, self.MISSING_GALAXIES = tag_attribute_family(
                     ind, tagging_list, self.import_settings, self.not_found,
-                    self.MISSING_GALAXIES, self.galaxy_miss_file, self.tag_map, self.misp, evt
+                    self.MISSING_GALAXIES, self.galaxy_miss_file, self.tag_map, self.misp, evt, self.all_galaxies
                     )
             for _tag in tagging_list:
                 evt.add_attribute_tag(_tag, uuid)

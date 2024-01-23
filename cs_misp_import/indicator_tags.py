@@ -74,12 +74,13 @@ def tag_attribute_threats(ind, tags):
     return returned, tags
 
 
-def tag_attribute_family(ind, tags, import_set, not_found, missed, mfile, mapping, mclient: ExpandedPyMISP, mevent: MISPEvent):
+def tag_attribute_family(ind, tags, import_set, not_found, missed, mfile, mapping, mclient: ExpandedPyMISP, mevent: MISPEvent, gals: list):
+    def set_clust_vals(val, fam, nam):
+        if val == fam:
+            mapping[fam] = nam
+            mevent.add_tag(nam)
+
     family_found = False
-    gal_types = [
-        "banker", "stealer", "rat", "ransomware", "rsit", "mitre-mobile-attack-tool", "mitre-mobile-attack-malware",
-        "mitre-malware", "mitre-tool", "exploit-kit", "cryptominers", "malpedia", "backdoor", "botnet", "android"
-        ]
     for malware_family in ind.get("malware_families", []):
         galaxy = import_set["galaxy_map"].get(malware_family)
         if galaxy is not None:
@@ -96,17 +97,12 @@ def tag_attribute_family(ind, tags, import_set, not_found, missed, mfile, mappin
         elif malware_family in missed:
             family_found = True
         else:
-            for gal in [g["Galaxy"] for g in mclient.galaxies() if g["Galaxy"]["type"] in gal_types]:
-                try:
-                    cluster = mclient.search_galaxy_clusters(gal["id"], searchall=malware_family)
-                except PyMISPError:
-                    cluster = None
-                for clust in cluster:
-                    if clust["GalaxyCluster"]["value"] == malware_family:
-                        family_found = True
-                        tags = __update_tag_list(tags, clust["GalaxyCluster"]["tag_name"])
-                        mapping[malware_family] = clust["GalaxyCluster"]["tag_name"]
-                        mevent.add_tag(clust["GalaxyCluster"]["tag_name"])
+            for clust in gals:
+                if isinstance(clust, list):
+                    for cl in clust:
+                        set_clust_vals(cl["GalaxyCluster"]["value"], malware_family, cl["GalaxyCluster"]["tag_name"])
+                else:
+                    set_clust_vals(clust["GalaxyCluster"]["value"], malware_family, clust["GalaxyCluster"]["tag_name"])
 
         if not family_found:
             __log_galaxy_miss(malware_family, missed, mfile)
