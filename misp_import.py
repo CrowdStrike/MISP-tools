@@ -205,8 +205,9 @@ def retrieve_tags(tag_type: str, settings):
     # if args.indicators:
     #     tags.append(settings["CrowdStrike"]["indicators_unique_tag"])
     if tag_type == "actors":
-        for adv_type in [a.value for a in Adversary]:
-            tags.append(f"crowdstrike:report-type=\"Adversary Detail Report\"")
+        #tags.append(f"crowdstrike:report-type=\"Adversary Detail Report\"")
+        for adv_type in [a.name for a in Adversary]:
+            tags.append(f"crowdstrike:branch=\"{adv_type}\"")
 
     return tags
 
