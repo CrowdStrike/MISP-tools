@@ -208,6 +208,11 @@ The following MISP modules currently leverage CrowdStrike:
 
 - [CrowdStrike Falcon expansion module](https://github.com/MISP/misp-modules/blob/main/misp_modules/modules/expansion/crowdstrike_falcon.py)
 
+
+## Support
+`misp-tools` is an open source project, not a CrowdStrike product. As such it carries no formal support, expressed or implied.
+
+
 ---
 
 <p align="center"><img src="https://raw.githubusercontent.com/CrowdStrike/falconpy/main/docs/asset/cs-logo-footer.png"><BR/><img width="250px" src="https://raw.githubusercontent.com/CrowdStrike/falconpy/main/docs/asset/adversary-red-eyes.png"></P>
