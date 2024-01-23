@@ -38,6 +38,7 @@
                 "sha256:e036ab49d5b79556f99cfc2d9320b34cfbe5be05c5871b51de9329f0603b0474"
             ],
             "index": "pypi",
+            "markers": "python_version >= '3.6'",
             "version": "==2023.11.17"
         },
         "charset-normalizer": {
@@ -133,7 +134,7 @@
                 "sha256:fd1abc0d89e30cc4e02e4064dc67fcc51bd941eb395c502aac3ec19fab46b519",
                 "sha256:ff8fa367d09b717b2a17a052544193ad76cd49979c805768879cb63d9ca50561"
             ],
-            "markers": "python_version >= '3.7'",
+            "markers": "python_full_version >= '3.7.0'",
             "version": "==3.3.2"
         },
         "crowdstrike-falconpy": {
@@ -186,19 +187,20 @@
         },
         "publicsuffixlist": {
             "hashes": [
-                "sha256:10e227902e3b2acefb604b5de8a8a7d3df237f2885f06762d47fdbc9e0528b67",
-                "sha256:76a2ed46814f091ea867fb40a6c20c142a437af7aae7ac8eb425ddc464bcb8e1"
+                "sha256:2d15301cbef4b5ecc9bfa47b38959af73350915748d44b2f91db2a8fc3b98d24",
+                "sha256:72ac774728036610501353789125a7adc57a793646cf6c6f1f7cc7458c913a8a"
             ],
             "markers": "python_version >= '2.6'",
-            "version": "==0.10.0.20231214"
+            "version": "==0.10.0.20240108"
         },
         "pymisp": {
             "hashes": [
-                "sha256:1b676a769dc8415e9393426a13148a9b89bc83a00e1cd9a229f9d98c863e36a5",
-                "sha256:f42904a1fe3d47bee9f595aade9e15856d3995804938da994189b7890711a717"
+                "sha256:00abe5592f07bb1cd41ca803f9b0b8b2b70474004a779be53cd215280fd625b3",
+                "sha256:104ead987cb069b87a9d335cf6ec8edccda386b281de57460a2450a143ffc822"
             ],
             "index": "pypi",
-            "version": "==2.4.179"
+            "markers": "python_version >= '3.8' and python_version < '4.0'",
+            "version": "==2.4.183"
         },
         "python-dateutil": {
             "hashes": [
@@ -222,6 +224,7 @@
                 "sha256:942c5a758f98d790eaed1a29cb6eefc7ffb0d1cf7af05c3d2791656dbd6ad1e1"
             ],
             "index": "pypi",
+            "markers": "python_version >= '3.7'",
             "version": "==2.31.0"
         },
         "rpds-py": {
@@ -351,6 +354,7 @@
                 "sha256:df7aa8afb0148fa78488e7899b2c59b5f4ffcfa82e6c54ccb9dd37c1d7b52d54"
             ],
             "index": "pypi",
+            "markers": "python_version >= '3.8'",
             "version": "==2.1.0"
         },
         "wrapt": {
