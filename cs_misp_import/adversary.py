@@ -16,6 +16,7 @@ class Adversary(Enum):
     OCELOT = "Columbia"
     PANDA = "People's Republic of China"
     SPIDER = "eCrime"
+    SPHINX = "Egypt"
     TIGER = "India"
     WOLF = "Turkey"
     
