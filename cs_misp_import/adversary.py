@@ -15,8 +15,8 @@ class Adversary(Enum):
     LYNX = "Georgia"
     OCELOT = "Columbia"
     PANDA = "People's Republic of China"
+    SAIGA = "Kazakhstan"
     SPIDER = "eCrime"
     SPHINX = "Egypt"
     TIGER = "India"
     WOLF = "Turkey"
-    
