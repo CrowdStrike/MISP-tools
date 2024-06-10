@@ -252,26 +252,8 @@ def retrieve_tags(tag_type: str, settings):
 
     return tags
 
-
-def main():
-    """Implement Main routine."""
-    # Retrieve our command line and parse out any specified arguments
-    args = parse_command_line()
-    if args.fullmonty:
-        args.actors = True
-        args.reports = True
-        args.indicators = True
-    
-    if args.obliterate:
-        args.clean_actors = True
-        args.clean_reports = True
-        args.clean_indicators = True
-        args.clean_tags = True
-    
-    if args.nohash:
-        hash_exclude = ["HASH_MD5", "HASH_SHA1", "HASH_SHA256"]
-        args.type = ",".join([it.name for it in IndicatorType if it.name not in hash_exclude])
-    
+"""Initialize logging for misp_tools and processor"""
+def init_logging(debug_flag):
     splash = logging.getLogger("misp_tools")
     splash.setLevel(logging.INFO)
     main_log = logging.getLogger("processor")
@@ -284,7 +266,7 @@ def main():
     #rfh2.setLevel(logging.INFO)
     ch2 = logging.StreamHandler()
     ch2.setLevel(logging.INFO)
-    if args.debug:
+    if debug_flag:
         main_log.setLevel(logging.DEBUG)
         ch.setLevel(logging.DEBUG)
         ch2.setLevel(logging.DEBUG)
@@ -301,26 +283,9 @@ def main():
     #main_log.addHandler(rfh2)
     splash.propagate = False
     main_log.propagate = False
+    return (splash, main_log)
 
-    # Off we go!
-    display_banner(banner=MISP_BANNER,
-                   logger=splash,
-                   fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
-                   hide_cool_banners=args.no_banner
-                   )
-
-    if not check_config.validate_config(args.config_file, args.debug, args.no_banner):
-        do_finished(splash, args)
-        raise SystemExit("Invalid configuration specified, unable to continue.")
-
-    settings = ConfigParser(interpolation=ExtendedInterpolation())
-    settings.optionxform = str  # Don't lowercase configuration keys
-    settings.read(args.config_file)
-
-    galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
-    galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
-
-
+def define_setting_headers(settings):
     try:
         if not settings["MISP"]["misp_enable_ssl"]:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -350,6 +315,62 @@ def main():
             #         set_val = confirm_boolean_param(header_value)
 
             extra_headers[header_item] = set_val
+    return (proxies, extra_headers)
+"""
+1) Set args depending on two flags, fullmonty and obliterate
+2) Initialize logging
+3) Display banner
+4) Validate config
+5) Enable/Disable SSL
+6) Set proxy settings
+7) Extra headers?
+8) API client object
+9) MISP client dict
+10) CrowdstrikeToMISP init
+11) 
+
+"""
+def main():
+    """Implement Main routine."""
+    # Retrieve our command line and parse out any specified arguments
+    args = parse_command_line()
+    if args.fullmonty:
+        args.actors = True
+        args.reports = True
+        args.indicators = True
+    
+    if args.obliterate:
+        args.clean_actors = True
+        args.clean_reports = True
+        args.clean_indicators = True
+        args.clean_tags = True
+    
+    if args.nohash:
+        hash_exclude = ["HASH_MD5", "HASH_SHA1", "HASH_SHA256"]
+        args.type = ",".join([it.name for it in IndicatorType if it.name not in hash_exclude])
+    
+    """StreamHandler logging"""
+    splash,main_log = init_logging(args.debug)
+    
+    """MISP_BANNER display, attached with logs"""
+    display_banner(banner=MISP_BANNER,
+                   logger=splash,
+                   fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
+                   hide_cool_banners=args.no_banner
+                   )
+
+    if not check_config.validate_config(args.config_file, args.debug, args.no_banner):
+        do_finished(splash, args)
+        raise SystemExit("Invalid configuration specified, unable to continue.")
+
+    settings = ConfigParser(interpolation=ExtendedInterpolation())
+    settings.optionxform = str  # Don't lowercase configuration keys
+    settings.read(args.config_file)
+
+    galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
+    galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
+
+    proxies, extra_headers = define_setting_headers(settings)
 
     # Interface to the CrowdStrike Falcon Intel API
     intel_api_client = IntelAPIClient(settings["CrowdStrike"]["client_id"],
