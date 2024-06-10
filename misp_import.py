@@ -195,6 +195,21 @@ def parse_command_line() -> Namespace:
         print(MUSHROOM)
         time.sleep(1)
     
+    if parsed.fullmonty:
+        parsed.actors = True
+        parsed.reports = True
+        parsed.indicators = True
+    
+    if parsed.obliterate:
+        parsed.clean_actors = True
+        parsed.clean_reports = True
+        parsed.clean_indicators = True
+        parsed.clean_tags = True
+    
+    if parsed.nohash:
+        hash_exclude = ["HASH_MD5", "HASH_SHA1", "HASH_SHA256"]
+        parsed.type = ",".join([it.name for it in IndicatorType if it.name not in hash_exclude])
+    
     return parsed
 
 
@@ -316,6 +331,7 @@ def define_setting_headers(settings):
 
             extra_headers[header_item] = set_val
     return (proxies, extra_headers)
+
 """
 1) Set args depending on two flags, fullmonty and obliterate
 2) Initialize logging
@@ -334,20 +350,6 @@ def main():
     """Implement Main routine."""
     # Retrieve our command line and parse out any specified arguments
     args = parse_command_line()
-    if args.fullmonty:
-        args.actors = True
-        args.reports = True
-        args.indicators = True
-    
-    if args.obliterate:
-        args.clean_actors = True
-        args.clean_reports = True
-        args.clean_indicators = True
-        args.clean_tags = True
-    
-    if args.nohash:
-        hash_exclude = ["HASH_MD5", "HASH_SHA1", "HASH_SHA256"]
-        args.type = ",".join([it.name for it in IndicatorType if it.name not in hash_exclude])
     
     """StreamHandler logging"""
     splash,main_log = init_logging(args.debug)
@@ -370,6 +372,7 @@ def main():
     galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
     galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
 
+    """Assign header values by reading from settings config file"""
     proxies, extra_headers = define_setting_headers(settings)
 
     # Interface to the CrowdStrike Falcon Intel API
