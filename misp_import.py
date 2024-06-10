@@ -252,7 +252,7 @@ def perform_local_cleanup(args: Namespace,
         raise SystemExit(err) from err
 
 """Retrieve all tags used for CrowdStrike elements within MISP (broken out by type)."""
-def retrieve_tags(tag_type: str, settings):
+def retrieve_tags(tag_type: str, settings: ConfigParser):
     tags = []
     if tag_type == "reports":
         for report_type in [r.value for r in ReportType]:
@@ -268,7 +268,7 @@ def retrieve_tags(tag_type: str, settings):
     return tags
 
 """Initialize logging for misp_tools and processor"""
-def init_logging(debug_flag):
+def init_logging(debug_flag: bool):
     splash = logging.getLogger("misp_tools")
     splash.setLevel(logging.INFO)
     main_log = logging.getLogger("processor")
@@ -300,7 +300,7 @@ def init_logging(debug_flag):
     main_log.propagate = False
     return (splash, main_log)
 
-def define_setting_headers(settings):
+def define_setting_headers(settings: ConfigParser):
     try:
         if not settings["MISP"]["misp_enable_ssl"]:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -331,6 +331,17 @@ def define_setting_headers(settings):
 
             extra_headers[header_item] = set_val
     return (proxies, extra_headers)
+
+def create_intel_api_client(settings: ConfigParser, proxies: dict, extra_headers: dict, main_log: logging.Logger):
+    return IntelAPIClient(settings["CrowdStrike"]["client_id"],
+                                      settings["CrowdStrike"]["client_secret"],
+                                      settings["CrowdStrike"]["crowdstrike_url"],
+                                      int(settings["CrowdStrike"]["api_request_max"]),
+                                      extra_headers,
+                                      proxies,
+                                      False if "F" in settings["CrowdStrike"]["api_enable_ssl"].upper() else True,
+                                      main_log
+                                      )
 
 """
 1) Set args depending on two flags, fullmonty and obliterate
@@ -375,16 +386,10 @@ def main():
     """Assign header values by reading from settings config file"""
     proxies, extra_headers = define_setting_headers(settings)
 
-    # Interface to the CrowdStrike Falcon Intel API
-    intel_api_client = IntelAPIClient(settings["CrowdStrike"]["client_id"],
-                                      settings["CrowdStrike"]["client_secret"],
-                                      settings["CrowdStrike"]["crowdstrike_url"],
-                                      int(settings["CrowdStrike"]["api_request_max"]),
-                                      extra_headers,
-                                      proxies,
-                                      False if "F" in settings["CrowdStrike"]["api_enable_ssl"].upper() else True,
-                                      main_log
-                                      )
+    """Interface to the CrowdStrike Falcon Intel API"""
+    intel_api_client = create_intel_api_client(settings, proxies, extra_headers, main_log)
+    
+    
     # Dictionary of settings provided by settings.py
     import_settings = {
         "misp_url": settings["MISP"]["misp_url"],
