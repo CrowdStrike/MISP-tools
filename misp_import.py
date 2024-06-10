@@ -343,6 +343,33 @@ def create_intel_api_client(settings: ConfigParser, proxies: dict, extra_headers
                                       main_log
                                       )
 
+def create_import_settings(settings: ConfigParser, galaxy_maps: ConfigParser, args: Namespace, proxies: dict, extra_headers: dict):
+    return {
+        "misp_url": settings["MISP"]["misp_url"],
+        "misp_auth_key": settings["MISP"]["misp_auth_key"],
+        "crowdstrike_org_uuid": settings["MISP"]["crowdstrike_org_uuid"],
+        "reports_timestamp_filename": settings["CrowdStrike"]["reports_timestamp_filename"],
+        "indicators_timestamp_filename": settings["CrowdStrike"]["indicators_timestamp_filename"],
+        "actors_timestamp_filename": settings["CrowdStrike"]["actors_timestamp_filename"],
+#        "reports_unique_tag": settings["CrowdStrike"]["reports_unique_tag"],
+#        "indicators_unique_tag": settings["CrowdStrike"]["indicators_unique_tag"],
+#        "actors_unique_tag": settings["CrowdStrike"]["actors_unique_tag"],
+        "unknown_mapping": settings["CrowdStrike"]["unknown_mapping"],
+        "max_threads": settings["MISP"].get("max_threads", None),
+        "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
+        "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True,
+        "galaxy_map": galaxy_maps["Galaxy"],
+        "force": args.force,
+        "no_banners": args.no_banner,
+        "no_dupe_check": args.no_dupe_check,
+        "type": args.type,
+        "publish": args.publish,
+        "verbose_tags": args.verbose,
+        "ext_headers": extra_headers,
+        "proxy": proxies,
+        "actor_map": {}
+    }
+    
 """
 1) Set args depending on two flags, fullmonty and obliterate
 2) Initialize logging
@@ -389,36 +416,11 @@ def main():
     """Interface to the CrowdStrike Falcon Intel API"""
     intel_api_client = create_intel_api_client(settings, proxies, extra_headers, main_log)
     
-    
-    # Dictionary of settings provided by settings.py
-    import_settings = {
-        "misp_url": settings["MISP"]["misp_url"],
-        "misp_auth_key": settings["MISP"]["misp_auth_key"],
-        "crowdstrike_org_uuid": settings["MISP"]["crowdstrike_org_uuid"],
-        "reports_timestamp_filename": settings["CrowdStrike"]["reports_timestamp_filename"],
-        "indicators_timestamp_filename": settings["CrowdStrike"]["indicators_timestamp_filename"],
-        "actors_timestamp_filename": settings["CrowdStrike"]["actors_timestamp_filename"],
-#        "reports_unique_tag": settings["CrowdStrike"]["reports_unique_tag"],
-#        "indicators_unique_tag": settings["CrowdStrike"]["indicators_unique_tag"],
-#        "actors_unique_tag": settings["CrowdStrike"]["actors_unique_tag"],
-        "unknown_mapping": settings["CrowdStrike"]["unknown_mapping"],
-        "max_threads": settings["MISP"].get("max_threads", None),
-        "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
-        "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True,
-        "galaxy_map": galaxy_maps["Galaxy"],
-        "force": args.force,
-        "no_banners": args.no_banner,
-        "no_dupe_check": args.no_dupe_check,
-        "type": args.type,
-        "publish": args.publish,
-        "verbose_tags": args.verbose,
-        "ext_headers": extra_headers,
-        "proxy": proxies,
-        "actor_map": {}
-    }
+    import_settings = create_import_settings(settings, galaxy_maps, args, proxies, extra_headers)
     
     if not import_settings["unknown_mapping"]:
         import_settings["unknown_mapping"] = "Unidentified"
+    
     # Dictionary of provided command line arguments
     provided_arguments = {
         "reports": args.reports,
