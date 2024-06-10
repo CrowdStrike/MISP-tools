@@ -53,13 +53,10 @@ from cs_misp_import import (
 )
 # from cs_misp_import.helper import confirm_boolean_param
 
-
+"""Parse the running command line provided by the user."""
 def parse_command_line() -> Namespace:
-    """Parse the running command line provided by the user."""
     parser = ArgumentParser(description=__doc__, formatter_class=RawTextHelpFormatter)
-    """
-    parser.add_argument("flag", "extended flag", "action", "function", "help")
-    """
+
     parser.add_argument("-f", "--force",             
                         action="store_true",                           
                         help="Force operation.")
@@ -104,7 +101,7 @@ def parse_command_line() -> Namespace:
     parser.add_argument("-c", "--config",                                  
                         dest="config_file",      
                         help="Path to local configuration file.",                     
-                        required=False)
+                        required=False, default="misp_import.ini")
     
     parser.add_argument("-v", "--verbose_tagging",   
                         action="store_false", 
@@ -181,6 +178,7 @@ def parse_command_line() -> Namespace:
     if parsed.obliterate and parsed.fullmonty:
         parser.error("You cannot run Obliterate and the Full Monty at the same time.")
 
+    """Delete EVERYTHING"""
     if parsed.obliterate:
         bold = "\033[1m"
         undie = "\033[4m"
@@ -200,7 +198,7 @@ def parse_command_line() -> Namespace:
     return parsed
 
 
-
+""""""
 def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
     display_banner(banner=FINISHED_BANNER,
                    logger=logg,
@@ -216,23 +214,30 @@ def perform_local_cleanup(args: Namespace,
                           ):
     """Remove local offset cache files to reset the marker for data pulls from the CrowdStrike API."""
     try:
+
         importer.clean_crowdstrike_events(args.clean_reports, args.clean_indicators, args.clean_actors)
+        
+        """Delete reports file using filename from config"""
         if args.clean_reports and os.path.isfile(settings["CrowdStrike"]["reports_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["reports_timestamp_filename"])
             log_device.info("Finished resetting CrowdStrike Report offset.")
+        
+        """Delete indicators file using filename from config"""
         if args.clean_indicators and os.path.isfile(settings["CrowdStrike"]["indicators_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["indicators_timestamp_filename"])
             log_device.info("Finished resetting CrowdStrike Indicator offset.")
+        
+        """Delete actors file using filename from config"""
         if args.clean_actors and os.path.isfile(settings["CrowdStrike"]["actors_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["actors_timestamp_filename"])
             log_device.info("Finished resetting CrowdStrike Adversary offset.")
+    
     except Exception as err:
         log_device.exception(err)
         raise SystemExit(err) from err
 
-
+"""Retrieve all tags used for CrowdStrike elements within MISP (broken out by type)."""
 def retrieve_tags(tag_type: str, settings):
-    """Retrieve all tags used for CrowdStrike elements within MISP (broken out by type)."""
     tags = []
     if tag_type == "reports":
         for report_type in [r.value for r in ReportType]:
@@ -252,20 +257,21 @@ def main():
     """Implement Main routine."""
     # Retrieve our command line and parse out any specified arguments
     args = parse_command_line()
-    if not args.config_file:
-        args.config_file = "misp_import.ini"
     if args.fullmonty:
         args.actors = True
         args.reports = True
         args.indicators = True
+    
     if args.obliterate:
         args.clean_actors = True
         args.clean_reports = True
         args.clean_indicators = True
         args.clean_tags = True
+    
     if args.nohash:
         hash_exclude = ["HASH_MD5", "HASH_SHA1", "HASH_SHA256"]
         args.type = ",".join([it.name for it in IndicatorType if it.name not in hash_exclude])
+    
     splash = logging.getLogger("misp_tools")
     splash.setLevel(logging.INFO)
     main_log = logging.getLogger("processor")
@@ -387,7 +393,7 @@ def main():
     # Dictionary of provided command line arguments
     provided_arguments = {
         "reports": args.reports,
-#        "related_indicators": args.related_indicators,
+      # "related_indicators": args.related_indicators,
         "indicators": args.indicators,
         "delete_outdated_indicators": args.delete_outdated_indicators,
         "actors": args.actors
