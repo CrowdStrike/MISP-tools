@@ -57,71 +57,126 @@ from cs_misp_import import (
 def parse_command_line() -> Namespace:
     """Parse the running command line provided by the user."""
     parser = ArgumentParser(description=__doc__, formatter_class=RawTextHelpFormatter)
-    parser.add_argument("-cr", "--clean_reports", action="store_true", dest="clean_reports", help="Set this to run a cleaning round on reports.")
-    parser.add_argument("-ci", "--clean_indicators", action="store_true", dest="clean_indicators", help="Set this to run a cleaning round on indicators.")
-    parser.add_argument("-ca", "--clean_actors", "--clean_adversaries", dest="clean_actors", action="store_true", help="Set this to run a cleaning round on adversaries.")
-    parser.add_argument("-d", "--debug", action="store_true", dest="debug", help="Set this to activate debug logs.")
-    parser.add_argument("-m", "--max_age", type=int, dest="max_age",
-                        help="Maximum age of the objects to be stored in MISP in days."
-                             " Objects older than that will be deleted."
-                        )
-    #group = parser.add_mutually_exclusive_group()
+    """
+    parser.add_argument("flag", "extended flag", "action", "function", "help")
+    """
+    parser.add_argument("-f", "--force",             
+                        action="store_true",                           
+                        help="Force operation.")
+    
+    parser.add_argument("-d", "--debug",             
+                        action="store_true",  
+                        dest="debug",            
+                        help="Activate debug logs.")
+    
+    parser.add_argument("-i", "--indicators",        
+                        action="store_true",                           
+                        help="Import all indicators.")
+    
+    parser.add_argument("-r", "--reports",           
+                        action="store_true",                           
+                        help="Set this to import reports.")
+    
+    parser.add_argument("-a", "--actors",            
+                        action="store_true",  
+                        dest="actors",           
+                        help="Set this to import adversaries.")
+    
+    parser.add_argument("-cr", "--clean_reports",     
+                        action="store_true",  
+                        dest="clean_reports",    
+                        help="Run a cleaning round on reports.")
+    
+    parser.add_argument("-ci", "--clean_indicators",  
+                        action="store_true",  
+                        dest="clean_indicators", 
+                        help="Run a cleaning round on indicators.")
+    
+    parser.add_argument("-ca", "--clean_actors",      
+                        action="store_true",  
+                        dest="clean_actors",     
+                        help="Run a cleaning round on adversaries.")
+
+    parser.add_argument("-do", "--delete_outdated_indicators",   
+                        action='store_true',                           
+                        help="Delete imported indicators that are marked as deleted.")
+
+    parser.add_argument("-c", "--config",                                  
+                        dest="config_file",      
+                        help="Path to local configuration file.",                     
+                        required=False)
+    
+    parser.add_argument("-v", "--verbose_tagging",   
+                        action="store_false", 
+                        dest="verbose",          
+                        help="Disable verbose tagging.",                              
+                        required=False, default=True)
+    
+    parser.add_argument("-o", "--obliterate",        
+                        action="store_true",  
+                        dest="obliterate",       
+                        help="Remove all CrowdStrike data.",                          
+                        required=False, default=False)
+    
+    parser.add_argument("-l", "--logfile",                                                          
+                        help="Log file for logging output.",                          
+                        required=False, default="misp_import.log")
+    
+    parser.add_argument("-p", "--publish",           
+                        action="store_true",  
+                        dest="publish",          
+                        help="Publish events upon creation.",                         
+                        required=False, default=False)
+    
+    parser.add_argument("-al", "--fullmonty",         
+                        action="store_true",  
+                        dest="fullmonty",        
+                        help="Import Adversaries, Reports and Indicators.",           
+                        required=False, default=False)
+    
+    parser.add_argument("-nh", "--no_hashes",         
+                        action="store_true",  
+                        dest="nohash",           
+                        help="Do not import SHA1, SHA256 or MD5 hash indicators.",    
+                        required=False, default=False)
+    
+    parser.add_argument("-ct", "--clean_tags",        
+                        action="store_true",  
+                        dest="clean_tags",       
+                        help="Remove all CrowdStrike tags from the MISP instance.",   
+                        required=False)
+    
+    parser.add_argument("-t", "--type",              
+                        type=str,          
+                        dest="type",             
+                        help="Import only this type (report, indicator, adversary).", 
+                        required=False, default=False)
+    
+    parser.add_argument("-nd", "--no_dupe_check",     
+                        action="store_true",  
+                        dest="no_dupe_check",    
+                        help="Enable or disable duplicate checking on import, defaults to False.", 
+                        required=False)
+    
+    parser.add_argument("-nb", "--no_banner",         
+                        action="store_true",  
+                        dest="no_banner",        
+                        help="Enable or disable ASCII banners in logfile output, defaults to False (enable banners).", 
+                        required=False)
+    
+    parser.add_argument("-m", "--max_age",           
+                        type=int,             
+                        dest="max_age",          
+                        help="Maximum age of the objects to be stored in MISP in days."" Objects older than that will be deleted.")
+
+
+    parsed = parser.parse_args()
+
+    # exclus = parser.add_mutually_exclusive_group("exclusive arguments")
+    # group = parser.add_mutually_exclusive_group()
     # group.add_argument("--related_indicators", action="store_true",
     #                    help="Set this to only import indicators related to reports."
     #                    )
-    parser.add_argument("-i", "--indicators", action="store_true", help="Set this to import all indicators.")
-    parser.add_argument("-f", "--force", action="store_true", help="Force operation.")
-    parser.add_argument("-do", "--delete_outdated_indicators", action='store_true',
-                        help="Set this to check if the indicators you are importing have been marked as deleted and"
-                             " if they have been already inserted, delete them."
-                        )
-    parser.add_argument("-r", "--reports", action="store_true", help="Set this to import reports.")
-    parser.add_argument("-a", "--actors", "--adversaries", dest="actors", action="store_true", help="Set this to import adversaries.")
-    parser.add_argument("-p", "--publish", dest="publish", help="Publish events upon creation.", action="store_true", required=False, default=False)
-    parser.add_argument("-t", "--type", "--report_type", "--indicator_type", "--adversary_type", dest="type", help="Import only this type.", required=False, default=False)
-    parser.add_argument("-nh", "--no_hashes", dest="nohash", help="Do not import SHA1, SHA256 or MD5 hash indicators.", action="store_true", required=False, default=False)
-    parser.add_argument("-c", "--config", dest="config_file", help="Path to local configuration file", required=False)
-    parser.add_argument("-v", "--verbose_tagging", dest="verbose", action="store_false", help="Disable verbose tagging.", required=False, default=True)
-    parser.add_argument("-nd", "--no_dupe_check",
-                        dest="no_dupe_check",
-                        help="Enable or disable duplicate checking on import, defaults to False.",
-                        required=False,
-                        action="store_true"
-                        )
-    parser.add_argument("-nb", "--no_banner",
-                        dest="no_banner",
-                        help="Enable or disable ASCII banners in logfile output, "
-                        "defaults to False (enable banners).",
-                        required=False,
-                        action="store_true"
-                        )
-    parser.add_argument("-ct", "--clean_tags",
-                        dest="clean_tags",
-                        help="Remove all CrowdStrike tags from the MISP instance",
-                        required=False,
-                        action="store_true"
-                        )
-    parser.add_argument("-l", "--logfile",
-                        help="Log file for logging output",
-                        required=False,
-                        default="misp_import.log"
-                        )
-    #exclus = parser.add_mutually_exclusive_group("exclusive arguments")
-    parser.add_argument("--all", "--fullmonty",
-                        help="Import Adversaries, Reports and Indicators",
-                        required=False,
-                        default=False,
-                        dest="fullmonty",
-                        action="store_true"
-                        )
-    parser.add_argument("--obliterate",
-                        help="Remove all CrowdStrike data",
-                        required=False,
-                        default=False,
-                        dest="obliterate",
-                        action="store_true"
-                        )
-    parsed = parser.parse_args()
 
     if parsed.obliterate and parsed.fullmonty:
         parser.error("You cannot run Obliterate and the Full Monty at the same time.")
@@ -130,35 +185,16 @@ def parse_command_line() -> Namespace:
         bold = "\033[1m"
         undie = "\033[4m"
         endmark = "\033[0m"
-        yellow = "\033[33m"
-        red = "\033[31m"
-        lightred = "\033[91m"
-        magenta = "\033[35m"
-        cyan = "\033[36m"
-        print(f"{red}\n")
-        new_warning_banner = WARNING_BANNER.replace("@", f"{red}@{endmark}")
-        new_warning_banner = new_warning_banner.replace("!", f"{lightred}!{endmark}")
-        new_warning_banner = new_warning_banner.replace(":", f"{yellow}:{endmark}")
         print(f"{'😱 ' * 25}\n")
-        print(new_warning_banner)
-        print(endmark)
+        print(WARNING_BANNER)
         confirmed = input(
             f"{'😱 ' * 25}\n\nObliterate is a destructive operation that will remove "
             f"{bold}{undie}all CrowdStrike data{endmark}\nfrom your MISP instance. There is "
             "no going back once this process completes.\n\n"
             "Are you sure you want to do this?\n\n[Enter 'yes' to continue] ==> ")
-        if confirmed.upper() not in [
-            "YES", "FOR SURE", "ABSOLUTELY", "UH... OK", "DESTRUCT SEQUENCE ONE, CODE ONE, ONE-A"
-            ]:
-            raise SystemExit("Data obliteration has been cancelled. Phew! 😌")
         if confirmed.upper() != "YES":
-            print("\nThat's not 'yes', but I'll accept it anyway...\n")
-
-        print(MUSHROOM.format(
-            yellow, endmark, red, endmark, yellow, endmark, lightred, endmark, yellow, endmark,
-            bold, endmark, cyan, endmark, bold, endmark, cyan, endmark, bold, endmark, cyan,
-            endmark, bold, endmark, magenta, endmark, bold, endmark
-            ))
+            raise SystemExit("Data obliteration has been cancelled. Phew! 😌")
+        print(MUSHROOM)
         time.sleep(1)
     
     return parsed

@@ -528,6 +528,16 @@ WARNING_BANNER = r"""
  :::: :: :::   ::   :::  ::   :::   ::   ::   ::   ::   ::   ::: ::::   ::
   :: :  : :     :   : :   :   : :  ::    :   :    ::    :    :: :: :   :::
 """
+bold = "\033[1m"
+undie = "\033[4m"
+endmark = "\033[0m"
+yellow = "\033[33m"
+red = "\033[31m"
+lightred = "\033[91m"
+magenta = "\033[35m"
+cyan = "\033[36m"
+WARNING_BANNER = WARNING_BANNER.replace("@", f"{red}@{endmark}").replace("!", f"{lightred}!{endmark}").replace(":", f"{yellow}:{endmark}")
+
 MUSHROOM = r"""
     {}     _.-^^---....,,---;
      _--/                  `--_
@@ -542,6 +552,12 @@ MUSHROOM = r"""
      {}_____{}.,-#%&$@%#&#~,.{}_____
          {}COMMAND  ACCEPTED{}
 """
+MUSHROOM = MUSHROOM.format(yellow, endmark, red, endmark, yellow, endmark, lightred, endmark, yellow, endmark,
+            bold, endmark, cyan, endmark, bold, endmark, cyan, endmark, bold, endmark, cyan,
+            endmark, bold, endmark, magenta, endmark, bold, endmark
+            )
+
+
 
 INDICATOR_TYPES = {
     "hash_md5" : "md5",
