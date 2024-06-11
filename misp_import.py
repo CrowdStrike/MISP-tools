@@ -347,7 +347,7 @@ def create_intel_api_client(settings: ConfigParser, proxies: dict, extra_headers
 
 def create_import_settings(settings: ConfigParser, galaxy_maps: ConfigParser, args: Namespace, proxies: dict, extra_headers: dict):
     """Returns a dictionary of assigned settings from the configuration file"""
-    return {
+    import_settings = {
         "misp_url": settings["MISP"]["misp_url"],
         "misp_auth_key": settings["MISP"]["misp_auth_key"],
         "crowdstrike_org_uuid": settings["MISP"]["crowdstrike_org_uuid"],
@@ -372,6 +372,11 @@ def create_import_settings(settings: ConfigParser, galaxy_maps: ConfigParser, ar
         "proxy": proxies,
         "actor_map": {}
     }
+    if not import_settings["unknown_mapping"]:
+        import_settings["unknown_mapping"] = "Unidentified"
+    
+    return import_settings
+
     
 def import_new_events(args:Namespace, importer:CrowdstrikeToMISPImporter, settings:ConfigParser):
     """Checks for duplicates, begins import process"""
@@ -403,34 +408,39 @@ def import_new_events(args:Namespace, importer:CrowdstrikeToMISPImporter, settin
         #    main_log.exception(err)
         #    raise SystemExit(err) from err
 
-def main():
-    """Implement Main routine."""
-    # Retrieve our command line and parse out any specified arguments
-    args = parse_command_line()
-    
-    # StreamHandler Logging
-    splash,main_log = init_logging(args.debug)
-    
-    # MISP_BANNER display, attached with logs
-    display_banner(banner=MISP_BANNER,
-                   logger=splash,
-                   fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
-                   hide_cool_banners=args.no_banner
-                   )
-
-    if not check_config.validate_config(args.config_file, args.debug, args.no_banner):
-        do_finished(splash, args)
-        raise SystemExit("Invalid configuration specified, unable to continue.")
-
+def load_configuration_files(config_file: str):
     # Parse configuraion file
     settings = ConfigParser(interpolation=ExtendedInterpolation())
     settings.optionxform = str  # Don't lowercase configuration keys
-    settings.read(args.config_file)
+    settings.read(config_file)
 
     # Parse galaxy mappings
     galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
     galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
 
+def build_provided_arguments(args: Namespace) -> dict:
+    return {
+        "reports": args.reports,
+        "indicators": args.indicators,
+        "delete_outdated_indicators": args.delete_outdated_indicators,
+        "actors": args.actors
+    }
+
+def main():
+    """Implement Main routine."""
+    # Retrieve our command line and parse out any specified arguments
+    args = parse_command_line()
+    # StreamHandler Logging
+    splash,main_log = init_logging(args.debug)
+    # MISP_BANNER display, attached with logs
+    display_banner(banner=MISP_BANNER, logger=splash, fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}", hide_cool_banners=args.no_banner)
+
+    if not check_config.validate_config(args.config_file, args.debug, args.no_banner):
+        do_finished(splash, args)
+        raise SystemExit("Invalid configuration specified, unable to continue.")
+
+    settings,galaxy_maps = load_configuration_files(args.config_file)
+    
     # Assign header values by reading from settings config file
     proxies, extra_headers = define_setting_headers(settings)
 
@@ -440,16 +450,8 @@ def main():
     # Map configuration settings to a dictionary
     import_settings = create_import_settings(settings, galaxy_maps, args, proxies, extra_headers)
 
-    if not import_settings["unknown_mapping"]:
-        import_settings["unknown_mapping"] = "Unidentified"
-    
     # Dictionary of provided command line arguments
-    provided_arguments = {
-        "reports": args.reports,
-        "indicators": args.indicators,
-        "delete_outdated_indicators": args.delete_outdated_indicators,
-        "actors": args.actors
-    }
+    provided_arguments = build_provided_arguments(args)
     
     # Create interface for importing
     importer = CrowdstrikeToMISPImporter(intel_api_client, import_settings, provided_arguments, settings, logger=main_log)
