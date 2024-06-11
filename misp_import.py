@@ -246,6 +246,7 @@ def init_logging(debug_flag: bool):
     return (splash, main_log)
 
 def load_configuration_files(config_file: str):
+    """ Parse the ini files using ConfigParser"""
     # Parse configuraion file
     settings = ConfigParser(interpolation=ExtendedInterpolation())
     settings.optionxform = str  # Don't lowercase configuration keys
@@ -254,6 +255,8 @@ def load_configuration_files(config_file: str):
     # Parse galaxy mappings
     galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
     galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
+
+    return (settings, galaxy_maps)
 
 def define_setting_headers(settings: ConfigParser):
     """Sets the headers based on the used configuration file"""
@@ -340,10 +343,11 @@ def create_import_settings(settings: ConfigParser,
     return import_settings
 
 def build_provided_arguments(args: Namespace) -> dict:
+    """Returns a dictionary of mapped argument settings"""
     return {
         "reports": args.reports,
         "indicators": args.indicators,
-        "delete_outdated_indicators": args.delete_outdated_indicators,
+#        "delete_outdated_indicators": args.delete_outdated_indicators,
         "actors": args.actors
     }
 
