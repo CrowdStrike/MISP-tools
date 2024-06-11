@@ -212,15 +212,140 @@ def parse_command_line() -> Namespace:
     
     return parsed
 
+def init_logging(debug_flag: bool):
+    """Initialize logging for misp_tools and processor"""
+    splash = logging.getLogger("misp_tools")
+    splash.setLevel(logging.INFO)
+    main_log = logging.getLogger("processor")
+    main_log.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    #rfh = RotatingFileHandler(args.logfile, maxBytes=20971520, backupCount=5)
+    #rfh.setLevel(logging.INFO)
+    #rfh2 = RotatingFileHandler(args.logfile, maxBytes=20971520, backupCount=5)
+    #rfh2.setLevel(logging.INFO)
+    ch2 = logging.StreamHandler()
+    ch2.setLevel(logging.INFO)
+    if debug_flag:
+        main_log.setLevel(logging.DEBUG)
+        ch.setLevel(logging.DEBUG)
+        ch2.setLevel(logging.DEBUG)
+        #rfh.setLevel(logging.DEBUG)
+        #rfh2.setLevel(logging.DEBUG)
 
-def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
-    """Prints the FINISHED_BANNER"""
-    display_banner(banner=FINISHED_BANNER,
-                   logger=logg,
-                   fallback="FINISHED",
-                   hide_cool_banners=arg_parser.no_banner
-                   )
+    ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
+    #rfh.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
+    ch2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
+    #rfh2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
+    splash.addHandler(ch)
+    #splash.addHandler(rfh)
+    main_log.addHandler(ch2)
+    #main_log.addHandler(rfh2)
+    splash.propagate = False
+    main_log.propagate = False
+    return (splash, main_log)
 
+def load_configuration_files(config_file: str):
+    # Parse configuraion file
+    settings = ConfigParser(interpolation=ExtendedInterpolation())
+    settings.optionxform = str  # Don't lowercase configuration keys
+    settings.read(config_file)
+
+    # Parse galaxy mappings
+    galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
+    galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
+
+def define_setting_headers(settings: ConfigParser):
+    """Sets the headers based on the used configuration file"""
+    try:
+        if not settings["MISP"]["misp_enable_ssl"]:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    except AttributeError:
+        # Not specified, default to enable warnings
+        pass
+
+    # Configure the proxy if specified
+    proxies = {}
+    if "PROXY" in settings:
+        # Only the two proxies (http / https) are allowed
+        if "http" in settings["PROXY"]:
+            proxies["http"] = settings["PROXY"]["http"]
+        if "https" in settings["PROXY"]:
+            proxies["https"] = settings["PROXY"]["https"]
+
+    # Set any extra headers to pass to the APIs
+    extra_headers = {}
+    if "EXTRA_HEADERS" in settings:
+        for header_item,header_value in settings["EXTRA_HEADERS"].items():
+            set_val = header_value
+            # MISP only allows str or bytes header values
+            # try:
+            #     set_val = int(header_value)
+            # except ValueError:
+            #     if header_value.lower() in ["true", "false"]:
+            #         set_val = confirm_boolean_param(header_value)
+
+            extra_headers[header_item] = set_val
+    return (proxies, extra_headers)
+
+def create_intel_api_client(settings: ConfigParser, 
+                            proxies: dict, 
+                            extra_headers: dict, 
+                            main_log: logging.Logger):
+    """Initializes the CrowdStrike API client"""
+    return IntelAPIClient(settings["CrowdStrike"]["client_id"],
+                                      settings["CrowdStrike"]["client_secret"],
+                                      settings["CrowdStrike"]["crowdstrike_url"],
+                                      int(settings["CrowdStrike"]["api_request_max"]),
+                                      extra_headers,
+                                      proxies,
+                                      False if "F" in settings["CrowdStrike"]["api_enable_ssl"].upper() else True,
+                                      main_log
+                                      )
+
+def create_import_settings(settings: ConfigParser, 
+                           galaxy_maps: ConfigParser, 
+                           args: Namespace, 
+                           proxies: dict, 
+                           extra_headers: dict):
+    """Returns a dictionary of assigned settings from the configuration file"""
+    import_settings = {
+        "misp_url": settings["MISP"]["misp_url"],
+        "misp_auth_key": settings["MISP"]["misp_auth_key"],
+        "crowdstrike_org_uuid": settings["MISP"]["crowdstrike_org_uuid"],
+        "reports_timestamp_filename": settings["CrowdStrike"]["reports_timestamp_filename"],
+        "indicators_timestamp_filename": settings["CrowdStrike"]["indicators_timestamp_filename"],
+        "actors_timestamp_filename": settings["CrowdStrike"]["actors_timestamp_filename"],
+#        "reports_unique_tag": settings["CrowdStrike"]["reports_unique_tag"],
+#        "indicators_unique_tag": settings["CrowdStrike"]["indicators_unique_tag"],
+#        "actors_unique_tag": settings["CrowdStrike"]["actors_unique_tag"],
+        "unknown_mapping": settings["CrowdStrike"]["unknown_mapping"],
+        "max_threads": settings["MISP"].get("max_threads", None),
+        "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
+        "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True,
+        "galaxy_map": galaxy_maps["Galaxy"],
+        "force": args.force,
+        "no_banners": args.no_banner,
+        "no_dupe_check": args.no_dupe_check,
+        "type": args.type,
+        "publish": args.publish,
+        "verbose_tags": args.verbose,
+        "ext_headers": extra_headers,
+        "proxy": proxies,
+        "actor_map": {}
+    }
+    if not import_settings["unknown_mapping"]:
+        import_settings["unknown_mapping"] = "Unidentified"
+    
+    return import_settings
+
+def build_provided_arguments(args: Namespace) -> dict:
+    return {
+        "reports": args.reports,
+        "indicators": args.indicators,
+        "delete_outdated_indicators": args.delete_outdated_indicators,
+        "actors": args.actors
+    }
 
 def perform_local_cleanup(args: Namespace,
                           importer: CrowdstrikeToMISPImporter,
@@ -266,119 +391,10 @@ def retrieve_tags(tag_type: str, settings: ConfigParser):
             tags.append(f"crowdstrike:branch=\"{adv_type}\"")
 
     return tags
-
-def init_logging(debug_flag: bool):
-    """Initialize logging for misp_tools and processor"""
-    splash = logging.getLogger("misp_tools")
-    splash.setLevel(logging.INFO)
-    main_log = logging.getLogger("processor")
-    main_log.setLevel(logging.INFO)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    #rfh = RotatingFileHandler(args.logfile, maxBytes=20971520, backupCount=5)
-    #rfh.setLevel(logging.INFO)
-    #rfh2 = RotatingFileHandler(args.logfile, maxBytes=20971520, backupCount=5)
-    #rfh2.setLevel(logging.INFO)
-    ch2 = logging.StreamHandler()
-    ch2.setLevel(logging.INFO)
-    if debug_flag:
-        main_log.setLevel(logging.DEBUG)
-        ch.setLevel(logging.DEBUG)
-        ch2.setLevel(logging.DEBUG)
-        #rfh.setLevel(logging.DEBUG)
-        #rfh2.setLevel(logging.DEBUG)
-
-    ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
-    #rfh.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
-    ch2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
-    #rfh2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
-    splash.addHandler(ch)
-    #splash.addHandler(rfh)
-    main_log.addHandler(ch2)
-    #main_log.addHandler(rfh2)
-    splash.propagate = False
-    main_log.propagate = False
-    return (splash, main_log)
-
-def define_setting_headers(settings: ConfigParser):
-    """Sets the headers based on the used configuration file"""
-    try:
-        if not settings["MISP"]["misp_enable_ssl"]:
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    except AttributeError:
-        # Not specified, default to enable warnings
-        pass
-
-    # Configure the proxy if specified
-    proxies = {}
-    if "PROXY" in settings:
-        # Only the two proxies (http / https) are allowed
-        if "http" in settings["PROXY"]:
-            proxies["http"] = settings["PROXY"]["http"]
-        if "https" in settings["PROXY"]:
-            proxies["https"] = settings["PROXY"]["https"]
-
-    # Set any extra headers to pass to the APIs
-    extra_headers = {}
-    if "EXTRA_HEADERS" in settings:
-        for header_item,header_value in settings["EXTRA_HEADERS"].items():
-            set_val = header_value
-            # MISP only allows str or bytes header values
-            # try:
-            #     set_val = int(header_value)
-            # except ValueError:
-            #     if header_value.lower() in ["true", "false"]:
-            #         set_val = confirm_boolean_param(header_value)
-
-            extra_headers[header_item] = set_val
-    return (proxies, extra_headers)
-
-def create_intel_api_client(settings: ConfigParser, proxies: dict, extra_headers: dict, main_log: logging.Logger):
-    """Initializes the CrowdStrike API client"""
-    return IntelAPIClient(settings["CrowdStrike"]["client_id"],
-                                      settings["CrowdStrike"]["client_secret"],
-                                      settings["CrowdStrike"]["crowdstrike_url"],
-                                      int(settings["CrowdStrike"]["api_request_max"]),
-                                      extra_headers,
-                                      proxies,
-                                      False if "F" in settings["CrowdStrike"]["api_enable_ssl"].upper() else True,
-                                      main_log
-                                      )
-
-def create_import_settings(settings: ConfigParser, galaxy_maps: ConfigParser, args: Namespace, proxies: dict, extra_headers: dict):
-    """Returns a dictionary of assigned settings from the configuration file"""
-    import_settings = {
-        "misp_url": settings["MISP"]["misp_url"],
-        "misp_auth_key": settings["MISP"]["misp_auth_key"],
-        "crowdstrike_org_uuid": settings["MISP"]["crowdstrike_org_uuid"],
-        "reports_timestamp_filename": settings["CrowdStrike"]["reports_timestamp_filename"],
-        "indicators_timestamp_filename": settings["CrowdStrike"]["indicators_timestamp_filename"],
-        "actors_timestamp_filename": settings["CrowdStrike"]["actors_timestamp_filename"],
-#        "reports_unique_tag": settings["CrowdStrike"]["reports_unique_tag"],
-#        "indicators_unique_tag": settings["CrowdStrike"]["indicators_unique_tag"],
-#        "actors_unique_tag": settings["CrowdStrike"]["actors_unique_tag"],
-        "unknown_mapping": settings["CrowdStrike"]["unknown_mapping"],
-        "max_threads": settings["MISP"].get("max_threads", None),
-        "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
-        "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True,
-        "galaxy_map": galaxy_maps["Galaxy"],
-        "force": args.force,
-        "no_banners": args.no_banner,
-        "no_dupe_check": args.no_dupe_check,
-        "type": args.type,
-        "publish": args.publish,
-        "verbose_tags": args.verbose,
-        "ext_headers": extra_headers,
-        "proxy": proxies,
-        "actor_map": {}
-    }
-    if not import_settings["unknown_mapping"]:
-        import_settings["unknown_mapping"] = "Unidentified"
-    
-    return import_settings
-
-    
-def import_new_events(args:Namespace, importer:CrowdstrikeToMISPImporter, settings:ConfigParser):
+   
+def import_new_events(args:Namespace, 
+                      importer:CrowdstrikeToMISPImporter, 
+                      settings:ConfigParser):
     """Checks for duplicates, begins import process"""
     if args.reports or args.actors or args.indicators:
         # Conditional for duplicate checking
@@ -408,65 +424,39 @@ def import_new_events(args:Namespace, importer:CrowdstrikeToMISPImporter, settin
         #    main_log.exception(err)
         #    raise SystemExit(err) from err
 
-def load_configuration_files(config_file: str):
-    # Parse configuraion file
-    settings = ConfigParser(interpolation=ExtendedInterpolation())
-    settings.optionxform = str  # Don't lowercase configuration keys
-    settings.read(config_file)
-
-    # Parse galaxy mappings
-    galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
-    galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
-
-def build_provided_arguments(args: Namespace) -> dict:
-    return {
-        "reports": args.reports,
-        "indicators": args.indicators,
-        "delete_outdated_indicators": args.delete_outdated_indicators,
-        "actors": args.actors
-    }
+def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
+    """Prints the FINISHED_BANNER"""
+    display_banner(banner=FINISHED_BANNER,
+                   logger=logg,
+                   fallback="FINISHED",
+                   hide_cool_banners=arg_parser.no_banner
+                   )
 
 def main():
     """Implement Main routine."""
-    # Retrieve our command line and parse out any specified arguments
     args = parse_command_line()
-    # StreamHandler Logging
     splash,main_log = init_logging(args.debug)
-    # MISP_BANNER display, attached with logs
     display_banner(banner=MISP_BANNER, logger=splash, fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}", hide_cool_banners=args.no_banner)
 
     if not check_config.validate_config(args.config_file, args.debug, args.no_banner):
         do_finished(splash, args)
         raise SystemExit("Invalid configuration specified, unable to continue.")
 
-    settings,galaxy_maps = load_configuration_files(args.config_file)
-    
-    # Assign header values by reading from settings config file
+    settings, galaxy_maps  = load_configuration_files(args.config_file)
     proxies, extra_headers = define_setting_headers(settings)
-
-    # Interface to the CrowdStrike Falcon Intel API
-    intel_api_client = create_intel_api_client(settings, proxies, extra_headers, main_log)
+    intel_api_client       = create_intel_api_client(settings, proxies, extra_headers, main_log)
+    import_settings        = create_import_settings(settings, galaxy_maps, args, proxies, extra_headers)
+    provided_arguments     = build_provided_arguments(args)
     
-    # Map configuration settings to a dictionary
-    import_settings = create_import_settings(settings, galaxy_maps, args, proxies, extra_headers)
-
-    # Dictionary of provided command line arguments
-    provided_arguments = build_provided_arguments(args)
-    
-    # Create interface for importing
     importer = CrowdstrikeToMISPImporter(intel_api_client, import_settings, provided_arguments, settings, logger=main_log)
 
-    # Clean up 
     if args.clean_reports or args.clean_indicators or args.clean_actors:
         perform_local_cleanup(args, importer, settings, main_log)
-
     if args.clean_tags:
         importer.remove_crowdstrike_tags()
 
-    # Import from CrowdStrike into MISP
     import_new_events(args, importer, settings)
 
-    # Delete old CrowdStrike events
     if args.max_age is not None:
         try:
             importer.clean_old_crowdstrike_events(args.max_age, args.type)
@@ -475,7 +465,6 @@ def main():
             raise SystemExit(err) from err
     
     do_finished(splash, args)
-
 
 if __name__ == '__main__':
 
