@@ -51,7 +51,6 @@ from cs_misp_import import (
     VERSION,
     check_config
 )
-# from cs_misp_import.helper import confirm_boolean_param
 
 def parse_command_line() -> Namespace:
     """Parse the running command line provided by the user."""
@@ -169,12 +168,6 @@ def parse_command_line() -> Namespace:
 
     parsed = parser.parse_args()
 
-    # exclus = parser.add_mutually_exclusive_group("exclusive arguments")
-    # group = parser.add_mutually_exclusive_group()
-    # group.add_argument("--related_indicators", action="store_true",
-    #                    help="Set this to only import indicators related to reports."
-    #                    )
-
     if parsed.obliterate and parsed.fullmonty:
         parser.error("You cannot run Obliterate and the Full Monty at the same time.")
 
@@ -220,27 +213,17 @@ def init_logging(debug_flag: bool):
     main_log.setLevel(logging.INFO)
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
-    #rfh = RotatingFileHandler(args.logfile, maxBytes=20971520, backupCount=5)
-    #rfh.setLevel(logging.INFO)
-    #rfh2 = RotatingFileHandler(args.logfile, maxBytes=20971520, backupCount=5)
-    #rfh2.setLevel(logging.INFO)
     ch2 = logging.StreamHandler()
     ch2.setLevel(logging.INFO)
     if debug_flag:
         main_log.setLevel(logging.DEBUG)
         ch.setLevel(logging.DEBUG)
         ch2.setLevel(logging.DEBUG)
-        #rfh.setLevel(logging.DEBUG)
-        #rfh2.setLevel(logging.DEBUG)
 
     ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
-    #rfh.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
     ch2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
-    #rfh2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
     splash.addHandler(ch)
-    #splash.addHandler(rfh)
     main_log.addHandler(ch2)
-    #main_log.addHandler(rfh2)
     splash.propagate = False
     main_log.propagate = False
     return (splash, main_log)
@@ -264,7 +247,6 @@ def define_setting_headers(settings: ConfigParser):
         if not settings["MISP"]["misp_enable_ssl"]:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     except AttributeError:
-        # Not specified, default to enable warnings
         pass
 
     # Configure the proxy if specified
@@ -281,12 +263,6 @@ def define_setting_headers(settings: ConfigParser):
     if "EXTRA_HEADERS" in settings:
         for header_item,header_value in settings["EXTRA_HEADERS"].items():
             set_val = header_value
-            # MISP only allows str or bytes header values
-            # try:
-            #     set_val = int(header_value)
-            # except ValueError:
-            #     if header_value.lower() in ["true", "false"]:
-            #         set_val = confirm_boolean_param(header_value)
 
             extra_headers[header_item] = set_val
     return (proxies, extra_headers)
@@ -319,9 +295,6 @@ def create_import_settings(settings: ConfigParser,
         "reports_timestamp_filename": settings["CrowdStrike"]["reports_timestamp_filename"],
         "indicators_timestamp_filename": settings["CrowdStrike"]["indicators_timestamp_filename"],
         "actors_timestamp_filename": settings["CrowdStrike"]["actors_timestamp_filename"],
-#        "reports_unique_tag": settings["CrowdStrike"]["reports_unique_tag"],
-#        "indicators_unique_tag": settings["CrowdStrike"]["indicators_unique_tag"],
-#        "actors_unique_tag": settings["CrowdStrike"]["actors_unique_tag"],
         "unknown_mapping": settings["CrowdStrike"]["unknown_mapping"],
         "max_threads": settings["MISP"].get("max_threads", None),
         "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
@@ -347,7 +320,6 @@ def build_provided_arguments(args: Namespace) -> dict:
     return {
         "reports": args.reports,
         "indicators": args.indicators,
-#        "delete_outdated_indicators": args.delete_outdated_indicators,
         "actors": args.actors
     }
 
@@ -386,11 +358,7 @@ def retrieve_tags(tag_type: str, settings: ConfigParser):
     if tag_type == "reports":
         for report_type in [r.value for r in ReportType]:
             tags.append(f"crowdstrike:report-type=\"{report_type}\"")
-    # No indicators dupe checking atm - jshcodes@CrowdStrike / 08.18.22
-    # if args.indicators:
-    #     tags.append(settings["CrowdStrike"]["indicators_unique_tag"])
     if tag_type == "actors":
-        #tags.append(f"crowdstrike:report-type=\"Adversary Detail Report\"")
         for adv_type in [a.name for a in Adversary]:
             tags.append(f"crowdstrike:branch=\"{adv_type}\"")
 
@@ -413,20 +381,12 @@ def import_new_events(args:Namespace,
                 # Reports dupe identification is a little customized
                 tags = retrieve_tags("reports", settings)
                 importer.import_from_misp(tags, style="reports")
-            #if args.indicators:
-                # Load report IDs for indicator attribution
-                #tags = retrieve_tags("reports", settings)
-                #importer.import_from_misp(tags, style="reports")
-                # Indicators looks up pre-existing indicators in it's own module
 
         # Import new events from CrowdStrike into MISP
         importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
                                             int(settings["CrowdStrike"]["init_indicators_minutes_before"]),
                                             int(settings["CrowdStrike"]["init_actors_days_before"])
                                             )
-        #except Exception as err:
-        #    main_log.exception(err)
-        #    raise SystemExit(err) from err
 
 def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
     """Prints the FINISHED_BANNER"""
