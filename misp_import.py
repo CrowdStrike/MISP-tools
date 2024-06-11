@@ -373,61 +373,8 @@ def create_import_settings(settings: ConfigParser, galaxy_maps: ConfigParser, ar
         "actor_map": {}
     }
     
-
-
-def main():
-    """Implement Main routine."""
-    # Retrieve our command line and parse out any specified arguments
-    args = parse_command_line()
-    
-    # StreamHandler Logging
-    splash,main_log = init_logging(args.debug)
-    
-    # MISP_BANNER display, attached with logs
-    display_banner(banner=MISP_BANNER,
-                   logger=splash,
-                   fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
-                   hide_cool_banners=args.no_banner
-                   )
-
-    if not check_config.validate_config(args.config_file, args.debug, args.no_banner):
-        do_finished(splash, args)
-        raise SystemExit("Invalid configuration specified, unable to continue.")
-
-    settings = ConfigParser(interpolation=ExtendedInterpolation())
-    settings.optionxform = str  # Don't lowercase configuration keys
-    settings.read(args.config_file)
-
-    galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
-    galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
-
-    # Assign header values by reading from settings config file
-    proxies, extra_headers = define_setting_headers(settings)
-
-    # Interface to the CrowdStrike Falcon Intel API
-    intel_api_client = create_intel_api_client(settings, proxies, extra_headers, main_log)
-    
-    import_settings = create_import_settings(settings, galaxy_maps, args, proxies, extra_headers)
-
-    if not import_settings["unknown_mapping"]:
-        import_settings["unknown_mapping"] = "Unidentified"
-    
-    # Dictionary of provided command line arguments
-    provided_arguments = {
-        "reports": args.reports,
-      # "related_indicators": args.related_indicators,
-        "indicators": args.indicators,
-        "delete_outdated_indicators": args.delete_outdated_indicators,
-        "actors": args.actors
-    }
-    importer = CrowdstrikeToMISPImporter(intel_api_client, import_settings, provided_arguments, settings, logger=main_log)
-
-    if args.clean_reports or args.clean_indicators or args.clean_actors:
-        perform_local_cleanup(args, importer, settings, main_log)
-
-    if args.clean_tags:
-        importer.remove_crowdstrike_tags()
-
+def import_new_events(args:Namespace, importer:CrowdstrikeToMISPImporter, settings:ConfigParser):
+    """Checks for duplicates, begins import process"""
     if args.reports or args.actors or args.indicators:
         # Conditional for duplicate checking
         if not args.no_dupe_check:
@@ -456,12 +403,75 @@ def main():
         #    main_log.exception(err)
         #    raise SystemExit(err) from err
 
+def main():
+    """Implement Main routine."""
+    # Retrieve our command line and parse out any specified arguments
+    args = parse_command_line()
+    
+    # StreamHandler Logging
+    splash,main_log = init_logging(args.debug)
+    
+    # MISP_BANNER display, attached with logs
+    display_banner(banner=MISP_BANNER,
+                   logger=splash,
+                   fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
+                   hide_cool_banners=args.no_banner
+                   )
+
+    if not check_config.validate_config(args.config_file, args.debug, args.no_banner):
+        do_finished(splash, args)
+        raise SystemExit("Invalid configuration specified, unable to continue.")
+
+    # Parse configuraion file
+    settings = ConfigParser(interpolation=ExtendedInterpolation())
+    settings.optionxform = str  # Don't lowercase configuration keys
+    settings.read(args.config_file)
+
+    # Parse galaxy mappings
+    galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
+    galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
+
+    # Assign header values by reading from settings config file
+    proxies, extra_headers = define_setting_headers(settings)
+
+    # Interface to the CrowdStrike Falcon Intel API
+    intel_api_client = create_intel_api_client(settings, proxies, extra_headers, main_log)
+    
+    # Map configuration settings to a dictionary
+    import_settings = create_import_settings(settings, galaxy_maps, args, proxies, extra_headers)
+
+    if not import_settings["unknown_mapping"]:
+        import_settings["unknown_mapping"] = "Unidentified"
+    
+    # Dictionary of provided command line arguments
+    provided_arguments = {
+        "reports": args.reports,
+        "indicators": args.indicators,
+        "delete_outdated_indicators": args.delete_outdated_indicators,
+        "actors": args.actors
+    }
+    
+    # Create interface for importing
+    importer = CrowdstrikeToMISPImporter(intel_api_client, import_settings, provided_arguments, settings, logger=main_log)
+
+    # Clean up 
+    if args.clean_reports or args.clean_indicators or args.clean_actors:
+        perform_local_cleanup(args, importer, settings, main_log)
+
+    if args.clean_tags:
+        importer.remove_crowdstrike_tags()
+
+    # Import from CrowdStrike into MISP
+    import_new_events(args, importer, settings)
+
+    # Delete old CrowdStrike events
     if args.max_age is not None:
         try:
             importer.clean_old_crowdstrike_events(args.max_age, args.type)
         except Exception as err:
             main_log.exception(err)
             raise SystemExit(err) from err
+    
     do_finished(splash, args)
 
 
