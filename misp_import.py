@@ -53,8 +53,8 @@ from cs_misp_import import (
 )
 # from cs_misp_import.helper import confirm_boolean_param
 
-"""Parse the running command line provided by the user."""
 def parse_command_line() -> Namespace:
+    """Parse the running command line provided by the user."""
     parser = ArgumentParser(description=__doc__, formatter_class=RawTextHelpFormatter)
 
     parser.add_argument("-f", "--force",             
@@ -178,7 +178,7 @@ def parse_command_line() -> Namespace:
     if parsed.obliterate and parsed.fullmonty:
         parser.error("You cannot run Obliterate and the Full Monty at the same time.")
 
-    """Delete EVERYTHING"""
+    # Delete EVERYTHING
     if parsed.obliterate:
         bold = "\033[1m"
         undie = "\033[4m"
@@ -213,8 +213,8 @@ def parse_command_line() -> Namespace:
     return parsed
 
 
-""""""
 def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
+    """Prints the FINISHED_BANNER"""
     display_banner(banner=FINISHED_BANNER,
                    logger=logg,
                    fallback="FINISHED",
@@ -232,17 +232,17 @@ def perform_local_cleanup(args: Namespace,
 
         importer.clean_crowdstrike_events(args.clean_reports, args.clean_indicators, args.clean_actors)
         
-        """Delete reports file using filename from config"""
+        # Delete reports file using filename from config
         if args.clean_reports and os.path.isfile(settings["CrowdStrike"]["reports_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["reports_timestamp_filename"])
             log_device.info("Finished resetting CrowdStrike Report offset.")
         
-        """Delete indicators file using filename from config"""
+        # Delete indicators file using filename from config
         if args.clean_indicators and os.path.isfile(settings["CrowdStrike"]["indicators_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["indicators_timestamp_filename"])
             log_device.info("Finished resetting CrowdStrike Indicator offset.")
         
-        """Delete actors file using filename from config"""
+        # Delete actors file using filename from config
         if args.clean_actors and os.path.isfile(settings["CrowdStrike"]["actors_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["actors_timestamp_filename"])
             log_device.info("Finished resetting CrowdStrike Adversary offset.")
@@ -251,8 +251,8 @@ def perform_local_cleanup(args: Namespace,
         log_device.exception(err)
         raise SystemExit(err) from err
 
-"""Retrieve all tags used for CrowdStrike elements within MISP (broken out by type)."""
 def retrieve_tags(tag_type: str, settings: ConfigParser):
+    """Retrieve all tags used for CrowdStrike elements within MISP (broken out by type)."""
     tags = []
     if tag_type == "reports":
         for report_type in [r.value for r in ReportType]:
@@ -267,8 +267,8 @@ def retrieve_tags(tag_type: str, settings: ConfigParser):
 
     return tags
 
-"""Initialize logging for misp_tools and processor"""
 def init_logging(debug_flag: bool):
+    """Initialize logging for misp_tools and processor"""
     splash = logging.getLogger("misp_tools")
     splash.setLevel(logging.INFO)
     main_log = logging.getLogger("processor")
@@ -301,6 +301,7 @@ def init_logging(debug_flag: bool):
     return (splash, main_log)
 
 def define_setting_headers(settings: ConfigParser):
+    """Sets the headers based on the used configuration file"""
     try:
         if not settings["MISP"]["misp_enable_ssl"]:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -333,6 +334,7 @@ def define_setting_headers(settings: ConfigParser):
     return (proxies, extra_headers)
 
 def create_intel_api_client(settings: ConfigParser, proxies: dict, extra_headers: dict, main_log: logging.Logger):
+    """Initializes the CrowdStrike API client"""
     return IntelAPIClient(settings["CrowdStrike"]["client_id"],
                                       settings["CrowdStrike"]["client_secret"],
                                       settings["CrowdStrike"]["crowdstrike_url"],
@@ -344,6 +346,7 @@ def create_intel_api_client(settings: ConfigParser, proxies: dict, extra_headers
                                       )
 
 def create_import_settings(settings: ConfigParser, galaxy_maps: ConfigParser, args: Namespace, proxies: dict, extra_headers: dict):
+    """Returns a dictionary of assigned settings from the configuration file"""
     return {
         "misp_url": settings["MISP"]["misp_url"],
         "misp_auth_key": settings["MISP"]["misp_auth_key"],
@@ -370,29 +373,17 @@ def create_import_settings(settings: ConfigParser, galaxy_maps: ConfigParser, ar
         "actor_map": {}
     }
     
-"""
-1) Set args depending on two flags, fullmonty and obliterate
-2) Initialize logging
-3) Display banner
-4) Validate config
-5) Enable/Disable SSL
-6) Set proxy settings
-7) Extra headers?
-8) API client object
-9) MISP client dict
-10) CrowdstrikeToMISP init
-11) 
 
-"""
+
 def main():
     """Implement Main routine."""
     # Retrieve our command line and parse out any specified arguments
     args = parse_command_line()
     
-    """StreamHandler logging"""
+    # StreamHandler Logging
     splash,main_log = init_logging(args.debug)
     
-    """MISP_BANNER display, attached with logs"""
+    # MISP_BANNER display, attached with logs
     display_banner(banner=MISP_BANNER,
                    logger=splash,
                    fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
@@ -410,14 +401,14 @@ def main():
     galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
     galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
 
-    """Assign header values by reading from settings config file"""
+    # Assign header values by reading from settings config file
     proxies, extra_headers = define_setting_headers(settings)
 
-    """Interface to the CrowdStrike Falcon Intel API"""
+    # Interface to the CrowdStrike Falcon Intel API
     intel_api_client = create_intel_api_client(settings, proxies, extra_headers, main_log)
     
     import_settings = create_import_settings(settings, galaxy_maps, args, proxies, extra_headers)
-    
+
     if not import_settings["unknown_mapping"]:
         import_settings["unknown_mapping"] = "Unidentified"
     
@@ -438,7 +429,7 @@ def main():
         importer.remove_crowdstrike_tags()
 
     if args.reports or args.actors or args.indicators:
-        #try:
+        # Conditional for duplicate checking
         if not args.no_dupe_check:
             
             # Retrieve all tags for selected options
