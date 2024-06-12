@@ -267,9 +267,9 @@ def define_setting_headers(settings: ConfigParser):
             extra_headers[header_item] = set_val
     return (proxies, extra_headers)
 
-def create_intel_api_client(settings: ConfigParser, 
-                            proxies: dict, 
-                            extra_headers: dict, 
+def create_intel_api_client(settings: ConfigParser,
+                            proxies: dict,
+                            extra_headers: dict,
                             main_log: logging.Logger):
     """Initializes the CrowdStrike API client"""
     return IntelAPIClient(settings["CrowdStrike"]["client_id"],
@@ -282,10 +282,10 @@ def create_intel_api_client(settings: ConfigParser,
                                       main_log
                                       )
 
-def create_import_settings(settings: ConfigParser, 
-                           galaxy_maps: ConfigParser, 
-                           args: Namespace, 
-                           proxies: dict, 
+def create_import_settings(settings: ConfigParser,
+                           galaxy_maps: ConfigParser,
+                           args: Namespace,
+                           proxies: dict,
                            extra_headers: dict):
     """Returns a dictionary of assigned settings from the configuration file"""
     import_settings = {
@@ -312,7 +312,6 @@ def create_import_settings(settings: ConfigParser,
     }
     if not import_settings["unknown_mapping"]:
         import_settings["unknown_mapping"] = "Unidentified"
-    
     return import_settings
 
 def build_provided_arguments(args: Namespace) -> dict:
@@ -330,9 +329,8 @@ def perform_local_cleanup(args: Namespace,
                           ):
     """Remove local offset cache files to reset the marker for data pulls from the CrowdStrike API."""
     try:
-
         importer.clean_crowdstrike_events(args.clean_reports, args.clean_indicators, args.clean_actors)
-        
+      
         # Delete reports file using filename from config
         if args.clean_reports and os.path.isfile(settings["CrowdStrike"]["reports_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["reports_timestamp_filename"])
@@ -347,12 +345,12 @@ def perform_local_cleanup(args: Namespace,
         if args.clean_actors and os.path.isfile(settings["CrowdStrike"]["actors_timestamp_filename"]):
             os.remove(settings["CrowdStrike"]["actors_timestamp_filename"])
             log_device.info("Finished resetting CrowdStrike Adversary offset.")
-    
+
     except Exception as err:
         log_device.exception(err)
         raise SystemExit(err) from err
 
-def retrieve_tags(tag_type: str, settings: ConfigParser):
+def retrieve_tags(tag_type: str):
     """Retrieve all tags used for CrowdStrike elements within MISP (broken out by type)."""
     tags = []
     if tag_type == "reports":
@@ -363,7 +361,7 @@ def retrieve_tags(tag_type: str, settings: ConfigParser):
             tags.append(f"crowdstrike:branch=\"{adv_type}\"")
 
     return tags
-   
+
 def import_new_events(args:Namespace, 
                       importer:CrowdstrikeToMISPImporter, 
                       settings:ConfigParser):
@@ -371,15 +369,15 @@ def import_new_events(args:Namespace,
     if args.reports or args.actors or args.indicators:
         # Conditional for duplicate checking
         if not args.no_dupe_check:
-            
+
             # Retrieve all tags for selected options
             if args.actors:
-                tags = retrieve_tags("actors", settings)
+                tags = retrieve_tags("actors")
                 importer.import_from_misp(tags, style="actors")
             if args.reports:
 
                 # Reports dupe identification is a little customized
-                tags = retrieve_tags("reports", settings)
+                tags = retrieve_tags("reports")
                 importer.import_from_misp(tags, style="reports")
 
         # Import new events from CrowdStrike into MISP
@@ -400,7 +398,10 @@ def main():
     """Implement Main routine."""
     args = parse_command_line()
     splash,main_log = init_logging(args.debug)
-    display_banner(banner=MISP_BANNER, logger=splash, fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}", hide_cool_banners=args.no_banner)
+    display_banner(banner=MISP_BANNER,
+                   logger=splash,
+                   fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
+                   hide_cool_banners=args.no_banner)
 
     if not check_config.validate_config(args.config_file, args.debug, args.no_banner):
         do_finished(splash, args)
@@ -411,8 +412,12 @@ def main():
     intel_api_client       = create_intel_api_client(settings, proxies, extra_headers, main_log)
     import_settings        = create_import_settings(settings, galaxy_maps, args, proxies, extra_headers)
     provided_arguments     = build_provided_arguments(args)
-    
-    importer = CrowdstrikeToMISPImporter(intel_api_client, import_settings, provided_arguments, settings, logger=main_log)
+
+    importer = CrowdstrikeToMISPImporter(intel_api_client,
+                                         import_settings,
+                                         provided_arguments,
+                                         settings,
+                                         logger=main_log)
 
     if args.clean_reports or args.clean_indicators or args.clean_actors:
         perform_local_cleanup(args, importer, settings, main_log)
@@ -427,7 +432,7 @@ def main():
         except Exception as err:
             main_log.exception(err)
             raise SystemExit(err) from err
-    
+
     do_finished(splash, args)
 
 if __name__ == '__main__':
