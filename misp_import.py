@@ -36,8 +36,10 @@ from threading import main_thread
 import time
 import logging
 import os
-from cs_misp_import.indicator_type import IndicatorType
+from typing import Dict, Optional
+from dataclasses import dataclass
 import urllib3
+from cs_misp_import.indicator_type import IndicatorType
 from cs_misp_import import (
     IntelAPIClient,
     CrowdstrikeToMISPImporter,
@@ -165,7 +167,6 @@ def parse_command_line() -> Namespace:
                         dest="max_age",          
                         help="Maximum age of the objects to be stored in MISP in days."" Objects older than that will be deleted.")
 
-
     parsed = parser.parse_args()
 
     if parsed.obliterate and parsed.fullmonty:
@@ -205,6 +206,79 @@ def parse_command_line() -> Namespace:
     
     return parsed
 
+
+class ConfigHandler:
+    """Basic ConfigParser Handler"""
+    def __init__(self, config_file):
+        self.config_file = config_file
+        self.settings = {}
+        self.galaxy_maps = {}
+        self.import_settings = {}
+        self.proxies = {}
+        self.ex_headers = {}
+
+    def load_settings_file(self) -> None:
+        """Parse the settings ini file using ConfigParser"""
+        self.settings = ConfigParser(interpolation=ExtendedInterpolation())
+        # optionxform preserves casing for keys within the settings file
+        self.settings.optionxform = str
+        self.settings.read(self.config_file)
+
+        try:
+            if not self.settings["MISP"]["misp_enable_ssl"]:
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        except AttributeError:
+            pass
+
+    def load_galaxy_maps_file(self) -> None:
+        """Parse the galaxy mappings ini file using ConfigParser"""
+        self.galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
+        self.galaxy_maps.read(self.settings["MISP"].get("galaxy_map_file",
+                                                        "galaxy.ini"))
+
+    def configure_proxy(self):
+        """Parse settings dictionary to set proxy"""
+        if "PROXY" in self.settings:
+            if "http" in self.settings["PROXY"]:
+                self.proxies["http"] = self.settings["PROXY"]["http"]
+            if "https" in self.settings["PROXY"]:
+                self.proxies["https"] = self.settings["PROXY"]["https"]
+
+    def configure_extra_headers(self):
+        if "EXTRA_HEADERS" in self.settings:
+            for head_i, head_v in self.settings["EXTRA_HEADERS"].items():
+                self.ex_headers[head_i] = head_v
+
+    def create_import_settings(self, args: Namespace):
+        """Returns a dictionary of assigned settings from the configuration file"""
+        self.import_settings = {
+            "misp_url": self.settings["MISP"]["misp_url"],
+            "misp_auth_key": self.settings["MISP"]["misp_auth_key"],
+            "crowdstrike_org_uuid": self.settings["MISP"]["crowdstrike_org_uuid"],
+            "reports_timestamp_filename": self.settings["CrowdStrike"]["reports_timestamp_filename"],
+            "indicators_timestamp_filename": self.settings["CrowdStrike"]["indicators_timestamp_filename"],
+            "actors_timestamp_filename": self.settings["CrowdStrike"]["actors_timestamp_filename"],
+            "unknown_mapping": self.settings["CrowdStrike"]["unknown_mapping"],
+            "max_threads": self.settings["MISP"].get("max_threads", None),
+            "miss_track_file": self.settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
+            "misp_enable_ssl": False if "F" in self.settings["MISP"]["misp_enable_ssl"].upper() else True,
+            "galaxy_map": self.galaxy_maps["Galaxy"],
+            "force": args.force,
+            "no_banners": args.no_banner,
+            "no_dupe_check": args.no_dupe_check,
+            "type": args.type,
+            "publish": args.publish,
+            "verbose_tags": args.verbose,
+            "ext_headers": self.ex_headers,
+            "proxy": self.proxies,
+            "actor_map": {}
+        }
+        if not self.import_settings["unknown_mapping"]:
+            self.import_settings["unknown_mapping"] = "Unidentified"
+        
+        
+
+
 def init_logging(debug_flag: bool):
     """Initialize logging for misp_tools and processor"""
     splash = logging.getLogger("misp_tools")
@@ -228,44 +302,6 @@ def init_logging(debug_flag: bool):
     main_log.propagate = False
     return (splash, main_log)
 
-def load_configuration_files(config_file: str):
-    """ Parse the ini files using ConfigParser"""
-    # Parse configuraion file
-    settings = ConfigParser(interpolation=ExtendedInterpolation())
-    settings.optionxform = str  # Don't lowercase configuration keys
-    settings.read(config_file)
-
-    # Parse galaxy mappings
-    galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
-    galaxy_maps.read(settings["MISP"].get("galaxy_map_file", "galaxy.ini"))
-
-    return (settings, galaxy_maps)
-
-def define_setting_headers(settings: ConfigParser):
-    """Sets the headers based on the used configuration file"""
-    try:
-        if not settings["MISP"]["misp_enable_ssl"]:
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    except AttributeError:
-        pass
-
-    # Configure the proxy if specified
-    proxies = {}
-    if "PROXY" in settings:
-        # Only the two proxies (http / https) are allowed
-        if "http" in settings["PROXY"]:
-            proxies["http"] = settings["PROXY"]["http"]
-        if "https" in settings["PROXY"]:
-            proxies["https"] = settings["PROXY"]["https"]
-
-    # Set any extra headers to pass to the APIs
-    extra_headers = {}
-    if "EXTRA_HEADERS" in settings:
-        for header_item,header_value in settings["EXTRA_HEADERS"].items():
-            set_val = header_value
-
-            extra_headers[header_item] = set_val
-    return (proxies, extra_headers)
 
 def create_intel_api_client(settings: ConfigParser,
                             proxies: dict,
@@ -273,46 +309,15 @@ def create_intel_api_client(settings: ConfigParser,
                             main_log: logging.Logger):
     """Initializes the CrowdStrike API client"""
     return IntelAPIClient(settings["CrowdStrike"]["client_id"],
-                                      settings["CrowdStrike"]["client_secret"],
-                                      settings["CrowdStrike"]["crowdstrike_url"],
-                                      int(settings["CrowdStrike"]["api_request_max"]),
-                                      extra_headers,
-                                      proxies,
-                                      False if "F" in settings["CrowdStrike"]["api_enable_ssl"].upper() else True,
-                                      main_log
-                                      )
+                          settings["CrowdStrike"]["client_secret"],
+                          settings["CrowdStrike"]["crowdstrike_url"],
+                          int(settings["CrowdStrike"]["api_request_max"]),
+                          extra_headers,
+                          proxies,
+                          settings["CrowdStrike"]["api_enable_ssl"],
+                          main_log)
 
-def create_import_settings(settings: ConfigParser,
-                           galaxy_maps: ConfigParser,
-                           args: Namespace,
-                           proxies: dict,
-                           extra_headers: dict):
-    """Returns a dictionary of assigned settings from the configuration file"""
-    import_settings = {
-        "misp_url": settings["MISP"]["misp_url"],
-        "misp_auth_key": settings["MISP"]["misp_auth_key"],
-        "crowdstrike_org_uuid": settings["MISP"]["crowdstrike_org_uuid"],
-        "reports_timestamp_filename": settings["CrowdStrike"]["reports_timestamp_filename"],
-        "indicators_timestamp_filename": settings["CrowdStrike"]["indicators_timestamp_filename"],
-        "actors_timestamp_filename": settings["CrowdStrike"]["actors_timestamp_filename"],
-        "unknown_mapping": settings["CrowdStrike"]["unknown_mapping"],
-        "max_threads": settings["MISP"].get("max_threads", None),
-        "miss_track_file": settings["MISP"].get("miss_track_file", "no_galaxy_mapping.log"),
-        "misp_enable_ssl": False if "F" in settings["MISP"]["misp_enable_ssl"].upper() else True,
-        "galaxy_map": galaxy_maps["Galaxy"],
-        "force": args.force,
-        "no_banners": args.no_banner,
-        "no_dupe_check": args.no_dupe_check,
-        "type": args.type,
-        "publish": args.publish,
-        "verbose_tags": args.verbose,
-        "ext_headers": extra_headers,
-        "proxy": proxies,
-        "actor_map": {}
-    }
-    if not import_settings["unknown_mapping"]:
-        import_settings["unknown_mapping"] = "Unidentified"
-    return import_settings
+
 
 def build_provided_arguments(args: Namespace) -> dict:
     """Returns a dictionary of mapped argument settings"""
@@ -394,10 +399,11 @@ def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
                    hide_cool_banners=arg_parser.no_banner
                    )
 
+
 def main():
     """Implement Main routine."""
     args = parse_command_line()
-    splash,main_log = init_logging(args.debug)
+    splash, main_log = init_logging(args.debug)
     display_banner(banner=MISP_BANNER,
                    logger=splash,
                    fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
@@ -407,11 +413,11 @@ def main():
         do_finished(splash, args)
         raise SystemExit("Invalid configuration specified, unable to continue.")
 
-    settings, galaxy_maps  = load_configuration_files(args.config_file)
+    settings, galaxy_maps = load_configuration_files(args.config_file)
     proxies, extra_headers = define_setting_headers(settings)
-    intel_api_client       = create_intel_api_client(settings, proxies, extra_headers, main_log)
-    import_settings        = create_import_settings(settings, galaxy_maps, args, proxies, extra_headers)
-    provided_arguments     = build_provided_arguments(args)
+    intel_api_client = create_intel_api_client(settings, proxies, extra_headers, main_log)
+    import_settings = create_import_settings(settings, galaxy_maps, args, proxies, extra_headers)
+    provided_arguments = build_provided_arguments(args)
 
     importer = CrowdstrikeToMISPImporter(intel_api_client,
                                          import_settings,
