@@ -293,14 +293,106 @@ class ImportHandler:
     def __init__(self,
                  config: ConfigHandler,
                  api_client: IntelAPIClient,
-                 logger: logging):
+                 logger: logging,
+                 args: Namespace):
         self.config = config
         self.api_client = api_client
         self.logger = logger
+        self.args = args
+        self.importer = CrowdstrikeToMISPImporter(
+            self.api_client,
+            self.config.import_settings,
+            self.build_provided_arguments(),
+            self.config.settings,
+            logger=self.logger
+        )
 
+    def build_provided_arguments(self) -> dict:
+        """Returns a dictionary of mapped argument settings"""
+        return {
+            "reports": self.args.reports,
+            "indicators": self.args.indicators,
+            "actors": self.args.actors
+        }
 
+    def retrieve_tags(self, tag_type: str) -> list:
+        """
+        Retrieve all tags used for CrowdStrike elements within MISP
+        (broken out by type).
+        """
+        tags = []
+        if tag_type == "reports":
+            for report_type in [r.value for r in ReportType]:
+                tags.append(f"crowdstrike:report-type=\"{report_type}\"")
+        if tag_type == "actors":
+            for adv_type in [a.name for a in Adversary]:
+                tags.append(f"crowdstrike:branch=\"{adv_type}\"")
 
+        return tags
 
+    def perform_local_cleanup(self):
+        """Remove local offset cache files to reset the marker for data pulls from the CrowdStrike API."""
+        try:
+            self.importer.clean_crowdstrike_events(
+                self.args.clean_reports,
+                self.args.clean_indicators,
+                self.args.clean_actors)
+
+            # Delete reports file using filename from config
+            if self.args.clean_reports and os.path.isfile(self.config.settings["CrowdStrike"]["reports_timestamp_filename"]):
+                os.remove(self.config.settings["CrowdStrike"]["reports_timestamp_filename"])
+                self.logger.info("Finished resetting CrowdStrike Report offset.")
+
+            # Delete indicators file using filename from config
+            if self.args.clean_indicators and os.path.isfile(self.config.settings["CrowdStrike"]["indicators_timestamp_filename"]):
+                os.remove(self.config.settings["CrowdStrike"]["indicators_timestamp_filename"])
+                self.logger.info("Finished resetting CrowdStrike Indicator offset.")
+
+            # Delete actors file using filename from config
+            if self.args.clean_actors and os.path.isfile(self.config.settings["CrowdStrike"]["actors_timestamp_filename"]):
+                os.remove(self.config.settings["CrowdStrike"]["actors_timestamp_filename"])
+                self.logger.info("Finished resetting CrowdStrike Adversary offset.")
+        except Exception as err:
+            self.logger.exception(err)
+            raise SystemExit(err) from err
+
+    def import_new_events(self):
+        """Checks for duplicates, begins import process"""
+        if self.args.reports or self.args.actors or self.args.indicators:
+            # Conditional for duplicate checking
+            if not self.args.no_dupe_check:
+
+                # Retrieve all tags for selected options
+                if self.args.actors:
+                    tags = retrieve_tags("actors")
+                    self.importer.import_from_misp(tags, style="actors")
+                if self.args.reports:
+
+                    # Reports dupe identification is a little customized
+                    tags = retrieve_tags("reports")
+                    self.importer.import_from_misp(tags, style="reports")
+
+            # Import new events from CrowdStrike into MISP
+            self.importer.import_from_crowdstrike(
+                int(self.config.settings["CrowdStrike"]["init_reports_days_before"]),
+                int(self.config.settings["CrowdStrike"]["init_indicators_minutes_before"]),
+                int(self.config.settings["CrowdStrike"]["init_actors_days_before"])
+                )
+
+    def build(self):
+        if self.args.clean_reports or self.args.clean_indicators or self.args.clean_actors:
+            self.perform_local_cleanup()
+        if self.args.clean_tags:
+            self.importer.remove_crowdstrike_tags()
+
+        self.import_new_events()
+
+        if self.args.max_age is not None:
+            try:
+                self.importer.clean_old_crowdstrike_events(self.args.max_age, self.args.type)
+            except Exception as err:
+                self.logger.exception(err)
+                raise SystemExit(err) from err
 
 
 def init_logging(debug_flag: bool):
@@ -344,82 +436,6 @@ def create_intel_api_client(config: ConfigHandler,
                           main_log)
 
 
-def build_provided_arguments(args: Namespace) -> dict:
-    """Returns a dictionary of mapped argument settings"""
-    return {
-        "reports": args.reports,
-        "indicators": args.indicators,
-        "actors": args.actors
-    }
-
-
-def perform_local_cleanup(args: Namespace,
-                          importer: CrowdstrikeToMISPImporter,
-                          settings: ConfigParser,
-                          log_device: logging.Logger
-                          ):
-    """Remove local offset cache files to reset the marker for data pulls from the CrowdStrike API."""
-    try:
-        importer.clean_crowdstrike_events(args.clean_reports, args.clean_indicators, args.clean_actors)
-      
-        # Delete reports file using filename from config
-        if args.clean_reports and os.path.isfile(settings["CrowdStrike"]["reports_timestamp_filename"]):
-            os.remove(settings["CrowdStrike"]["reports_timestamp_filename"])
-            log_device.info("Finished resetting CrowdStrike Report offset.")
-        
-        # Delete indicators file using filename from config
-        if args.clean_indicators and os.path.isfile(settings["CrowdStrike"]["indicators_timestamp_filename"]):
-            os.remove(settings["CrowdStrike"]["indicators_timestamp_filename"])
-            log_device.info("Finished resetting CrowdStrike Indicator offset.")
-        
-        # Delete actors file using filename from config
-        if args.clean_actors and os.path.isfile(settings["CrowdStrike"]["actors_timestamp_filename"]):
-            os.remove(settings["CrowdStrike"]["actors_timestamp_filename"])
-            log_device.info("Finished resetting CrowdStrike Adversary offset.")
-
-    except Exception as err:
-        log_device.exception(err)
-        raise SystemExit(err) from err
-
-
-def retrieve_tags(tag_type: str):
-    """Retrieve all tags used for CrowdStrike elements within MISP (broken out by type)."""
-    tags = []
-    if tag_type == "reports":
-        for report_type in [r.value for r in ReportType]:
-            tags.append(f"crowdstrike:report-type=\"{report_type}\"")
-    if tag_type == "actors":
-        for adv_type in [a.name for a in Adversary]:
-            tags.append(f"crowdstrike:branch=\"{adv_type}\"")
-
-    return tags
-
-
-def import_new_events(args: Namespace,
-                      importer: CrowdstrikeToMISPImporter,
-                      settings: ConfigParser):
-    """Checks for duplicates, begins import process"""
-    if args.reports or args.actors or args.indicators:
-        # Conditional for duplicate checking
-        if not args.no_dupe_check:
-
-            # Retrieve all tags for selected options
-            if args.actors:
-                tags = retrieve_tags("actors")
-                importer.import_from_misp(tags, style="actors")
-            if args.reports:
-
-                # Reports dupe identification is a little customized
-                tags = retrieve_tags("reports")
-                importer.import_from_misp(tags, style="reports")
-
-        # Import new events from CrowdStrike into MISP
-        importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
-                                         int(settings["CrowdStrike"]["init_indicators_minutes_before"]),
-                                         int(settings["CrowdStrike"]["init_actors_days_before"])
-                                         )
-
-
 def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
     """Prints the FINISHED_BANNER"""
     display_banner(banner=FINISHED_BANNER,
@@ -449,27 +465,8 @@ def main():
 
     intel_api_client = create_intel_api_client(config, main_log)
 
-    provided_arguments = build_provided_arguments(args)
-
-    importer = CrowdstrikeToMISPImporter(intel_api_client,
-                                         config.import_settings,
-                                         provided_arguments,
-                                         config.settings,
-                                         logger=main_log)
-
-    if args.clean_reports or args.clean_indicators or args.clean_actors:
-        perform_local_cleanup(args, importer, config.settings, main_log)
-    if args.clean_tags:
-        importer.remove_crowdstrike_tags()
-
-    import_new_events(args, importer, config.settings)
-
-    if args.max_age is not None:
-        try:
-            importer.clean_old_crowdstrike_events(args.max_age, args.type)
-        except Exception as err:
-            main_log.exception(err)
-            raise SystemExit(err) from err
+    import_handler = ImportHandler(config, intel_api_client, main_log, args)
+    import_handler.build()
 
     do_finished(splash, args)
 
