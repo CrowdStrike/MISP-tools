@@ -397,9 +397,9 @@ class ImportHandler:
 
 class LogHandler:
     """Construct an instance of the Loghandler class."""
-    def __init__(self, log_name, args):
+    def __init__(self, log_name, debug):
         self.log_name = log_name
-        self.args = args
+        self.debug = debug
         self.log = logging.getLogger(self.log_name)
         self.ch = logging.StreamHandler()
 
@@ -407,7 +407,7 @@ class LogHandler:
         """Initialize logging for misp_tools and processor."""
         self.log.setLevel(logging.INFO)
         self.ch.setLevel(logging.INFO)
-        if self.args.debug:
+        if self.debug and self.log_name == "processor":
             self.log.setLevel(logging.DEBUG)
             self.ch.setLevel(logging.DEBUG)
 
@@ -445,34 +445,40 @@ def create_intel_api_client(config: ConfigHandler,
     )
 
 
-def do_finished(logg: logging.Logger, arg_parser: ArgumentParser) -> None:
+def do_finished(logg: logging.Logger, args: ArgumentParser) -> None:
     """Print the FINISHED_BANNER."""
-    display_banner(banner=FINISHED_BANNER,
-                   logger=logg,
-                   fallback="FINISHED",
-                   hide_cool_banners=arg_parser.no_banner
-                   )
+    display_banner(
+        banner=FINISHED_BANNER,
+        logger=logg,
+        fallback="FINISHED",
+        hide_cool_banners=args.no_banner
+    )
+
+
+def print_intro(logg: logging.Logger, args: ArgumentParser) -> None:
+    """Print the MISP_BANNER"""
+    display_banner(
+        banner=MISP_BANNER,
+        logger=logg,
+        fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
+        hide_cool_banners=args.no_banner
+    )
 
 
 def main():
     """Implement Main routine."""
     args = parse_command_line()
 
-    splash = LogHandler(log_name="misp_tools", args=args.debug)
+    splash = LogHandler(log_name="misp_tools", debug=args.debug)
     splash.create_logging()
-    main_log = LogHandler(log_name="processor", args=args.debug)
+    main_log = LogHandler(log_name="processor", debug=args.debug)
     main_log.create_logging()
 
-    display_banner(
-        banner=MISP_BANNER,
-        logger=splash,
-        fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
-        hide_cool_banners=args.no_banner
-    )
+    print_intro(splash.log, args)
 
     if not check_config.validate_config(args.config_file, args.debug,
                                         args.no_banner):
-        do_finished(splash, args)
+        do_finished(splash.log, args)
         raise SystemExit(
             "Invalid configuration specified, unable to continue.")
 
@@ -484,7 +490,7 @@ def main():
     import_handler = ImportHandler(config, intel_api_client, main_log, args)
     import_handler.build()
 
-    do_finished(splash, args)
+    do_finished(splash.log, args)
 
 
 if __name__ == '__main__':
