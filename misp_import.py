@@ -54,6 +54,7 @@ from cs_misp_import import (
     check_config
 )
 
+
 def parse_command_line() -> Namespace:
     """Parse the running command line provided by the user."""
     parser = ArgumentParser(description=__doc__, formatter_class=RawTextHelpFormatter)
@@ -208,7 +209,7 @@ def parse_command_line() -> Namespace:
 
 
 class ConfigHandler:
-    """Basic ConfigParser Handler"""
+    """ConfigParser Handler"""
     def __init__(self, config_file):
         self.config_file = config_file
         self.settings = {}
@@ -226,7 +227,8 @@ class ConfigHandler:
 
         try:
             if not self.settings["MISP"]["misp_enable_ssl"]:
-                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                urllib3.disable_warnings(
+                    urllib3.exceptions.InsecureRequestWarning)
         except AttributeError:
             pass
 
@@ -245,6 +247,7 @@ class ConfigHandler:
                 self.proxies["https"] = self.settings["PROXY"]["https"]
 
     def configure_extra_headers(self):
+        """Parse settings dictionary to set extra headers"""
         if "EXTRA_HEADERS" in self.settings:
             for head_i, head_v in self.settings["EXTRA_HEADERS"].items():
                 self.ex_headers[head_i] = head_v
@@ -275,8 +278,29 @@ class ConfigHandler:
         }
         if not self.import_settings["unknown_mapping"]:
             self.import_settings["unknown_mapping"] = "Unidentified"
-        
-        
+
+    def build(self, args: Namespace):
+        """Initialize dictionary mappings for Crowdstrike/MISP API"""
+        self.load_settings_file()
+        self.load_galaxy_maps_file()
+        self.configure_proxy()
+        self.configure_extra_headers()
+        self.create_import_settings(args)
+
+
+class ImportHandler:
+    """Constructs an instance of the ImportHandler class"""
+    def __init__(self,
+                 config: ConfigHandler,
+                 api_client: IntelAPIClient,
+                 logger: logging):
+        self.config = config
+        self.api_client = api_client
+        self.logger = logger
+
+
+
+
 
 
 def init_logging(debug_flag: bool):
@@ -294,8 +318,12 @@ def init_logging(debug_flag: bool):
         ch.setLevel(logging.DEBUG)
         ch2.setLevel(logging.DEBUG)
 
-    ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
-    ch2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
+    ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s"
+                                      "%(name)-13s %(message)s"))
+
+    ch2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s"
+                                       "%(name)s/%(threadName)-10s"
+                                       "%(message)s"))
     splash.addHandler(ch)
     main_log.addHandler(ch2)
     splash.propagate = False
@@ -303,20 +331,17 @@ def init_logging(debug_flag: bool):
     return (splash, main_log)
 
 
-def create_intel_api_client(settings: ConfigParser,
-                            proxies: dict,
-                            extra_headers: dict,
+def create_intel_api_client(config: ConfigHandler,
                             main_log: logging.Logger):
     """Initializes the CrowdStrike API client"""
-    return IntelAPIClient(settings["CrowdStrike"]["client_id"],
-                          settings["CrowdStrike"]["client_secret"],
-                          settings["CrowdStrike"]["crowdstrike_url"],
-                          int(settings["CrowdStrike"]["api_request_max"]),
-                          extra_headers,
-                          proxies,
-                          settings["CrowdStrike"]["api_enable_ssl"],
+    return IntelAPIClient(config.settings["CrowdStrike"]["client_id"],
+                          config.settings["CrowdStrike"]["client_secret"],
+                          config.settings["CrowdStrike"]["crowdstrike_url"],
+                          int(config.settings["CrowdStrike"]["api_request_max"]),
+                          config.ex_headers,
+                          config.proxies,
+                          config.settings["CrowdStrike"]["api_enable_ssl"],
                           main_log)
-
 
 
 def build_provided_arguments(args: Namespace) -> dict:
@@ -326,6 +351,7 @@ def build_provided_arguments(args: Namespace) -> dict:
         "indicators": args.indicators,
         "actors": args.actors
     }
+
 
 def perform_local_cleanup(args: Namespace,
                           importer: CrowdstrikeToMISPImporter,
@@ -355,6 +381,7 @@ def perform_local_cleanup(args: Namespace,
         log_device.exception(err)
         raise SystemExit(err) from err
 
+
 def retrieve_tags(tag_type: str):
     """Retrieve all tags used for CrowdStrike elements within MISP (broken out by type)."""
     tags = []
@@ -367,9 +394,10 @@ def retrieve_tags(tag_type: str):
 
     return tags
 
-def import_new_events(args:Namespace, 
-                      importer:CrowdstrikeToMISPImporter, 
-                      settings:ConfigParser):
+
+def import_new_events(args: Namespace,
+                      importer: CrowdstrikeToMISPImporter,
+                      settings: ConfigParser):
     """Checks for duplicates, begins import process"""
     if args.reports or args.actors or args.indicators:
         # Conditional for duplicate checking
@@ -387,9 +415,10 @@ def import_new_events(args:Namespace,
 
         # Import new events from CrowdStrike into MISP
         importer.import_from_crowdstrike(int(settings["CrowdStrike"]["init_reports_days_before"]),
-                                            int(settings["CrowdStrike"]["init_indicators_minutes_before"]),
-                                            int(settings["CrowdStrike"]["init_actors_days_before"])
-                                            )
+                                         int(settings["CrowdStrike"]["init_indicators_minutes_before"]),
+                                         int(settings["CrowdStrike"]["init_actors_days_before"])
+                                         )
+
 
 def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
     """Prints the FINISHED_BANNER"""
@@ -409,28 +438,31 @@ def main():
                    fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
                    hide_cool_banners=args.no_banner)
 
-    if not check_config.validate_config(args.config_file, args.debug, args.no_banner):
+    if not check_config.validate_config(args.config_file, args.debug,
+                                        args.no_banner):
         do_finished(splash, args)
-        raise SystemExit("Invalid configuration specified, unable to continue.")
+        raise SystemExit(
+            "Invalid configuration specified, unable to continue.")
 
-    settings, galaxy_maps = load_configuration_files(args.config_file)
-    proxies, extra_headers = define_setting_headers(settings)
-    intel_api_client = create_intel_api_client(settings, proxies, extra_headers, main_log)
-    import_settings = create_import_settings(settings, galaxy_maps, args, proxies, extra_headers)
+    config = ConfigHandler(args.config_file)
+    config.build(args)
+
+    intel_api_client = create_intel_api_client(config, main_log)
+
     provided_arguments = build_provided_arguments(args)
 
     importer = CrowdstrikeToMISPImporter(intel_api_client,
-                                         import_settings,
+                                         config.import_settings,
                                          provided_arguments,
-                                         settings,
+                                         config.settings,
                                          logger=main_log)
 
     if args.clean_reports or args.clean_indicators or args.clean_actors:
-        perform_local_cleanup(args, importer, settings, main_log)
+        perform_local_cleanup(args, importer, config.settings, main_log)
     if args.clean_tags:
         importer.remove_crowdstrike_tags()
 
-    import_new_events(args, importer, settings)
+    import_new_events(args, importer, config.settings)
 
     if args.max_age is not None:
         try:
