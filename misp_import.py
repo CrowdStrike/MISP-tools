@@ -36,8 +36,6 @@ from threading import main_thread
 import time
 import logging
 import os
-from typing import Dict, Optional
-from dataclasses import dataclass
 import urllib3
 from cs_misp_import.indicator_type import IndicatorType
 from cs_misp_import import (
@@ -59,113 +57,113 @@ def parse_command_line() -> Namespace:
     """Parse the running command line provided by the user."""
     parser = ArgumentParser(description=__doc__, formatter_class=RawTextHelpFormatter)
 
-    parser.add_argument("-f", "--force",             
-                        action="store_true",                           
+    parser.add_argument("-f", "--force",
+                        action="store_true",
                         help="Force operation.")
-    
-    parser.add_argument("-d", "--debug",             
-                        action="store_true",  
-                        dest="debug",            
+
+    parser.add_argument("-d", "--debug",
+                        action="store_true",
+                        dest="debug",
                         help="Activate debug logs.")
-    
-    parser.add_argument("-i", "--indicators",        
-                        action="store_true",                           
+
+    parser.add_argument("-i", "--indicators",
+                        action="store_true",
                         help="Import all indicators.")
-    
-    parser.add_argument("-r", "--reports",           
-                        action="store_true",                           
+
+    parser.add_argument("-r", "--reports",
+                        action="store_true",
                         help="Set this to import reports.")
-    
-    parser.add_argument("-a", "--actors",            
-                        action="store_true",  
-                        dest="actors",           
+
+    parser.add_argument("-a", "--actors",
+                        action="store_true",
+                        dest="actors",
                         help="Set this to import adversaries.")
-    
-    parser.add_argument("-cr", "--clean_reports",     
-                        action="store_true",  
-                        dest="clean_reports",    
+
+    parser.add_argument("-cr", "--clean_reports",
+                        action="store_true",
+                        dest="clean_reports",
                         help="Run a cleaning round on reports.")
-    
-    parser.add_argument("-ci", "--clean_indicators",  
-                        action="store_true",  
-                        dest="clean_indicators", 
+
+    parser.add_argument("-ci", "--clean_indicators",
+                        action="store_true",
+                        dest="clean_indicators",
                         help="Run a cleaning round on indicators.")
-    
-    parser.add_argument("-ca", "--clean_actors",      
-                        action="store_true",  
-                        dest="clean_actors",     
+
+    parser.add_argument("-ca", "--clean_actors",
+                        action="store_true",
+                        dest="clean_actors",
                         help="Run a cleaning round on adversaries.")
 
-    parser.add_argument("-do", "--delete_outdated_indicators",   
-                        action='store_true',                           
+    parser.add_argument("-do", "--delete_outdated_indicators",
+                        action='store_true',
                         help="Delete imported indicators that are marked as deleted.")
 
-    parser.add_argument("-c", "--config",                                  
-                        dest="config_file",      
-                        help="Path to local configuration file.",                     
+    parser.add_argument("-c", "--config",
+                        dest="config_file",
+                        help="Path to local configuration file.",
                         required=False, default="misp_import.ini")
-    
-    parser.add_argument("-v", "--verbose_tagging",   
-                        action="store_false", 
-                        dest="verbose",          
-                        help="Disable verbose tagging.",                              
+
+    parser.add_argument("-v", "--verbose_tagging",
+                        action="store_false",
+                        dest="verbose",
+                        help="Disable verbose tagging.",
                         required=False, default=True)
-    
-    parser.add_argument("-o", "--obliterate",        
-                        action="store_true",  
-                        dest="obliterate",       
-                        help="Remove all CrowdStrike data.",                          
+
+    parser.add_argument("-o", "--obliterate",
+                        action="store_true",
+                        dest="obliterate",
+                        help="Remove all CrowdStrike data.",
                         required=False, default=False)
-    
-    parser.add_argument("-l", "--logfile",                                                          
-                        help="Log file for logging output.",                          
+
+    parser.add_argument("-l", "--logfile",
+                        help="Log file for logging output.",
                         required=False, default="misp_import.log")
-    
-    parser.add_argument("-p", "--publish",           
-                        action="store_true",  
-                        dest="publish",          
-                        help="Publish events upon creation.",                         
+
+    parser.add_argument("-p", "--publish",
+                        action="store_true",
+                        dest="publish",
+                        help="Publish events upon creation.",
                         required=False, default=False)
-    
-    parser.add_argument("-al", "--fullmonty",         
-                        action="store_true",  
-                        dest="fullmonty",        
-                        help="Import Adversaries, Reports and Indicators.",           
+
+    parser.add_argument("-al", "--fullmonty",
+                        action="store_true",
+                        dest="fullmonty",
+                        help="Import Adversaries, Reports and Indicators.",
                         required=False, default=False)
-    
-    parser.add_argument("-nh", "--no_hashes",         
-                        action="store_true",  
-                        dest="nohash",           
-                        help="Do not import SHA1, SHA256 or MD5 hash indicators.",    
+
+    parser.add_argument("-nh", "--no_hashes",
+                        action="store_true",
+                        dest="nohash",
+                        help="Do not import SHA1, SHA256 or MD5 hash indicators.",
                         required=False, default=False)
-    
-    parser.add_argument("-ct", "--clean_tags",        
-                        action="store_true",  
-                        dest="clean_tags",       
-                        help="Remove all CrowdStrike tags from the MISP instance.",   
+
+    parser.add_argument("-ct", "--clean_tags",
+                        action="store_true",
+                        dest="clean_tags",
+                        help="Remove all CrowdStrike tags from the MISP instance.",
                         required=False)
-    
-    parser.add_argument("-t", "--type",              
-                        type=str,          
-                        dest="type",             
-                        help="Import only this type (report, indicator, adversary).", 
+
+    parser.add_argument("-t", "--type",
+                        type=str,
+                        dest="type",
+                        help="Import only this type (report, indicator, adversary).",
                         required=False, default=False)
-    
-    parser.add_argument("-nd", "--no_dupe_check",     
-                        action="store_true",  
-                        dest="no_dupe_check",    
-                        help="Enable or disable duplicate checking on import, defaults to False.", 
+
+    parser.add_argument("-nd", "--no_dupe_check",
+                        action="store_true",
+                        dest="no_dupe_check",
+                        help="Enable or disable duplicate checking on import, defaults to False.",
                         required=False)
-    
-    parser.add_argument("-nb", "--no_banner",         
-                        action="store_true",  
-                        dest="no_banner",        
+
+    parser.add_argument("-nb", "--no_banner",
+                        action="store_true",
+                        dest="no_banner",
                         help="Enable or disable ASCII banners in logfile output, defaults to False (enable banners).", 
                         required=False)
-    
-    parser.add_argument("-m", "--max_age",           
-                        type=int,             
-                        dest="max_age",          
+
+    parser.add_argument("-m", "--max_age",
+                        type=int,     
+                        dest="max_age",
                         help="Maximum age of the objects to be stored in MISP in days."" Objects older than that will be deleted.")
 
     parsed = parser.parse_args()
@@ -189,27 +187,28 @@ def parse_command_line() -> Namespace:
             raise SystemExit("Data obliteration has been cancelled. Phew! 😌")
         print(MUSHROOM)
         time.sleep(1)
-    
+
     if parsed.fullmonty:
         parsed.actors = True
         parsed.reports = True
         parsed.indicators = True
-    
+
     if parsed.obliterate:
         parsed.clean_actors = True
         parsed.clean_reports = True
         parsed.clean_indicators = True
         parsed.clean_tags = True
-    
+
     if parsed.nohash:
         hash_exclude = ["HASH_MD5", "HASH_SHA1", "HASH_SHA256"]
-        parsed.type = ",".join([it.name for it in IndicatorType if it.name not in hash_exclude])
-    
+        parsed.type = ",".join(
+            [it.name for it in IndicatorType if it.name not in hash_exclude])
+
     return parsed
 
 
 class ConfigHandler:
-    """ConfigParser Handler"""
+    """ConfigParser Handler."""
     def __init__(self, config_file):
         self.config_file = config_file
         self.settings = {}
@@ -219,7 +218,7 @@ class ConfigHandler:
         self.ex_headers = {}
 
     def load_settings_file(self) -> None:
-        """Parse the settings ini file using ConfigParser"""
+        """Parse the settings ini file using ConfigParser."""
         self.settings = ConfigParser(interpolation=ExtendedInterpolation())
         # optionxform preserves casing for keys within the settings file
         self.settings.optionxform = str
@@ -233,13 +232,13 @@ class ConfigHandler:
             pass
 
     def load_galaxy_maps_file(self) -> None:
-        """Parse the galaxy mappings ini file using ConfigParser"""
+        """Parse the galaxy mappings ini file using ConfigParser."""
         self.galaxy_maps = ConfigParser(interpolation=ExtendedInterpolation())
         self.galaxy_maps.read(self.settings["MISP"].get("galaxy_map_file",
                                                         "galaxy.ini"))
 
     def configure_proxy(self):
-        """Parse settings dictionary to set proxy"""
+        """Parse settings dictionary to set proxy."""
         if "PROXY" in self.settings:
             if "http" in self.settings["PROXY"]:
                 self.proxies["http"] = self.settings["PROXY"]["http"]
@@ -247,13 +246,13 @@ class ConfigHandler:
                 self.proxies["https"] = self.settings["PROXY"]["https"]
 
     def configure_extra_headers(self):
-        """Parse settings dictionary to set extra headers"""
+        """Parse settings dictionary to set extra headers."""
         if "EXTRA_HEADERS" in self.settings:
             for head_i, head_v in self.settings["EXTRA_HEADERS"].items():
                 self.ex_headers[head_i] = head_v
 
     def create_import_settings(self, args: Namespace):
-        """Returns a dictionary of assigned settings from the configuration file"""
+        """Return a dictionary of assigned settings from the configuration file."""
         self.import_settings = {
             "misp_url": self.settings["MISP"]["misp_url"],
             "misp_auth_key": self.settings["MISP"]["misp_auth_key"],
@@ -280,7 +279,7 @@ class ConfigHandler:
             self.import_settings["unknown_mapping"] = "Unidentified"
 
     def build(self, args: Namespace):
-        """Initialize dictionary mappings for Crowdstrike/MISP API"""
+        """Initialize dictionary mappings for Crowdstrike/MISP API."""
         self.load_settings_file()
         self.load_galaxy_maps_file()
         self.configure_proxy()
@@ -289,7 +288,7 @@ class ConfigHandler:
 
 
 class ImportHandler:
-    """Constructs an instance of the ImportHandler class"""
+    """Construct an instance of the ImportHandler class."""
     def __init__(self,
                  config: ConfigHandler,
                  api_client: IntelAPIClient,
@@ -308,7 +307,7 @@ class ImportHandler:
         )
 
     def build_provided_arguments(self) -> dict:
-        """Returns a dictionary of mapped argument settings"""
+        """Return a dictionary of mapped argument settings."""
         return {
             "reports": self.args.reports,
             "indicators": self.args.indicators,
@@ -357,19 +356,19 @@ class ImportHandler:
             raise SystemExit(err) from err
 
     def import_new_events(self):
-        """Checks for duplicates, begins import process"""
+        """Check for duplicates, begin import process."""
         if self.args.reports or self.args.actors or self.args.indicators:
             # Conditional for duplicate checking
             if not self.args.no_dupe_check:
 
                 # Retrieve all tags for selected options
                 if self.args.actors:
-                    tags = retrieve_tags("actors")
+                    tags = self.retrieve_tags("actors")
                     self.importer.import_from_misp(tags, style="actors")
                 if self.args.reports:
 
                     # Reports dupe identification is a little customized
-                    tags = retrieve_tags("reports")
+                    tags = self.retrieve_tags("reports")
                     self.importer.import_from_misp(tags, style="reports")
 
             # Import new events from CrowdStrike into MISP
@@ -380,6 +379,7 @@ class ImportHandler:
                 )
 
     def build(self):
+        """Initialize import staging."""
         if self.args.clean_reports or self.args.clean_indicators or self.args.clean_actors:
             self.perform_local_cleanup()
         if self.args.clean_tags:
@@ -395,49 +395,58 @@ class ImportHandler:
                 raise SystemExit(err) from err
 
 
-def init_logging(debug_flag: bool):
-    """Initialize logging for misp_tools and processor"""
-    splash = logging.getLogger("misp_tools")
-    splash.setLevel(logging.INFO)
-    main_log = logging.getLogger("processor")
-    main_log.setLevel(logging.INFO)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    ch2 = logging.StreamHandler()
-    ch2.setLevel(logging.INFO)
-    if debug_flag:
-        main_log.setLevel(logging.DEBUG)
-        ch.setLevel(logging.DEBUG)
-        ch2.setLevel(logging.DEBUG)
+class LogHandler:
+    """Construct an instance of the Loghandler class."""
+    def __init__(self, log_name, args):
+        self.log_name = log_name
+        self.args = args
+        self.log = logging.getLogger(self.log_name)
+        self.ch = logging.StreamHandler()
 
-    ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s"
-                                      "%(name)-13s %(message)s"))
+    def create_logging(self):
+        """Initialize logging for misp_tools and processor."""
+        self.log.setLevel(logging.INFO)
+        self.ch.setLevel(logging.INFO)
+        if self.args.debug:
+            self.log.setLevel(logging.DEBUG)
+            self.ch.setLevel(logging.DEBUG)
 
-    ch2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s"
-                                       "%(name)s/%(threadName)-10s"
-                                       "%(message)s"))
-    splash.addHandler(ch)
-    main_log.addHandler(ch2)
-    splash.propagate = False
-    main_log.propagate = False
-    return (splash, main_log)
+        if self.log_name == "processor":
+            self.ch.setFormatter(
+                logging.Formatter(
+                    "[%(asctime)s] %(levelname)-8s"
+                    "%(name)s/%(threadName)-10s"
+                    "%(message)s"
+                )
+            )
+        else:
+            self.ch.setFormatter(
+                logging.Formatter(
+                    "[%(asctime)s] %(levelname)-8s"
+                    "%(name)-13s %(message)s"
+                )
+            )
+        self.log.addHandler(self.ch)
+        self.log.propagate = False
 
 
 def create_intel_api_client(config: ConfigHandler,
-                            main_log: logging.Logger):
-    """Initializes the CrowdStrike API client"""
-    return IntelAPIClient(config.settings["CrowdStrike"]["client_id"],
-                          config.settings["CrowdStrike"]["client_secret"],
-                          config.settings["CrowdStrike"]["crowdstrike_url"],
-                          int(config.settings["CrowdStrike"]["api_request_max"]),
-                          config.ex_headers,
-                          config.proxies,
-                          config.settings["CrowdStrike"]["api_enable_ssl"],
-                          main_log)
+                            main_log: logging.Logger) -> IntelAPIClient:
+    """Initialize the CrowdStrike API client."""
+    return IntelAPIClient(
+        config.settings["CrowdStrike"]["client_id"],
+        config.settings["CrowdStrike"]["client_secret"],
+        config.settings["CrowdStrike"]["crowdstrike_url"],
+        int(config.settings["CrowdStrike"]["api_request_max"]),
+        config.ex_headers,
+        config.proxies,
+        config.settings["CrowdStrike"]["api_enable_ssl"],
+        main_log
+    )
 
 
-def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
-    """Prints the FINISHED_BANNER"""
+def do_finished(logg: logging.Logger, arg_parser: ArgumentParser) -> None:
+    """Print the FINISHED_BANNER."""
     display_banner(banner=FINISHED_BANNER,
                    logger=logg,
                    fallback="FINISHED",
@@ -448,11 +457,18 @@ def do_finished(logg: logging.Logger, arg_parser: ArgumentParser):
 def main():
     """Implement Main routine."""
     args = parse_command_line()
-    splash, main_log = init_logging(args.debug)
-    display_banner(banner=MISP_BANNER,
-                   logger=splash,
-                   fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
-                   hide_cool_banners=args.no_banner)
+
+    splash = LogHandler(log_name="misp_tools", args=args.debug)
+    splash.create_logging()
+    main_log = LogHandler(log_name="processor", args=args.debug)
+    main_log.create_logging()
+
+    display_banner(
+        banner=MISP_BANNER,
+        logger=splash,
+        fallback=f"MISP Import for CrowdStrike Threat Intelligence v{VERSION}",
+        hide_cool_banners=args.no_banner
+    )
 
     if not check_config.validate_config(args.config_file, args.debug,
                                         args.no_banner):
@@ -470,8 +486,8 @@ def main():
 
     do_finished(splash, args)
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     thread = main_thread()
     thread.name = "main"
     main()
