@@ -30,6 +30,7 @@ SOFTWARE.
 
 © Copyright CrowdStrike 2019-2022
 """
+from dataclasses import dataclass
 from argparse import ArgumentParser, Namespace, RawTextHelpFormatter
 from configparser import ConfigParser, ExtendedInterpolation
 from threading import main_thread
@@ -37,7 +38,6 @@ import time
 import logging
 import os
 import urllib3
-from dataclasses import dataclass
 from cs_misp_import.indicator_type import IndicatorType
 from cs_misp_import import (
     IntelAPIClient,
@@ -245,7 +245,7 @@ class ConfigHandler:
         self.galaxy_maps.read(self.settings["MISP"].get("galaxy_map_file",
                                                         "galaxy.ini"))
 
-    def configure_proxy(self):
+    def configure_proxy(self) -> None:
         """Parse settings dictionary to set proxy."""
         if "PROXY" in self.settings:
             if "http" in self.settings["PROXY"]:
@@ -253,13 +253,13 @@ class ConfigHandler:
             if "https" in self.settings["PROXY"]:
                 self.proxies["https"] = self.settings["PROXY"]["https"]
 
-    def configure_extra_headers(self):
+    def configure_extra_headers(self) -> None:
         """Parse settings dictionary to set extra headers."""
         if "EXTRA_HEADERS" in self.settings:
             for head_i, head_v in self.settings["EXTRA_HEADERS"].items():
                 self.ex_headers[head_i] = head_v
 
-    def create_import_settings(self, args: Namespace):
+    def create_import_settings(self, args: Namespace) -> None:
         """Return a dictionary of assigned settings from the configuration file."""
         self.import_settings = {
             "misp_url": self.settings["MISP"]["misp_url"],
@@ -286,7 +286,7 @@ class ConfigHandler:
         if not self.import_settings["unknown_mapping"]:
             self.import_settings["unknown_mapping"] = "Unidentified"
 
-    def build(self, args: Namespace):
+    def build(self, args: Namespace) -> None:
         """Initialize dictionary mappings for Crowdstrike/MISP API."""
         self.load_settings_file()
         self.load_galaxy_maps_file()
@@ -337,7 +337,7 @@ class ImportHandler:
 
         return tags
 
-    def perform_local_cleanup(self):
+    def perform_local_cleanup(self) -> None:
         """Remove local offset cache files to reset the marker for data pulls from the CrowdStrike API."""
         try:
             self.importer.clean_crowdstrike_events(
@@ -363,7 +363,7 @@ class ImportHandler:
             self.logger.exception(err)
             raise SystemExit(err) from err
 
-    def import_new_events(self):
+    def import_new_events(self) -> None:
         """Check for duplicates, begin import process."""
         if self.args.reports or self.args.actors or self.args.indicators:
             # Conditional for duplicate checking
@@ -386,7 +386,7 @@ class ImportHandler:
                 int(self.config.settings["CrowdStrike"]["init_actors_days_before"])
                 )
 
-    def build(self):
+    def build(self) -> None:
         """Initialize import staging."""
         if self.args.clean_reports or self.args.clean_indicators or self.args.clean_actors:
             self.perform_local_cleanup()
@@ -404,6 +404,7 @@ class ImportHandler:
 
 
 def setup_logging(args: Namespace) -> Loggers:
+    """Initialize logging handlers"""
     splash = logging.getLogger("misp_tools")
     splash.setLevel(logging.INFO)
     main_log = logging.getLogger("processor")
@@ -457,7 +458,7 @@ def do_finished(logg: logging.Logger, args: ArgumentParser) -> None:
 
 
 def print_intro(logg: logging.Logger, args: ArgumentParser) -> None:
-    """Print the MISP"""
+    """Print the MISP_BANNER"""
     display_banner(
         banner=MISP_BANNER,
         logger=logg,
@@ -474,7 +475,8 @@ def main():
 
     print_intro(loggers.splash, args)
 
-    if not check_config.validate_config(args.config_file, args.debug,
+    if not check_config.validate_config(args.config_file,
+                                        args.debug,
                                         args.no_banner):
         do_finished(loggers.splash, args)
         raise SystemExit(
@@ -485,7 +487,8 @@ def main():
 
     intel_api_client = create_intel_api_client(config, loggers.main)
 
-    import_handler = ImportHandler(config, intel_api_client, loggers.main, args)
+    import_handler = ImportHandler(config, intel_api_client,
+                                   loggers.main, args)
     import_handler.build()
 
     do_finished(loggers.splash, args)
