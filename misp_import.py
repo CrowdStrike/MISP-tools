@@ -395,39 +395,35 @@ class ImportHandler:
                 raise SystemExit(err) from err
 
 
-class LogHandler:
-    """Construct an instance of the Loghandler class."""
-    def __init__(self, log_name, debug):
-        self.log_name = log_name
-        self.debug = debug
-        self.log = logging.getLogger(self.log_name)
-        self.ch = logging.StreamHandler()
+def create_logging(log_name: str, debug: bool) -> logging.Logger:
+    """Initialize logging for misp_tools and processor."""
+    cur_log = logging.getLogger(log_name)
+    cur_log.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    if debug and log_name == "processor":
+        cur_log.setLevel(logging.DEBUG)
+        ch.setLevel(logging.DEBUG)
 
-    def create_logging(self):
-        """Initialize logging for misp_tools and processor."""
-        self.log.setLevel(logging.INFO)
-        self.ch.setLevel(logging.INFO)
-        if self.debug and self.log_name == "processor":
-            self.log.setLevel(logging.DEBUG)
-            self.ch.setLevel(logging.DEBUG)
+    if log_name == "processor":
+        ch.setFormatter(
+            logging.Formatter(
+                "[%(asctime)s] %(levelname)-8s"
+                "%(name)s/%(threadName)-10s"
+                "%(message)s"
+            )
+        )
+    else:
+        ch.setFormatter(
+            logging.Formatter(
+                "[%(asctime)s] %(levelname)-8s"
+                "%(name)-13s %(message)s"
+            )
+        )
+    cur_log.addHandler(ch)
+    cur_log.propagate = False
 
-        if self.log_name == "processor":
-            self.ch.setFormatter(
-                logging.Formatter(
-                    "[%(asctime)s] %(levelname)-8s"
-                    "%(name)s/%(threadName)-10s"
-                    "%(message)s"
-                )
-            )
-        else:
-            self.ch.setFormatter(
-                logging.Formatter(
-                    "[%(asctime)s] %(levelname)-8s"
-                    "%(name)-13s %(message)s"
-                )
-            )
-        self.log.addHandler(self.ch)
-        self.log.propagate = False
+    return cur_log
 
 
 def create_intel_api_client(config: ConfigHandler,
@@ -456,7 +452,7 @@ def do_finished(logg: logging.Logger, args: ArgumentParser) -> None:
 
 
 def print_intro(logg: logging.Logger, args: ArgumentParser) -> None:
-    """Print the MISP_BANNER"""
+    """Print the MISP"""
     display_banner(
         banner=MISP_BANNER,
         logger=logg,
@@ -469,16 +465,14 @@ def main():
     """Implement Main routine."""
     args = parse_command_line()
 
-    splash = LogHandler(log_name="misp_tools", debug=args.debug)
-    splash.create_logging()
-    main_log = LogHandler(log_name="processor", debug=args.debug)
-    main_log.create_logging()
+    splash = create_logging(log_name="misp_tools", debug=args.debug)
+    main_log = create_logging(log_name="processor", debug=args.debug)
 
-    print_intro(splash.log, args)
+    print_intro(splash, args)
 
     if not check_config.validate_config(args.config_file, args.debug,
                                         args.no_banner):
-        do_finished(splash.log, args)
+        do_finished(splash, args)
         raise SystemExit(
             "Invalid configuration specified, unable to continue.")
 
@@ -487,10 +481,10 @@ def main():
 
     intel_api_client = create_intel_api_client(config, main_log)
 
-    import_handler = ImportHandler(config, intel_api_client, main_log, args)
+    import_handler = ImportHandler(config, intel_api_client, main_log.log, args)
     import_handler.build()
 
-    do_finished(splash.log, args)
+    do_finished(splash, args)
 
 
 if __name__ == '__main__':
