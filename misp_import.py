@@ -395,37 +395,6 @@ class ImportHandler:
                 raise SystemExit(err) from err
 
 
-def create_logging(log_name: str, debug: bool) -> logging.Logger:
-    """Initialize logging for misp_tools and processor."""
-    cur_log = logging.getLogger(log_name)
-    cur_log.setLevel(logging.INFO)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    if debug and log_name == "processor":
-        cur_log.setLevel(logging.DEBUG)
-        ch.setLevel(logging.DEBUG)
-
-    if log_name == "processor":
-        ch.setFormatter(
-            logging.Formatter(
-                "[%(asctime)s] %(levelname)-8s"
-                "%(name)s/%(threadName)-10s"
-                "%(message)s"
-            )
-        )
-    else:
-        ch.setFormatter(
-            logging.Formatter(
-                "[%(asctime)s] %(levelname)-8s"
-                "%(name)-13s %(message)s"
-            )
-        )
-    cur_log.addHandler(ch)
-    cur_log.propagate = False
-
-    return cur_log
-
-
 def create_intel_api_client(config: ConfigHandler,
                             main_log: logging.Logger) -> IntelAPIClient:
     """Initialize the CrowdStrike API client."""
@@ -465,8 +434,25 @@ def main():
     """Implement Main routine."""
     args = parse_command_line()
 
-    splash = create_logging(log_name="misp_tools", debug=args.debug)
-    main_log = create_logging(log_name="processor", debug=args.debug)
+    splash = logging.getLogger("misp_tools")
+    splash.setLevel(logging.INFO)
+    main_log = logging.getLogger("processor")
+    main_log.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    ch2 = logging.StreamHandler()
+    ch2.setLevel(logging.INFO)
+    if args.debug:
+        main_log.setLevel(logging.DEBUG)
+        ch.setLevel(logging.DEBUG)
+        ch2.setLevel(logging.DEBUG)
+
+    ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
+    ch2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
+    splash.addHandler(ch)
+    main_log.addHandler(ch2)
+    splash.propagate = False
+    main_log.propagate = False
 
     print_intro(splash, args)
 
@@ -481,7 +467,7 @@ def main():
 
     intel_api_client = create_intel_api_client(config, main_log)
 
-    import_handler = ImportHandler(config, intel_api_client, main_log.log, args)
+    import_handler = ImportHandler(config, intel_api_client, main_log, args)
     import_handler.build()
 
     do_finished(splash, args)
