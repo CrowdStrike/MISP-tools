@@ -110,7 +110,7 @@ def parse_command_line() -> Namespace:
                         help="Disable verbose tagging.",
                         required=False, default=True)
 
-    parser.add_argument("-o", "--obliterate",
+    parser.add_argument("--obliterate",
                         action="store_true",
                         dest="obliterate",
                         help="Remove all CrowdStrike data.",
@@ -126,7 +126,7 @@ def parse_command_line() -> Namespace:
                         help="Publish events upon creation.",
                         required=False, default=False)
 
-    parser.add_argument("-al", "--fullmonty",
+    parser.add_argument("--all", "--fullmonty",
                         action="store_true",
                         dest="fullmonty",
                         help="Import Adversaries, Reports and Indicators.",
@@ -163,7 +163,7 @@ def parse_command_line() -> Namespace:
                         required=False)
 
     parser.add_argument("-m", "--max_age",
-                        type=int,     
+                        type=int,
                         dest="max_age",
                         help="Maximum age of the objects to be stored in MISP in days."" Objects older than that will be deleted.")
 
