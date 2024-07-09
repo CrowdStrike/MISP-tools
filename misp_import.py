@@ -37,6 +37,7 @@ import time
 import logging
 import os
 import urllib3
+from dataclasses import dataclass
 from cs_misp_import.indicator_type import IndicatorType
 from cs_misp_import import (
     IntelAPIClient,
@@ -205,6 +206,13 @@ def parse_command_line() -> Namespace:
             [it.name for it in IndicatorType if it.name not in hash_exclude])
 
     return parsed
+
+
+@dataclass
+class Loggers:
+    """Loggers dataclass."""
+    splash: logging.Logger
+    main: logging.Logger
 
 
 class ConfigHandler:
@@ -395,6 +403,34 @@ class ImportHandler:
                 raise SystemExit(err) from err
 
 
+def setup_logging(args: Namespace) -> Loggers:
+    splash = logging.getLogger("misp_tools")
+    splash.setLevel(logging.INFO)
+    main_log = logging.getLogger("processor")
+    main_log.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    ch2 = logging.StreamHandler()
+    ch2.setLevel(logging.INFO)
+    if args.debug:
+        main_log.setLevel(logging.DEBUG)
+        ch.setLevel(logging.DEBUG)
+        ch2.setLevel(logging.DEBUG)
+
+    ch.setFormatter(logging.Formatter(
+        "[%(asctime)s] %(levelname)-8s"
+        "%(name)-13s %(message)s"))
+    ch2.setFormatter(logging.Formatter(
+        "[%(asctime)s] %(levelname)-8s"
+        "%(name)s/%(threadName)-10s %(message)s"))
+    splash.addHandler(ch)
+    main_log.addHandler(ch2)
+    splash.propagate = False
+    main_log.propagate = False
+
+    return Loggers(splash=splash, main=main_log)
+
+
 def create_intel_api_client(config: ConfigHandler,
                             main_log: logging.Logger) -> IntelAPIClient:
     """Initialize the CrowdStrike API client."""
@@ -434,43 +470,25 @@ def main():
     """Implement Main routine."""
     args = parse_command_line()
 
-    splash = logging.getLogger("misp_tools")
-    splash.setLevel(logging.INFO)
-    main_log = logging.getLogger("processor")
-    main_log.setLevel(logging.INFO)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    ch2 = logging.StreamHandler()
-    ch2.setLevel(logging.INFO)
-    if args.debug:
-        main_log.setLevel(logging.DEBUG)
-        ch.setLevel(logging.DEBUG)
-        ch2.setLevel(logging.DEBUG)
+    loggers = setup_logging(args)
 
-    ch.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)-13s %(message)s"))
-    ch2.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s/%(threadName)-10s %(message)s"))
-    splash.addHandler(ch)
-    main_log.addHandler(ch2)
-    splash.propagate = False
-    main_log.propagate = False
-
-    print_intro(splash, args)
+    print_intro(loggers.splash, args)
 
     if not check_config.validate_config(args.config_file, args.debug,
                                         args.no_banner):
-        do_finished(splash, args)
+        do_finished(loggers.splash, args)
         raise SystemExit(
             "Invalid configuration specified, unable to continue.")
 
     config = ConfigHandler(args.config_file)
     config.build(args)
 
-    intel_api_client = create_intel_api_client(config, main_log)
+    intel_api_client = create_intel_api_client(config, loggers.main)
 
-    import_handler = ImportHandler(config, intel_api_client, main_log, args)
+    import_handler = ImportHandler(config, intel_api_client, loggers.main, args)
     import_handler.build()
 
-    do_finished(splash, args)
+    do_finished(loggers.splash, args)
 
 
 if __name__ == '__main__':
