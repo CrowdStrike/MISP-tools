@@ -174,6 +174,10 @@ def parse_command_line() -> Namespace:
 
     # Delete EVERYTHING
     if parsed.obliterate:
+        parsed.clean_actors = True
+        parsed.clean_reports = True
+        parsed.clean_indicators = True
+        parsed.clean_tags = True
         bold = "\033[1m"
         undie = "\033[4m"
         endmark = "\033[0m"
@@ -193,12 +197,6 @@ def parse_command_line() -> Namespace:
         parsed.actors = True
         parsed.reports = True
         parsed.indicators = True
-
-    if parsed.obliterate:
-        parsed.clean_actors = True
-        parsed.clean_reports = True
-        parsed.clean_indicators = True
-        parsed.clean_tags = True
 
     if parsed.nohash:
         hash_exclude = ["HASH_MD5", "HASH_SHA1", "HASH_SHA256"]
@@ -319,6 +317,7 @@ class ImportHandler:
         return {
             "reports": self.args.reports,
             "indicators": self.args.indicators,
+            "delete_outdated_indicators": self.args.delete_outdated_indicators,
             "actors": self.args.actors
         }
 
