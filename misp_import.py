@@ -116,10 +116,6 @@ def parse_command_line() -> Namespace:
                         help="Remove all CrowdStrike data.",
                         required=False, default=False)
 
-    parser.add_argument("-l", "--logfile",
-                        help="Log file for logging output.",
-                        required=False, default="misp_import.log")
-
     parser.add_argument("-p", "--publish",
                         action="store_true",
                         dest="publish",
@@ -130,12 +126,6 @@ def parse_command_line() -> Namespace:
                         action="store_true",
                         dest="fullmonty",
                         help="Import Adversaries, Reports and Indicators.",
-                        required=False, default=False)
-
-    parser.add_argument("-nh", "--no_hashes",
-                        action="store_true",
-                        dest="nohash",
-                        help="Do not import SHA1, SHA256 or MD5 hash indicators.",
                         required=False, default=False)
 
     parser.add_argument("-ct", "--clean_tags",
