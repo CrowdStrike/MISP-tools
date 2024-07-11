@@ -194,7 +194,7 @@ def parse_command_line() -> Namespace:
         parsed.reports = True
         parsed.indicators = True
 
-    if parsed.no_hashes:
+    if parsed.nohash:
         hash_exclude = ["HASH_MD5", "HASH_SHA1", "HASH_SHA256"]
         parsed.type = ",".join(
             [it.name for it in IndicatorType if it.name not in hash_exclude])
