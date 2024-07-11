@@ -159,13 +159,13 @@ def parse_command_line() -> Namespace:
     parser.add_argument("-nb", "--no_banner",
                         action="store_true",
                         dest="no_banner",
-                        help="Enable or disable ASCII banners in logfile output, defaults to False (enable banners).", 
+                        help="Disable ASCII banners in logfile output, defaults to False (enable banners).",
                         required=False)
 
     parser.add_argument("-m", "--max_age",
                         type=int,
                         dest="max_age",
-                        help="Maximum age of the objects to be stored in MISP in days."" Objects older than that will be deleted.")
+                        help="Maximum age of objects to be stored in MISP in days."" Objects older will be deleted.")
 
     parsed = parser.parse_args()
 
@@ -214,7 +214,10 @@ class Loggers:
 
 
 class ConfigHandler:
-    """ConfigParser Handler."""
+    """ConfigParser Handler.
+
+        :param str config_file: ini config file name
+    """
     def __init__(self, config_file):
         self.config_file = config_file
         self.settings = {}
@@ -294,7 +297,13 @@ class ConfigHandler:
 
 
 class ImportHandler:
-    """Construct an instance of the ImportHandler class."""
+    """Construct an instance of the ImportHandler class.
+
+        :param ConfigHandler config: Config class
+        :param IntelAPIClient api_client: CrowdStrike API client
+        :param logging logger: logging class
+        :param Namespace args: ArgumentParser class
+    """
     def __init__(self,
                  config: ConfigHandler,
                  api_client: IntelAPIClient,
@@ -392,6 +401,7 @@ class ImportHandler:
         if self.args.clean_tags:
             self.importer.remove_crowdstrike_tags()
 
+        # Using parsed arguments, import actors/reports/indicators
         self.import_new_events()
 
         if self.args.max_age is not None:
@@ -469,7 +479,7 @@ def print_intro(logg: logging.Logger, args: ArgumentParser) -> None:
 def main():
     """Implement Main routine."""
     args = parse_command_line()
-
+    # Initialize main and splash loggers
     loggers = setup_logging(args)
 
     print_intro(loggers.splash, args)
@@ -480,12 +490,12 @@ def main():
         do_finished(loggers.splash, args)
         raise SystemExit(
             "Invalid configuration specified, unable to continue.")
-
+    # Utilize ConfigParser to build various settings, galaxy maps
     config = ConfigHandler(args.config_file)
     config.build(args)
 
     intel_api_client = create_intel_api_client(config, loggers.main)
-
+    # Handle deletion/importing of CrowdStrike data locally and on MISP
     import_handler = ImportHandler(config, intel_api_client,
                                    loggers.main, args)
     import_handler.build()
