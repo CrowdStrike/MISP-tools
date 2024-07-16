@@ -50,6 +50,8 @@ class ReportsImporter:
                  intel_api_client: IntelAPIClient,
                  crowdstrike_org_uuid: str,
                  reports_timestamp_filename: str,
+                 distribution: int,
+                 sharing_group_id: int,
                  settings: dict,
                  import_settings: dict,
                  logger: Logger,
@@ -67,6 +69,10 @@ class ReportsImporter:
             UUID for the CrowdStrike organization within the MISP instance
         reports_timestamp_filename : str
             Filename for the reports _marker tracking file
+        distribution : int
+            Distribution level for the event
+        sharing_group_id : int
+            Sharing group ID if distribution level set to 4 (Sharing Group)
         settings : dict
             Dictionary of configuration settings
         import_settings : dict
@@ -81,6 +87,8 @@ class ReportsImporter:
         self.misp = misp_client
         self.intel_api_client = intel_api_client
         self.reports_timestamp_filename = reports_timestamp_filename
+        self.distribution = distribution
+        self.sharing_group_id = sharing_group_id
         self.settings = settings
         self.import_settings = import_settings
         self.crowdstrike_org = self.misp.get_organisation(crowdstrike_org_uuid, True)
@@ -566,6 +574,12 @@ class ReportsImporter:
             event = MISPEvent()
             event.analysis = 2
             event.orgc = self.crowdstrike_org
+            # Set distribution level
+            event.distribution = self.distribution
+            # Set sharing group
+            if self.distribution == "4":
+                event.sharing_group_id = self.sharing_group_id
+            event.extends_uuid = ""
             if self.import_settings["publish"]:
                 event.published = True
             # Extended report details lookup

@@ -88,11 +88,15 @@ def get_affiliated_branches(ind):
                 branch = None
     return branches, actors
 
-def create_family_event(settings, impsettings, cs_org: str, fam_name: str, log_util: Logger, branch_list: list, actor_list: list):
+
+def create_family_event(settings, impsettings, cs_org: str, distribution: int, sharing_group_id: int, fam_name: str, log_util: Logger, branch_list: list, actor_list: list):
     log_util.debug("Start creation of malware family event object")
     event_to_tag = MISPEvent()
     event_to_tag.analysis = 2
     event_to_tag.orgc = cs_org
+    event_to_tag.distribution = distribution
+    if distribution == "4":
+        event_to_tag.sharing_group_id = sharing_group_id
     event_to_tag.info = f"Malware Family: {fam_name}"
     event_to_tag.add_tag(f'crowdstrike:indicator:malware:family="{fam_name}"')
     galaxy = impsettings["galaxy_map"].get(fam_name)
@@ -161,6 +165,8 @@ def find_or_create_family_event(ind,
                                 settings,
                                 imp_settings,
                                 org_id: str,
+                                distribution: int,
+                                sharing_group_id: int,
                                 log_util: Logger,
                                 misp_client: ExpandedPyMISP,
                                 feed_list: list,
@@ -182,6 +188,8 @@ def find_or_create_family_event(ind,
                 returned = create_family_event(settings,
                                                imp_settings,
                                                org_id,
+                                               distribution,
+                                               sharing_group_id,
                                                malware,
                                                log_util,
                                                branches,

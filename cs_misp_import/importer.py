@@ -34,7 +34,7 @@ class CrowdstrikeToMISPImporter:
     def __init__(self, intel_api_client, import_settings, provided_arguments, settings, logger: logging.Logger):
         """Construct an instance of the CrowdstrikeToMISPImporter class."""
         confirm_settings = ["misp_url", "misp_auth_key", "crowdstrike_org_uuid", "reports_timestamp_filename",
-                            "indicators_timestamp_filename", "actors_timestamp_filename"
+                            "indicators_timestamp_filename", "actors_timestamp_filename", "distribution", "sharing_group_id"
                             ]
         for item in confirm_settings:
             try:
@@ -72,14 +72,18 @@ class CrowdstrikeToMISPImporter:
         self.report_ids = {}
         self.actor_ids = {}
         self.indicator_ids = {}
+
         self.org_id = import_settings["crowdstrike_org_uuid"]
         self.all_galaxies = self.get_galaxies()
+
 
         if self.config["actors"]:
             self.actors_importer = ActorsImporter(self.misp_client,
                                                   self.intel_api_client,
                                                   import_settings["crowdstrike_org_uuid"],
                                                   import_settings["actors_timestamp_filename"],
+                                                  import_settings["distribution"],
+                                                  import_settings["sharing_group_id"],
                                                   self.settings,
                                                   self.import_settings,
                                                   logger=logger
@@ -89,6 +93,8 @@ class CrowdstrikeToMISPImporter:
                                                     self.intel_api_client,
                                                     import_settings["crowdstrike_org_uuid"],
                                                     import_settings["reports_timestamp_filename"],
+                                                    import_settings["distribution"],
+                                                    import_settings["sharing_group_id"],
                                                     self.settings,
                                                     self.import_settings,
                                                     logger=logger,
@@ -100,6 +106,8 @@ class CrowdstrikeToMISPImporter:
                                                           import_settings["indicators_timestamp_filename"],
                                                           self.config["indicators"],
                                                           self.config["delete_outdated_indicators"],
+                                                          import_settings["distribution"],
+                                                          import_settings["sharing_group_id"],
                                                           self.settings,
                                                           self.import_settings,
                                                           logger=logger,

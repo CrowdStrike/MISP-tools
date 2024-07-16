@@ -16,6 +16,8 @@ def get_feed_tags(do_not: bool = False):
 def retrieve_or_create_feed_events(settings,
                                    impsettings,
                                    org_id: str,
+                                   distribution: int,
+                                   sharing_group_id: int,
                                    misp_client: ExpandedPyMISP,
                                    feed_list: list,
                                    log_util: Logger
@@ -34,6 +36,9 @@ def retrieve_or_create_feed_events(settings,
             feed = MISPEvent()
             feed.analysis = 2
             feed.orgc = org_id
+            feed.distribution = distribution
+            if distribution == "4":
+                feed.sharing_group_id = sharing_group_id
             feed.info = f"{title_base} {IndicatorType[iname].value}"
             feed.add_tag(f"crowdstrike:indicator:feed:type: {iname.upper()}")
             # TYPE Taxonomic tag, all events

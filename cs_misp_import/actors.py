@@ -55,12 +55,14 @@ class ActorsImporter:
     :param intel_api_client: client for the Crowdstrike Intel API
     """
 
-    def __init__(self, misp_client, intel_api_client, crowdstrike_org_uuid, actors_timestamp_filename, settings, import_settings, logger = None):
+    def __init__(self, misp_client, intel_api_client, crowdstrike_org_uuid, actors_timestamp_filename, distribution, sharing_group_id, settings, import_settings, logger = None):
         """Construct an instance of the ActorsImporter class."""
         self.misp: ExpandedPyMISP = misp_client
         self.intel_api_client = intel_api_client
         self.actors_timestamp_filename = actors_timestamp_filename
         self.crowdstrike_org = self.misp.get_organisation(crowdstrike_org_uuid, True)
+        self.distribution = distribution
+        self.sharing_group_id = sharing_group_id
         self.settings = settings
         self.unknown = import_settings.get("unknown_mapping", "UNIDENTIFIED")
         self.import_settings = import_settings
@@ -257,12 +259,20 @@ class ActorsImporter:
         event = MISPEvent()
         event.analysis = 2
         event.orgc = self.crowdstrike_org
+
+        # Set distribution level
+        event.distribution = self.distribution
+        # Set sharing group
+        if self.distribution == "4":
+            event.sharing_group_id = self.sharing_group_id
+        event.extends_uuid = ""
         if self.import_settings["publish"]:
             event.published = True
         if actor.get('first_activity_date'):
             event.date = actor.get("first_activity_date")
         elif actor.get('last_activity_date'):
             event.date = actor.get("last_activity_date")
+
         details = {}
         for det in act_details:
             if det.get("id") == actor.get("id"):

@@ -71,6 +71,8 @@ class IndicatorsImporter:
                  intel_api_client,
                  crowdstrike_org_uuid,
                  indicators_timestamp_filename,
+                 distribution,
+                 sharing_group_id,
                  import_all_indicators,
                  delete_outdated,
                  settings,
@@ -82,6 +84,8 @@ class IndicatorsImporter:
         self.misp: ExpandedPyMISP = misp_client
         self.intel_api_client = intel_api_client
         self.indicators_timestamp_filename = indicators_timestamp_filename
+        self.distribution = distribution
+        self.sharing_group_id = sharing_group_id
         self.import_all_indicators = import_all_indicators
         self.delete_outdated = delete_outdated
         self.settings = settings
@@ -132,7 +136,7 @@ class IndicatorsImporter:
 
         # FEED EVENT SETUP
         self.feeds = retrieve_or_create_feed_events(
-            self.settings, self.import_settings, self.crowdstrike_org, self.misp, self.feeds, self.log
+            self.settings, self.import_settings, self.crowdstrike_org, self.distribution, self.sharing_group_id, self.misp, self.feeds, self.log
         )
 
         # FAMILY EVENT SEARCH
@@ -468,6 +472,8 @@ class IndicatorsImporter:
                                                                     self.settings,
                                                                     self.import_settings,
                                                                     self.crowdstrike_org,
+                                                                    self.distribution,
+                                                                    self.sharing_group_id,
                                                                     self.log,
                                                                     self.misp,
                                                                     self.feeds,
