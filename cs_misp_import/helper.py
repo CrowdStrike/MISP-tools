@@ -166,7 +166,7 @@ def get_threat_actor_galaxy_id(client: ExpandedPyMISP):
     galaxies = client.galaxies()
     for gal in galaxies:
         if gal["Galaxy"]["name"] == "Threat Actor":
-            ta_galaxy_id = gal["Galaxy"]["uuid"]
+            ta_galaxy_id = gal["Galaxy"]["id"]
     return ta_galaxy_id
 
 
