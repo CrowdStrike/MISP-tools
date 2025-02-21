@@ -15,6 +15,7 @@ import datetime
 from logging import Logger
 import os
 import time
+from io import BytesIO 
 import concurrent.futures
 try:
     from pymisp import MISPObject, MISPEvent, MISPAttribute, ExpandedPyMISP, PyMISPError
@@ -538,9 +539,9 @@ class ReportsImporter:
             if details.get("attachments"):
                 for attachment in details.get("attachments"):
                     pdfreport = self.intel_api_client.get_report_pdf(report_id)
-                    attributes.append(rpt.add_attribute("report-file", attachment.get("url"), data=pdfreport, disable_correlation=True, **seen))
+                    attributes.append(rpt.add_attribute("report-file", attachment.get("url"), data=BytesIO(pdfreport), disable_correlation=True, **seen))
             event.add_object(rpt)
-
+        
         # Report Annotation and full text
         rich_desc = details.get("rich_text_description", None)
         long_desc = details.get("long_description", None)
