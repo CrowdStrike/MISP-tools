@@ -537,7 +537,8 @@ class ReportsImporter:
             attributes.append(rpt.add_attribute("link", report.get("url"), disable_correlation=True, **seen))
             if details.get("attachments"):
                 for attachment in details.get("attachments"):
-                    attributes.append(rpt.add_attribute("report-file", attachment.get("url"), disable_correlation=True, **seen))
+                    pdfreport = self.intel_api_client.get_report_pdf(report_id)
+                    attributes.append(rpt.add_attribute("report-file", attachment.get("url"), data=pdfreport, disable_correlation=True, **seen))
             event.add_object(rpt)
 
         # Report Annotation and full text
