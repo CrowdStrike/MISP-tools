@@ -539,8 +539,12 @@ class ReportsImporter:
             if details.get("attachments"):
                 for attachment in details.get("attachments"):
                     pdfreport = self.intel_api_client.get_report_pdf(report_id)
-                    attributes.append(rpt.add_attribute("report-file", attachment.get("url"), data=BytesIO(pdfreport), disable_correlation=True, **seen))
-            event.add_object(rpt)
+                    if isinstance(pdfreport, bytes):
+                        pdfname = attachment.get("url").split('/')[-1]
+                        attributes.append(rpt.add_attribute("report-file", pdfname, data=BytesIO(pdfreport), disable_correlation=True, **seen))
+                    else:
+                        attributes.append(rpt.add_attribute("report-file", pdfname, disable_correlation=True, **seen))    
+         event.add_object(rpt)
         
         # Report Annotation and full text
         rich_desc = details.get("rich_text_description", None)
