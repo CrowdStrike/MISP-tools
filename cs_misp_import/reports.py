@@ -524,28 +524,35 @@ class ReportsImporter:
         return event
 
     def add_report_content(self, report: dict, event: MISPEvent, details: dict, report_id: str, seen: dict) -> MISPEvent:
-        attributes: list[MISPAttribute] = []
         rpt_cat = "Internal reference"
         short_desc = details.get("short_description")
         if not short_desc:
             short_desc = report.get("short_description")
-        if short_desc:
-            rpt = MISPObject("report")
-            if report_id:
-                attributes.append(rpt.add_attribute("case-number", report_id, category=rpt_cat, disable_correlation=True, **seen))
-            attributes.append(rpt.add_attribute("type", "Report", category=rpt_cat, disable_correlation=True, **seen))
-            attributes.append(rpt.add_attribute("summary", short_desc, category=rpt_cat, disable_correlation=True, **seen))
-            attributes.append(rpt.add_attribute("link", report.get("url"), disable_correlation=True, **seen))
-            if details.get("attachments"):
-                for attachment in details.get("attachments"):
-                    pdfreport = self.intel_api_client.get_report_pdf(report_id)
-                    if isinstance(pdfreport, bytes):
-                        pdfname = attachment.get("url").split('/')[-1]
-                        attributes.append(rpt.add_attribute("report-file", pdfname, data=BytesIO(pdfreport), disable_correlation=True, **seen))
-                    else:
-                        attributes.append(rpt.add_attribute("report-file", pdfname, disable_correlation=True, **seen))    
-         event.add_object(rpt)
-        
+
+        rpt = MISPObject("report")
+        rpt.add_attribute("case-number", report_id, category=rpt_cat, disable_correlation=True, **seen)
+        rpt.add_attribute("type", "Report", category=rpt_cat, disable_correlation=True, **seen)
+        rpt.add_attribute("summary", short_desc, category=rpt_cat, disable_correlation=True, **seen)
+        rpt.add_attribute("link", report.get("url"), disable_correlation=True, **seen)
+
+        pdfreport = self.intel_api_client.get_report_pdf(report.get('id'))
+
+        attachments = details.get("attachments",[]) #CSA CSIT
+        if not attachments:
+            attachments = report.get("attachments",[]) #CSECR CSDR CSID
+
+        if len(attachments) == 1:
+            pdfreport = self.intel_api_client.get_report_pdf(report.get('id'))
+            if isinstance(pdfreport, bytes):
+                rpt.add_attribute("report-file", attachments[0].get("url"), data=BytesIO(pdfreport), disable_correlation=True, **seen)
+            else:
+                self.log.error("Failed to download attachment for report id: %s", report.get('id'))
+        else:
+            for attachment in details.get("attachments", []):
+                rpt.add_attribute("report-file", attachment.get("url"), disable_correlation=True, **seen)
+
+        event.add_object(rpt)
+
         # Report Annotation and full text
         rich_desc = details.get("rich_text_description", None)
         long_desc = details.get("long_description", None)
@@ -553,15 +560,14 @@ class ReportsImporter:
         if long_desc or rich_desc:
             # Moving over to just using the event report for the MD formatted content
             if rich_desc:
-                rich_desc = rich_desc
-            md_version = markdownify(rich_desc)
+                md_version = markdownify(rich_desc)
             if not md_version:
                 md_version = long_desc
             if not md_version:
                 md_version = reg_desc
 
             md_version = md_version.replace("\t", "").replace("        ", "").replace("   ", "")
-            
+
             event.add_event_report(report.get("name"), md_version)
 
         return event
