@@ -5,6 +5,7 @@ class Adversary(Enum):
 
     BAT = "Unattributed"
     BEAR = "Russian Federation"
+    BISON = "Belarus"
     BUFFALO = "Vietnam"
     CHOLLIMA = "North Korea (DPRK)"
     CRANE = "Republic of Korea (ROK)"
