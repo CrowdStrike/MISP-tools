@@ -52,7 +52,11 @@ class IntelAPIClient:
         self.valid_report_types = [x.name.lower() for x in ReportType]
         self.request_size_limit = api_request_max
         self.log = logger
-
+ 
+    def get_report_pdf(self, report_id):
+        return self.falcon.get_report_pdf(report_id)
+        
+    
     def get_reports(self, start_time, report_filter: str = None):
         """Get all the reports that were updated after a certain moment in time (UNIX).
 

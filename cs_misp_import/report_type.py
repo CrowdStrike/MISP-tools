@@ -15,6 +15,8 @@ class ReportType(Enum):
     CSMR = "Monthly Report"
     CSTA = "Threat Assessment"
     CSWR = "Weekly Report"
+    CSECR = "Courtesy Report"
+    CSID = "Intrusion Digest"
     NOTICE = "Notice"
     GTAC = "Unmapped"
     TEST = "Test Report"
