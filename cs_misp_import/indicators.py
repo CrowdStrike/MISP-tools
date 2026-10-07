@@ -36,6 +36,7 @@ from .helper import (
     get_actor_galaxy_map
     )
 from .indicator_type import IndicatorType
+from .intel_client import CrowdStrikeAPIError
 from .indicator_feeds import retrieve_or_create_feed_events
 from .indicator_family import check_and_set_threat_level, find_or_create_family_event, get_affiliated_branches, retrieve_family_events
 from .indicator_tags import (
@@ -141,14 +142,19 @@ class IndicatorsImporter:
         # MAIN INDICATORS PROCESSING
         self.log.info("Starting import of CrowdStrike indicators into MISP.")
         indicators_count = 0
+        api_error = False
 
         # Trying something different
-        for indicators_page in self.intel_api_client.get_indicators(start_get_events,
-                                                                    self.delete_outdated,
-                                                                    self.import_settings["type"]
-                                                                    ):
-            self.push_indicators(indicators_page)
-            indicators_count += len(indicators_page)
+        try:
+            for indicators_page in self.intel_api_client.get_indicators(start_get_events,
+                                                                        self.delete_outdated,
+                                                                        self.import_settings["type"]
+                                                                        ):
+                self.push_indicators(indicators_page)
+                indicators_count += len(indicators_page)
+        except CrowdStrikeAPIError as err:
+            self.log.warning("Failed to retrieve indicators from CrowdStrike: %s", err)
+            api_error = True
         # Load it all first
         # all_indicators = []
         # for indicators_page in self.intel_api_client.get_indicators(start_get_events,
@@ -161,7 +167,7 @@ class IndicatorsImporter:
         # self.push_indicators(all_indicators)
 
         # Old way
-        if indicators_count == 0:
+        if indicators_count == 0 and not api_error:
             self._note_timestamp(time_send_request.timestamp())
 
         # New way

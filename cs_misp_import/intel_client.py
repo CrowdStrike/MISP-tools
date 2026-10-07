@@ -12,6 +12,11 @@ except ImportError as no_falconpy:
         ) from no_falconpy
 from ._version import __version__ as MISPImportVersion
 
+
+class CrowdStrikeAPIError(Exception):
+    """Raised when the CrowdStrike API returns an error response."""
+
+
 current = FALCONPY_VERSION.split(".")
 requested = "0.9.0".split(".")
 if bool(float(f"{current[0]}.{current[1]}") < float(f"{requested[0]}.{requested[1]}")):
@@ -120,8 +125,17 @@ class IntelAPIClient:
                 limit=self.request_size_limit,
                 include_deleted=include_deleted
                 )
+            status_code = resp_json.get("status_code", 0)
             if "body" in resp_json:
                 resp_json = resp_json["body"]
+
+            errors = resp_json.get("errors", [])
+            if errors or status_code >= 400:
+                error_detail = errors[0] if errors else {"message": "Unexpected API error"}
+                raise CrowdStrikeAPIError(
+                    f"CrowdStrike API error (HTTP {status_code}): "
+                    f"{error_detail.get('message', error_detail)}"
+                )
 
             first_run = False
 
