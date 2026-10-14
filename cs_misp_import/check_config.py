@@ -192,7 +192,8 @@ def generate_primer():
         "unattributed_title": "WARNING",
         "malware_family_title": "WARNING",
         "event_save_memory_refresh_interval": "WARNING",
-        "misp_malware_family_range": "WARNING"
+        "misp_malware_family_range": "WARNING",
+        "distribution": "WARNING"
     }
     bool_keys = {
         key_item: "WARNING" for key_item in BOOL_KEYS
@@ -329,6 +330,7 @@ def validate_max_threads(c_key: str, c_val: str, keyz: dict, logg: Configuration
 
 
 def validate_refresh_tolerance(c_key: str, c_val: str, keyz: dict, logg: ConfigurationCheckResult):
+    """Validate the event save memory refresh interval parameter."""
     if c_key == "event_save_memory_refresh_interval":
         try:
             hit = False
@@ -342,6 +344,37 @@ def validate_refresh_tolerance(c_key: str, c_val: str, keyz: dict, logg: Configu
                 keyz[c_key] = hit
         except ValueError:
             keyz[c_key] = invalid(logg, c_val)
+
+
+def validate_distribution(c_key: str, c_val: str, keyz: dict, logg: ConfigurationCheckResult):
+    """Validate the MISP distribution level (0-4)."""
+    if c_key == "distribution":
+        try:
+            val = int(c_val)
+            if val < 0 or val > 4:
+                keyz[c_key] = invalid(logg, c_val)
+        except ValueError:
+            keyz[c_key] = invalid(logg, c_val)
+    if c_key == "sharing_group_id":
+        try:
+            val = int(c_val) if c_val else 0
+            if val < 0:
+                keyz[c_key] = invalid(logg, c_val)
+        except ValueError:
+            keyz[c_key] = invalid(logg, c_val)
+
+
+def validate_sharing_group_requirement(config: ConfigParser, logg: ConfigurationCheckResult):
+    """Validate that sharing_group_id is present when distribution is 4."""
+    dist_val = config.get("MISP", "distribution", fallback="0")
+    try:
+        if int(dist_val) == 4:
+            sg_id = config.get("MISP", "sharing_group_id", fallback="").strip()
+            if not sg_id:
+                logg.extra = {"key": "sharing_group_id"}
+                failure(logg, "ERROR: sharing_group_id is required when distribution is 4")
+    except ValueError:
+        pass  # Distribution value itself is invalid; caught by validate_distribution
 
 
 def validate_login(auth: dict, logg: ConfigurationCheckResult):
@@ -392,9 +425,11 @@ def validate_config(config_file: str = None, debugging: bool = False, no_banner:
             validate_galaxies_mapping(*vals)
             validate_org_id(*vals)
             validate_max_threads(*vals)
+            validate_distribution(*vals)
             found_keys.append(key)
 
     validate_login(auth_info, out)
+    validate_sharing_group_requirement(config, out)
     check_for_missing(out, keys, found_keys)
 
     return is_valid_config(out)

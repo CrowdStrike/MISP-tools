@@ -163,6 +163,15 @@ def parse_command_line() -> Namespace:
                         dest="max_age",
                         help="Maximum age of objects to be stored in MISP in days."" Objects older will be deleted.")
 
+    parser.add_argument("--distribution",
+                        type=int,
+                        dest="distribution",
+                        choices=[0, 1, 2, 3, 4],
+                        help="MISP distribution level for created events and galaxy clusters "
+                             "(0=org only, 1=community, 2=connected, 3=all, 4=sharing group). "
+                             "Overrides the value in the configuration file.",
+                        required=False, default=None)
+
     parsed = parser.parse_args()
 
     if parsed.obliterate and parsed.fullmonty:
@@ -258,6 +267,10 @@ class ConfigHandler:
 
     def create_import_settings(self, args: Namespace) -> None:
         """Return a dictionary of assigned settings from the configuration file."""
+        # Resolve distribution level: CLI flag takes precedence over INI value.
+        config_distribution = int(self.settings["MISP"].get("distribution", "0"))
+        distribution = args.distribution if args.distribution is not None else config_distribution
+
         self.import_settings = {
             "misp_url": self.settings["MISP"]["misp_url"],
             "misp_auth_key": self.settings["MISP"]["misp_auth_key"],
@@ -278,7 +291,9 @@ class ConfigHandler:
             "verbose_tags": args.verbose,
             "ext_headers": self.ex_headers,
             "proxy": self.proxies,
-            "actor_map": {}
+            "actor_map": {},
+            "distribution": distribution,
+            "sharing_group_id": int(self.settings["MISP"].get("sharing_group_id", "0").strip() or "0")
         }
         if not self.import_settings["unknown_mapping"]:
             self.import_settings["unknown_mapping"] = "Unidentified"

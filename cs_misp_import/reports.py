@@ -566,6 +566,9 @@ class ReportsImporter:
             event = MISPEvent()
             event.analysis = 2
             event.orgc = self.crowdstrike_org
+            event.distribution = self.import_settings["distribution"]
+            if self.import_settings["distribution"] == 4:
+                event.sharing_group_id = self.import_settings["sharing_group_id"]
             if self.import_settings["publish"]:
                 event.published = True
             # Extended report details lookup
