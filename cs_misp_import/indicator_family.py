@@ -93,6 +93,9 @@ def create_family_event(settings, impsettings, cs_org: str, fam_name: str, log_u
     event_to_tag = MISPEvent()
     event_to_tag.analysis = 2
     event_to_tag.orgc = cs_org
+    event_to_tag.distribution = impsettings["distribution"]
+    if impsettings["distribution"] == 4:
+        event_to_tag.sharing_group_id = impsettings["sharing_group_id"]
     event_to_tag.info = f"Malware Family: {fam_name}"
     event_to_tag.add_tag(f'crowdstrike:indicator:malware:family="{fam_name}"')
     galaxy = impsettings["galaxy_map"].get(fam_name)
