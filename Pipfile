@@ -8,7 +8,7 @@ urllib3 = ">=1.26.15"
 requests = "*"
 pymisp = "*"
 crowdstrike-falconpy = "*"
-certifi = ">=2022.12.07"
+certifi = ">=2026.10.19"
 markdownify = "*"
 
 [dev-packages]
